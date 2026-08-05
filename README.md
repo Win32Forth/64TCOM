@@ -71,7 +71,7 @@ Classic sources used for reference are kept in this repo under **`REFERENCE_FILE
 | Project name & tree | **Done** (`64TCOM` under Documents; this repo) |
 | Phase 0 design | **In progress / largely locked** (see `64DESIGN/`) |
 | Director sources (`64TCOMSRC`) | **`64HOST.fth` host layer present**; full director not yet |
-| GEN pack | **Placeholders** (not loadable on 64Forth yet) |
+| GEN pack | **Loadable stubs** (`TARGETGEN.fth` → HOST/ASM/OPT/LIB; try `GEN-DEMO`) |
 | Utilities | **Reserved** (empty of tools) |
 | Reference F-PC / TCOM | **Present** under `REFERENCE_FILES/` |
 | Runnable compile on 64Forth | **Not yet** |

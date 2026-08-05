@@ -1,13 +1,64 @@
-\ ASMGEN.fth — Stub assembler for 64TCOM GEN target
+\ ASMGEN.fth — Stub assembler vocabulary for 64TCOM GEN
 \
+\ Public domain.
 \ Classic analogue: tcom25/TCOMGEN/ASMGEN.FTH
-\ For GEN there is no real instruction encoding. This file only needs to
-\ satisfy setassem / vocabulary hooks so CODE-shaped definitions can be
-\ entered and ended without generating machine code.
 \
-\ A real Forth-style assembler (prefix or postfix) belongs in a later
-\ target pack, not here.
+\ GEN does not encode real machine instructions. This file provides a
+\ lightweight ASMGEN vocabulary and no-op assembler lifecycle words so
+\ CODE-shaped definitions and OPTGEN hooks have something to call.
 \
-\ Status: placeholder — not loadable yet.
+\ Requires: 64HOST.fth already loaded.
 
-.( ASMGEN.fth: stub assembler placeholder — not implemented yet. ) cr
+ANEW ASMGEN
+
+FORTH DEFINITIONS
+DECIMAL
+
+VOCABULARY ASMGEN
+: [ASMGEN]  ( -- )  ASMGEN ; IMMEDIATE
+
+\ Assembler lifecycle (stubs)
+FALSE VALUE ?ASM-ACTIVE
+
+DEFER SETASSEM
+DEFER A;
+DEFER END-CODE
+
+: (SETASSEM)  ( -- )
+  TRUE TO ?ASM-ACTIVE
+  ALSO ASMGEN
+  ;
+' (SETASSEM) IS SETASSEM
+
+: (A;)  ( -- )
+  \ classic a; finishes an instruction — nothing for GEN
+  ;
+' (A;) IS A;
+
+: (END-CODE)  ( -- )
+  ?ASM-ACTIVE IF  PREVIOUS  FALSE TO ?ASM-ACTIVE  THEN
+  ;
+' (END-CODE) IS END-CODE
+
+\ Aliases used by classic sources
+: C;  ( -- )  END-CODE ; IMMEDIATE
+
+\ Local-label style no-ops (real labels arrive with a real assembler later)
+: LLAB-INIT   ( -- )  ;
+: LL-GLOBAL?  ( -- flag )  FALSE ;
+: LL-ERRS?    ( -- )  ;
+: LLSET-      ( -- )  ;
+
+\ Emit helpers that write into the *target* image (via 64HOST), not host HERE.
+\ Used if someone assembles “bytes” under GEN.
+: IC,  ( b -- )  C,-T ;     \ first/opcode-ish byte
+: OC,  ( b -- )  C,-T ;     \ other bytes
+: CC,  ( b -- )  C,-T ;     \ call opcode byte (GEN: same)
+: O,   ( x -- )  ,-T  ;     \ cell-sized operand
+
+: .ASMGEN  ( -- )
+  CR ." ASMGEN: stub assembler for 64TCOM GEN  active=" ?ASM-ACTIVE . CR
+  ;
+
+FORTH DEFINITIONS
+CR ." ASMGEN loaded (stub assembler)." CR

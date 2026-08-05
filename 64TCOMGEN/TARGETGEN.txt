@@ -1,40 +1,64 @@
-TARGETGEN.txt — Notes on the 64TCOM GEN (generic) target
-========================================================
+TARGETGEN.txt — 64TCOM GEN (generic) target
+============================================
 Product:  64TCOM
-Pack:     GEN (generic / tutorial)
-Host:     64Forth, native 64-bit cells
-Status:   Layout reserved; implementation follows Phase 0/1/2 plan
+Pack:     GEN
+Host:     64Forth (native 64-bit cells)
+Status:   Phase 2 scaffold — loadable stubs (2026-08-05)
 
 Purpose
 -------
-GEN is the first target pack for 64TCOM. It does not generate code for a
-real microprocessor. It exercises the 64TCOM director: symbols, library vs
-target definitions, deferred interface hooks, and a readable compile log.
+GEN does not generate code for a real microprocessor. It exercises the
+64TCOM host layer and a thin director: symbols/cookies, deferred hooks,
+target image buffers, and a readable compile log.
 
-Philosophy (from classic TCOMGEN)
----------------------------------
-  1. Director (64TCOMSRC): symbols, target memory abstraction, defining
-     words, deferred library inclusion — directs the compile.
-  2. Target assembler (ASMGEN.fth): for GEN, a stub; no real opcodes.
-  3. Optimizer / interface (OPTGEN.fth): installs deferred COMP_* / END-* /
-     START-* hooks (required set from classic TCOMINTF).
-  4. Library (LIBGEN.fth): stub runtime words that announce themselves when
-     included; enough shape for control structures and literals later.
+Load
+----
+  On 64Forth, CHDIR to 64TCOMGEN (or INCLUDE this pack by full path):
 
-Files in 64TCOMGEN
-------------------
-  TARGETGEN.fth   Load / build file for the GEN configuration of 64TCOM
-  ASMGEN.fth      Stub assembler vocabulary
-  OPTGEN.fth      Deferred-word linkage (target interface)
-  LIBGEN.fth      Stub target library
-  TESTGEN.fth     Sample source to “compile” under GEN
-  TARGETGEN.txt   This documentation
+    FLOAD TARGETGEN.fth
+
+  That loads:
+
+    ../64TCOMSRC/64HOST.fth
+    ASMGEN.fth
+    OPTGEN.fth
+    LIBGEN.fth
+
+  Then try:
+
+    .GEN
+    GEN-DEMO
+    FLOAD TESTGEN.fth
+
+GEN tag stream (in T-CODE-BASE image)
+-------------------------------------
+  $01  LIT     + T-CELL
+  $02  CALL    + T-CELL
+  $03  RET
+  $04  NOP
+  $05  JMP     + T-CELL
+  $06  0BRANCH + T-CELL
+  $10  HEADER  + length + name bytes
+
+Thin director words (OPTGEN)
+----------------------------
+  TARGET-INIT   clear/allocate image, set order
+  T: name … ;T  target definition (host word returns cookie)
+  L: name … ;L  library-style definition
+  G,            compile literal tag
+  GCALL / GJMP  compile call/jump tag
+  LIB,          ' DUP# LIB,  — call library cookie
+  GEN-FINISH    cleanup / optional “save” message
+  GEN-DEMO      built-in smoke test
+
+Library cookies (LIBGEN) use safe names ending in # :
+  DUP# DROP# NOOP# LIT# EXIT# …
+
+Not yet
+-------
+  Full COMPILE1/2 director, real assembler, real ITC/ARM64, image file write.
 
 Classic reference
 -----------------
-  ~/Documents/OldForthSources/tcom25/TCOMGEN/
-  ~/Documents/OldForthSources/tcom25/TCOM/TCOMINTF.DOC
-  ~/Documents/OldForthSources/tcom25/TCOMGEN/TCOMGEN.TXT
-
-Later real targets (e.g. ARM64 ITC hybrid) will live in sibling folders
-under 64TCOM, not inside 64TCOMGEN.
+  REFERENCE_FILES/tcom25/TCOMGEN/
+  REFERENCE_FILES/tcom25/TCOM/TCOMINTF.DOC

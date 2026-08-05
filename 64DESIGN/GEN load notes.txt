@@ -1,0 +1,32 @@
+GEN pack load wiring (Phase 2 scaffold)
+=======================================
+Date: 2026-08-05
+
+Load chain (64TCOMGEN/TARGETGEN.fth)
+------------------------------------
+  1. ../64TCOMSRC/64HOST.fth
+  2. ASMGEN.fth     stub assembler voc + IC,/OC, → C,-T
+  3. OPTGEN.fth     deferred hooks + T: ;T L: ;L + GEN tag stream
+  4. LIBGEN.fth     library cookies (DUP# …) + LIB,
+
+How to run on 64Forth
+---------------------
+  CHDIR to …/64TCOM/64TCOMGEN
+  FLOAD TARGETGEN.fth
+  .GEN
+  GEN-DEMO
+  FLOAD TESTGEN.fth
+
+GEN tag bytes in code image
+---------------------------
+  01 LIT+cell  02 CALL+cell  03 RET  04 NOP  05 JMP+cell  06 0BR+cell
+  10 HDR + len + name
+
+Thin director (not full COMPILE1/2)
+-----------------------------------
+  TARGET-INIT  T: ;T  L: ;L  G, GCALL GJMP  LIB,  GEN-FINISH  GEN-DEMO
+
+Next steps
+----------
+  Full director port, real assembler, real target (e.g. ARM64 ITC),
+  optional image file write.

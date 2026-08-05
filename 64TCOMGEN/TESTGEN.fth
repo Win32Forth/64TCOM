@@ -1,14 +1,49 @@
-\ TESTGEN.fth — Sample application source for 64TCOM GEN
+\ TESTGEN.fth — Sample “compile” for 64TCOM GEN
 \
-\ Classic analogue: tcom25/TCOMGEN/TEST.FTH
-\ When GEN is live, this file is what you “compile” to exercise the
-\ director. Expected result: a readable log/listing, not a runnable binary.
+\ Public domain.
+\ Requires: FLOAD TARGETGEN.fth  first (or load this only after GEN is up).
 \
-\ Status: placeholder sample — expand when GEN can compile.
+\   FLOAD TARGETGEN.fth
+\   FLOAD TESTGEN.fth
 
-\ Minimal sketch (not yet compiled by 64TCOM):
-\
-\   : HI  ( -- )  ." Hello from 64TCOM GEN" cr ;
-\   HI
-\
-.( TESTGEN.fth: GEN test sample placeholder — not implemented yet. ) cr
+ANEW TESTGEN
+
+FORTH DEFINITIONS
+DECIMAL
+
+CR ." TESTGEN: compiling sample under GEN…" CR
+
+TARGET-INIT
+/SHOW
+
+L: HELLO-MSG
+  $0048 G,          \ demo literal
+  $0069 G,
+;L
+
+T: HELLO
+  $0048 G,          \ 'H'
+  $0065 G,          \ 'e'
+  ['] DUP#  LIB,
+  ['] DROP# LIB,
+  ['] NOOP# LIB,
+;T
+
+T: MAIN
+  HELLO GCALL       \ HELLO returns cookie; CALL it
+  0 G,
+;T
+
+GEN-FINISH
+
+CR ." TESTGEN complete." CR
+." HERE-T=" HERE-T .  ."  COLD-START=" COLD-START . CR
+." HELLO cookie=" HELLO .  ."  MAIN cookie=" MAIN . CR
+." Dump (up to 64 bytes):" CR
+HERE-T 64 MIN  0 ?DO
+  I C@-T
+  BASE @ >R HEX  0 <# # # #> TYPE SPACE  R> BASE !
+  I 15 AND 15 = IF CR THEN
+LOOP
+CR
+." TESTGEN: OK (GEN log + image tags only)" CR
