@@ -1,0 +1,39 @@
+64TCOM Phase 3 — ARM64 real target (64TCOMARM64)
+================================================
+Date: 2026-08-05
+
+Naming
+------
+  Pack directory:  64TCOMARM64/
+  Load word/file:  TARGETARM64.fth
+  Assembler file:  ASMARM64.fth
+  Optimizer/hooks: OPTARM64.fth
+  Library:         LIBARM64.fth
+
+  Use ARM64 / AArch64 in docs, not “M1 assembler” as the product name.
+  M1/M2/… are Apple Silicon products that implement AArch64.
+
+Goals
+-----
+  3.0  First real target pack: emit real code into target image;
+       ITC hybrid runtime; replace GEN cookies with real entries.
+  3.1  Grow Forth-style assembler as needed by the library and demos.
+
+Non-goals (first milestone)
+---------------------------
+  Full A64 ISA, NEON, system calls, complete Mach-O tool chain,
+  multi-OS support beyond “image in memory + dump”.
+
+Work style
+----------
+  Keep GEN working. ARM64 pack is additive.
+  No >R in DO loops; prefer VARIABLE scratch over fragile locals
+  until 64Forth locals policy is fully documented for this tree.
+  Director (64DIR) stays shared.
+
+Exit criteria (minimal Phase 3.0)
+---------------------------------
+  FLOAD TARGETARM64.fth
+  Demo compiles something with real A64 bytes (not GEN tags only)
+  .SYMBOLS / dump show sensible addresses
+  FWD-style forward resolve still works via RESOLVE-1

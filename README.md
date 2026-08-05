@@ -25,9 +25,9 @@ Classic sources used for reference are kept in this repo under **`REFERENCE_FILE
 ## Design goals (locked for Phase 0)
 
 - **Host:** 64Forth, native **64-bit cells**
-- **First target pack:** **GEN** (generic) — stub compile / log; **no assembler**, no real machine code
-- **Later real targets:** **ITC hybrid** (assembly primitives + high-level Forth), with a Forth-style assembler when needed
-- **Assembler syntax** (prefix vs postfix/infix): deferred until a real target pack needs it
+- **Tutorial pack:** **GEN** (`64TCOMGEN/`) — tag stream / log; no real CPU code
+- **First real pack:** **ARM64** (`64TCOMARM64/`) — AArch64 / Apple Silicon; ITC hybrid + Forth-style assembler (Phase 3)
+- **Assembler syntax** (prefix vs postfix): chosen with the ARM64 pack as it grows
 
 ---
 
@@ -36,25 +36,33 @@ Classic sources used for reference are kept in this repo under **`REFERENCE_FILE
 ```text
 64TCOM/
   README.md                 This overview
-  64DESIGN/                 Design documents (.docx)
-  64TCOMSRC/                64TCOM director / compiler sources (in progress)
-  64TCOMGEN/                GEN target pack (placeholders)
+  64DESIGN/                 Design documents + STATUS.txt
+  64TCOMSRC/                Director / host (64HOST, 64DIR)
+  64TCOMGEN/                GEN tutorial pack (working demos)
+  64TCOMARM64/              ARM64 real target pack (Phase 3)
   64TCOMUTILS/              Utilities later (debugger, listing, xref, …)
   REFERENCE_FILES/
     FPC36/                  Classic F-PC 3.6 sources & docs (reference)
     tcom25/                 Classic TCOM 2.5 multi-target tree (reference)
 ```
 
-### GEN pack files (`64TCOMGEN/`)
+### GEN pack (`64TCOMGEN/`) — working
 
 | File | Role |
 |------|------|
-| `TARGETGEN.fth` | Load / configuration for GEN |
-| `ASMGEN.fth` | Stub assembler |
-| `OPTGEN.fth` | Deferred target-interface hooks |
-| `LIBGEN.fth` | Stub target library |
-| `TESTGEN.fth` | Sample source for GEN tests |
-| `TARGETGEN.txt` | GEN pack notes |
+| `TARGETGEN.fth` | Load HOST → DIR → ASM → OPT → LIB |
+| `ASMGEN.fth` / `OPTGEN.fth` / `LIBGEN.fth` | Stub assembler, hooks, cookies |
+| `GENDEMO.fth` / `FWDDEMO.fth` | Demos |
+
+### ARM64 pack (`64TCOMARM64/`) — Phase 3
+
+| File | Role |
+|------|------|
+| `TARGETARM64.fth` | Load chain (planned) |
+| `ASMARM64.fth` | AArch64 Forth-style assembler (planned) |
+| `OPTARM64.fth` | Target interface hooks (planned) |
+| `LIBARM64.fth` | ITC hybrid library (planned) |
+| `README.txt` / `TARGETARM64.txt` | Naming and notes |
 
 ### Design documents (`64DESIGN/`)
 
@@ -68,14 +76,12 @@ Classic sources used for reference are kept in this repo under **`REFERENCE_FILE
 
 | Area | Status |
 |------|--------|
-| Project name & tree | **Done** (`64TCOM` under Documents; this repo) |
-| Phase 0 design | **In progress / largely locked** (see `64DESIGN/`) |
-| Director sources (`64TCOMSRC`) | **`64HOST` + `64DIR`** (symbols, T:/G'); full COMPILE1/2 not yet |
-| GEN pack | **Loadable** (`TARGETGEN` → HOST/DIR/ASM/OPT/LIB; `GEN-DEMO`) |
+| Project name & tree | **Done** |
+| Director (`64TCOMSRC`) | **`64HOST` + `64DIR`** (symbols, T:/L:/G', forwards) |
+| GEN pack | **Done for demos** (`GEN-DEMO`, `FWD-DEMO`) |
+| ARM64 pack | **Named `64TCOMARM64`** — implement Phase 3 next |
 | Living status | **`64DESIGN/STATUS.txt`** |
-| Utilities | **Reserved** (empty of tools) |
-| Reference F-PC / TCOM | **Present** under `REFERENCE_FILES/` |
-| Runnable compile on 64Forth | **Not yet** |
+| Reference F-PC / TCOM | **`REFERENCE_FILES/`** |
 
 ### Planned phases (summary)
 

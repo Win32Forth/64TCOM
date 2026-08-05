@@ -1,7 +1,7 @@
 64TCOM — Project status (living document)
 ==========================================
 Update this file when phase boundaries move.
-Last updated: 2026-08-05 (Phase 1.3)
+Last updated: 2026-08-05 (Phase 3 named: 64TCOMARM64)
 
 YOU ARE HERE
 ------------
@@ -9,8 +9,9 @@ YOU ARE HERE
   Phase 1 host     DONE   — 64HOST.fth (vocs, image buffers, hooks)
   Phase 1.2        DONE   — 64DIR.fth symbol table + T:/L:/G' director
   Phase 1.3        DONE   — forward refs, resolve chains, options
-  Phase 2 GEN      PARTIAL — TARGETGEN loads; GEN-DEMO / FWD-DEMO / TESTGEN
-  Phase 3+         NOT STARTED — real assembler / ARM64 ITC / image files
+  Phase 2 GEN      DONE   — TARGETGEN; GEN-DEMO / FWD-DEMO green
+  Phase 3 ARM64    START  — pack name 64TCOMARM64 (scaffold); implement next
+  Phase 3.1+               Forth-style A64 assembler growth, image files
 
 Coding style (host/director/GEN)
 --------------------------------
@@ -45,8 +46,9 @@ Phase checklist
 [x] 2.0  GEN pack loadable (ASMGEN OPTGEN LIBGEN TARGETGEN)
 [x] 2.1  LIB-PRIM registers into SYM table; T: records symbols; G' looks up
 [x] 2.2  Forward references + richer resolve (same as 1.3 on GEN)
-[ ] 3.0  First real target pack (e.g. ARM64 ITC hybrid)
-[ ] 3.1  Forth-style assembler
+[x] 3.0a Pack name + tree: 64TCOMARM64/ (TARGETARM64, ASMARM64, …)
+[ ] 3.0  First real ARM64 ITC hybrid pack (emit A64, runtime, demo)
+[ ] 3.1  Forth-style AArch64 assembler (grow with library needs)
 [ ] 4.0  Utilities (listing, xref, debugger) in 64TCOMUTILS
 
 
@@ -66,10 +68,8 @@ Key source files
 ----------------
   64TCOMSRC/64HOST.fth     Host layer + options
   64TCOMSRC/64DIR.fth      Symbol table + director (Phase 1.3) ✅
-  64TCOMGEN/TARGETGEN.fth  Load: HOST → DIR → ASM → OPT → LIB
-  64TCOMGEN/OPTGEN.fth     GEN hooks + RESOLVE-1 + demos
-  64TCOMGEN/LIBGEN.fth     Library cookies
-  64TCOMGEN/TESTGEN.fth    Sample compile (uses G')
+  64TCOMGEN/               GEN pack (tutorial tags) — DONE for demos
+  64TCOMARM64/             ARM64 real pack — Phase 3 (scaffold)
   REFERENCE_FILES/         Classic F-PC 3.6 + TCOM 2.5
 
 
@@ -77,6 +77,7 @@ Design docs (background)
 ------------------------
   STATUS.txt  ← start here for “where are we?”
   Phase 1.3 notes.txt
+  Phase 3 ARM64 notes.txt
   TCOM to 64Forth Port Analysis.docx
   TCOM on 64Forth Phase 0 Design.docx
   64TCOM Naming and Layout.docx
@@ -85,8 +86,7 @@ Design docs (background)
   Library cookies explained.txt
 
 
-Next step (after this check-in)
--------------------------------
-  Phase 3: first real target pack (ARM64 ITC hybrid) and/or
-  library auto-include body for LIB-AUTO-INCLUDE;
-  image file save; Forth-style assembler.
+Next step
+---------
+  Implement 64TCOMARM64: TARGETARM64 load chain, minimal ASMARM64,
+  OPTARM64 hooks, LIBARM64 ITC hybrid, ARM64-DEMO.

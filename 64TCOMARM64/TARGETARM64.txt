@@ -1,0 +1,29 @@
+TARGETARM64.txt — 64TCOM ARM64 pack notes
+=========================================
+Product:  64TCOM
+Pack:     ARM64  (directory 64TCOMARM64)
+Host:     64Forth on Apple Silicon (AArch64)
+Status:   Named and scaffolded; implementation Phase 3
+
+Load order (planned; mirror GEN)
+--------------------------------
+  1. ../64TCOMSRC/64HOST.fth
+  2. ../64TCOMSRC/64DIR.fth
+  3. ASMARM64.fth
+  4. OPTARM64.fth
+  5. LIBARM64.fth
+
+  Entry: FLOAD TARGETARM64.fth
+
+Endian / cells
+--------------
+  AArch64 little-endian. Target cell for ITC tokens: likely 8 bytes
+  (match host) unless we deliberately choose 4-byte tokens later.
+
+Relationship to classic TCOM
+----------------------------
+  Classic had many packs (TCOM86, TCOM80, TCOMGEN, …).
+  64TCOM follows the same idea:
+
+    64TCOMGEN/     = TCOMGEN (generic)
+    64TCOMARM64/   = first production-oriented CPU pack
