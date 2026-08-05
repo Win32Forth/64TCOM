@@ -71,8 +71,11 @@ LIB-PRIM MINUS#
 LIB-PRIM EXEC#
 LIB-PRIM NOOP#
 
-\ Preserve stubs across TARGET-INIT (app code starts here)
+\ Preserve stubs across TARGET-INIT (VARIABLE is in OPTARM64)
 HERE-T LIB-CODE-END !
+?QUIET 0= IF
+  S" LIB-CODE-END=" TYPE LIB-CODE-END @ SYM-HEX. CR
+THEN
 
 : .LIBARM64  ( -- )
   S" LIBARM64: " TYPE LIB-PRIM-COUNT @ 0 .R

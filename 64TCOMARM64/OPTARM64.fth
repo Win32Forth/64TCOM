@@ -22,6 +22,12 @@ DECIMAL
 
 S" BIN" IMAGE.EXT PLACE
 
+\ End of library stubs in target image (LIBARM64 sets this after prims).
+\ Must live here (or 64HOST): OPT is compiled *before* LIB is loaded, so
+\ [DEFINED] LIB-CODE-END at OPT compile time is always false.
+VARIABLE LIB-CODE-END
+0 LIB-CODE-END !
+
 \ -----------------------------------------------------------------------------
 \ Compile hooks → A64
 \ -----------------------------------------------------------------------------
@@ -167,11 +173,7 @@ DEFER SAVE-IMAGE
   ?LIB IF  S" Can't use TARGET-INIT in a library routine" TCOM-ABORT  THEN
   \ Keep LIBARM64 stubs already in the image; only allocate if needed.
   T-CODE-BASE 0= IF  TCOM-INIT-MEM-DEFAULT  THEN
-  [DEFINED] LIB-CODE-END [IF]
-    LIB-CODE-END @ TO CODE-START
-  [ELSE]
-    0 TO CODE-START
-  [THEN]
+  LIB-CODE-END @ TO CODE-START
   0 TO DATA-START
   CODE-START DP-T !
   DATA-START DP-D !
