@@ -120,22 +120,32 @@ VARIABLE SYM-N
   ca u a2 u2 SYM-STR=
   ;
 
-\ Returns ix and found-flag on stack for callers that IF
+\ Returns ix and found-flag on stack for callers that IF.
+\ Important: do not EXIT early from a locals word with items on the stack —
+\ 64Forth locals cleanup can scramble ix/true order (broke FWD-DEMO checks).
 : SYM-FIND  ( c-addr u -- ix true | false )
-  {: ca u | i :}
-  SYM-N @ 0= IF FALSE EXIT THEN
+  {: ca u | i found :}
+  FALSE TO found
   0 TO i
-  BEGIN i SYM-N @ < WHILE
-    ca u i SYM-NAME= IF i TRUE EXIT THEN
-    i 1+ TO i
+  BEGIN i SYM-N @ < found 0= AND WHILE
+    ca u i SYM-NAME= IF
+      TRUE TO found
+    ELSE
+      i 1+ TO i
+    THEN
   REPEAT
-  FALSE
+  found IF i TRUE ELSE FALSE THEN
   ;
 
-\ Found → ix only; missing → message + abort (clean stack for demos/scripts)
+\ Found → ix only; missing → message + abort
 : SYM-FIND-IX  ( c-addr u -- ix )
-  SYM-FIND IF EXIT THEN
-  S" symbol not found in table" TCOM-ABORT
+  {: ca u | ix :}
+  ca u SYM-FIND IF
+    TO ix
+  ELSE
+    S" symbol not found in table" TCOM-ABORT
+  THEN
+  ix
   ;
 
 : SYM-ADD  ( c-addr u type addr -- ix )
@@ -144,17 +154,17 @@ VARIABLE SYM-N
     TO i
     typ i SYM-TYPE!
     adr i SYM-ADDR!
-    i EXIT
+  ELSE
+    SYM-N @ SYM-MAX U>= IF
+      S" Symbol table full" TCOM-ABORT
+    THEN
+    SYM-N @ TO i
+    ca u i SYM-PUT-NAME
+    typ i SYM-TYPE!
+    adr i SYM-ADDR!
+    0 i SYM-USES!
+    1 SYM-N +!
   THEN
-  SYM-N @ SYM-MAX U>= IF
-    S" Symbol table full" TCOM-ABORT
-  THEN
-  SYM-N @ TO i
-  ca u i SYM-PUT-NAME
-  typ i SYM-TYPE!
-  adr i SYM-ADDR!
-  0 i SYM-USES!
-  1 SYM-N +!
   i
   ;
 
@@ -189,13 +199,14 @@ VARIABLE SYM-N
     TO i
     i SYM-TYPE@ SYM-FORWARD = IF
       i adr typ SYM-RESOLVE-TO
-      i EXIT
+    ELSE
+      typ i SYM-TYPE!
+      adr i SYM-ADDR!
     THEN
-    typ i SYM-TYPE!
-    adr i SYM-ADDR!
-    i EXIT
+  ELSE
+    ca u typ adr SYM-ADD TO i
   THEN
-  ca u typ adr SYM-ADD
+  i
   ;
 
 : SYM-DEFINE-LAST  ( type addr -- ix )
