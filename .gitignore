@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editor / IDE
+*.swp
+*~
+.idea/
+.vscode/
+
+# Build / local
+node_modules/
+*.log
+.lldbinit*
+
+# Optional local scratch
+*.tmp
+*.bak

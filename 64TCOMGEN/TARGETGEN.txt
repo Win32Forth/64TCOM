@@ -1,0 +1,40 @@
+TARGETGEN.txt — Notes on the 64TCOM GEN (generic) target
+========================================================
+Product:  64TCOM
+Pack:     GEN (generic / tutorial)
+Host:     64Forth, native 64-bit cells
+Status:   Layout reserved; implementation follows Phase 0/1/2 plan
+
+Purpose
+-------
+GEN is the first target pack for 64TCOM. It does not generate code for a
+real microprocessor. It exercises the 64TCOM director: symbols, library vs
+target definitions, deferred interface hooks, and a readable compile log.
+
+Philosophy (from classic TCOMGEN)
+---------------------------------
+  1. Director (64TCOMSRC): symbols, target memory abstraction, defining
+     words, deferred library inclusion — directs the compile.
+  2. Target assembler (ASMGEN.fth): for GEN, a stub; no real opcodes.
+  3. Optimizer / interface (OPTGEN.fth): installs deferred COMP_* / END-* /
+     START-* hooks (required set from classic TCOMINTF).
+  4. Library (LIBGEN.fth): stub runtime words that announce themselves when
+     included; enough shape for control structures and literals later.
+
+Files in 64TCOMGEN
+------------------
+  TARGETGEN.fth   Load / build file for the GEN configuration of 64TCOM
+  ASMGEN.fth      Stub assembler vocabulary
+  OPTGEN.fth      Deferred-word linkage (target interface)
+  LIBGEN.fth      Stub target library
+  TESTGEN.fth     Sample source to “compile” under GEN
+  TARGETGEN.txt   This documentation
+
+Classic reference
+-----------------
+  ~/Documents/OldForthSources/tcom25/TCOMGEN/
+  ~/Documents/OldForthSources/tcom25/TCOM/TCOMINTF.DOC
+  ~/Documents/OldForthSources/tcom25/TCOMGEN/TCOMGEN.TXT
+
+Later real targets (e.g. ARM64 ITC hybrid) will live in sibling folders
+under 64TCOM, not inside 64TCOMGEN.
