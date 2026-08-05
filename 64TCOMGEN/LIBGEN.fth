@@ -25,10 +25,12 @@ $8000 VALUE LIB-COOKIE-NEXT
 
 : LIB-PRIM  ( "<spaces>name" -- )
   HOST-DEFS
-  LIB-COOKIE-NEXT
-  ?2CR
-  ?QUIET 0= IF  ." Library cookie " DUP H.  THEN
-  LIB-CREATE                   \ parses name
+  LIB-COOKIE-NEXT >R           ( R: cookie )
+  R@ LIB-CREATE                \ parses name; host word returns cookie
+  ?QUIET 0= IF
+    ." Library cookie " LAST NAME>STRING TYPE SPACE R@ H. CR
+  THEN
+  R> DROP
   LIB-COOKIE-NEXT T-CELL + TO LIB-COOKIE-NEXT
   FORTH-DEFS
   ;

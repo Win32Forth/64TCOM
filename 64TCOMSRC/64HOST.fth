@@ -179,10 +179,29 @@ VOCABULARY HTARGET
 
 TCOM-MODE-FORTH VALUE TCOM-MODE
 
-\ Mode + vocabulary (classic TCOM names)
-: >FORTH    ( -- )  TCOM-MODE-FORTH   TO TCOM-MODE  FORTH-DEFS ;
-: >LIBRARY  ( -- )  TCOM-MODE-LIBRARY TO TCOM-MODE  HOST-DEFS ;
-: >TARGET   ( -- )  TCOM-MODE-TARGET  TO TCOM-MODE  TARGET-DEFS ;
+\ Mode + search order (classic TCOM names)
+\ Important: do NOT use ONLY TARGET alone — that hides HOST (library cookies
+\ like DUP# live in HOST). Keep the full TCOM order; only CURRENT changes.
+
+: >FORTH  ( -- )
+  TCOM-MODE-FORTH TO TCOM-MODE
+  ONLY FORTH DEFINITIONS
+  ;
+
+: >LIBRARY  ( -- )
+  TCOM-MODE-LIBRARY TO TCOM-MODE
+  ONLY FORTH
+  ALSO ASSEMBLER
+  ALSO COMPILER
+  ALSO TARGET
+  ALSO HOST
+  DEFINITIONS                 \ CURRENT = HOST; TARGET still searchable
+  ;
+
+: >TARGET  ( -- )
+  TCOM-MODE-TARGET TO TCOM-MODE
+  TCOM-ORDER                  \ FORTH ASSEM COMPILER HOST TARGET; CURRENT=TARGET
+  ;
 
 \ Aliases
 : TCOM>FORTH    ( -- )  >FORTH ;

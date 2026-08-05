@@ -32,7 +32,7 @@ DECIMAL
 : GEN."    ( -- )  POSTPONE S"  POSTPONE GEN. ; IMMEDIATE
 
 : ?1CR  ( -- )  ?QUIET 0= IF CR THEN ;
-: ?2CR  ( -- )  ?QUIET 0= IF CR CR THEN ;
+: ?2CR  ( -- )  ?1CR ;   \ was CR CR; keep single blank for quieter logs
 
 \ -----------------------------------------------------------------------------
 \ Version / endian / cold entry
