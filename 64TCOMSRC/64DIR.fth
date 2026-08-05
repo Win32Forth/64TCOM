@@ -69,24 +69,24 @@ CREATE SYM-USES   SYM-MAX CELLS ALLOT
 : SYM-USE+  ( i -- )  DUP SYM-USES@ 1+ SWAP SYM-USES! ;
 
 \ SYM-ADD ( c-addr u type addr -- i )
-\ Scratch VALUEs — do NOT use names like (SYM-T); in Forth "(" starts a comment!
-0 VALUE SYM-TMP-T
-0 VALUE SYM-TMP-A
-
+\ No VALUE/TO temps — keep type/addr on the return stack only.
 : SYM-ADD  ( c-addr u type addr -- i )
-  TO SYM-TMP-A  TO SYM-TMP-T            ( ca u )
-  2DUP SYM-FIND IF                      ( ca u i )
-    NIP NIP                             ( i )
-    SYM-TMP-T OVER SYM-TYPE!
-    SYM-TMP-A OVER SYM-ADDR!
-    EXIT
-  THEN                                  ( ca u )
+  2SWAP                                 ( type addr ca u )
+  2DUP SYM-FIND IF                      ( type addr ca u i )
+    >R 2DROP                            ( type addr ) ( R: i )
+    OVER R@ SYM-TYPE!                   ( type addr )
+    NIP R@ SYM-ADDR!                    ( )
+    R> EXIT                             ( i )
+  THEN                                  ( type addr ca u )
   SYM-COUNT SYM-MAX U>= IF
-    2DROP S" Symbol table full" TCOM-ABORT
+    2DROP 2DROP
+    S" Symbol table full" TCOM-ABORT
   THEN
-  SYM-COUNT SYM-NAME PLACE              ( ca u dest )
-  SYM-TMP-T SYM-COUNT SYM-TYPE!
-  SYM-TMP-A SYM-COUNT SYM-ADDR!
+  2SWAP                                 ( ca u type addr )
+  >R >R                                 ( ca u ) ( R: addr type )
+  SYM-COUNT SYM-NAME PLACE
+  R> SYM-COUNT SYM-TYPE!
+  R> SYM-COUNT SYM-ADDR!
   0 SYM-COUNT SYM-USES!
   SYM-COUNT
   SYM-COUNT 1+ TO SYM-COUNT
@@ -96,8 +96,11 @@ CREATE SYM-USES   SYM-MAX CELLS ALLOT
   LAST NAME>STRING 2SWAP SYM-ADD
   ;
 
-: SYM-REG-LAST-LIB  ( cookie -- )
-  SYM-LIBRARY SWAP SYM-ADD-LAST DROP
+\ Register LAST (a LIB-CREATE word) using the cookie in its data field
+: SYM-REG-LAST-LIB  ( -- )
+  LAST >BODY CELL+ @                    ( cookie )
+  SYM-LIBRARY SWAP                      ( type cookie )
+  SYM-ADD-LAST DROP
   ;
 
 : .SYM-TYPE  ( type -- )
@@ -116,7 +119,7 @@ CREATE SYM-USES   SYM-MAX CELLS ALLOT
     I SYM-NAME COUNT TYPE
     16 I SYM-NAME C@ - 0 MAX SPACES
     I SYM-TYPE@ .SYM-TYPE
-    ."  @"
+    ."  @ "
     BASE @ >R HEX I SYM-ADDR@ U. R> BASE !
     ." uses=" I SYM-USES@ . CR
   LOOP

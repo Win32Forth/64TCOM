@@ -34,13 +34,14 @@ FALSE VALUE LIB-VERBOSE         \ TRUE → print each cookie line
 : LIB-PRIM  ( "<spaces>name" -- )
   HOST-DEFS
   LIB-COOKIE-NEXT >R           ( R: cookie )
-  R@ LIB-CREATE                \ parses name; host word returns cookie
+  R@ LIB-CREATE                \ parses name; body holds cookie
   LIB-VERBOSE IF
     ." Library cookie " LAST NAME>STRING TYPE SPACE R@ H. CR
   THEN
-  [DEFINED] SYM-REG-LAST-LIB [IF] R@ SYM-REG-LAST-LIB [THEN]
+  \ Register from LAST's body (not R@) so the table matches the host word
+  [DEFINED] SYM-REG-LAST-LIB [IF] SYM-REG-LAST-LIB [THEN]
   R> DROP
-  LIB-COOKIE-NEXT T-CELL + TO LIB-COOKIE-NEXT
+  LIB-COOKIE-NEXT 8 + TO LIB-COOKIE-NEXT   \ step by 8 (fixed; avoid T-CELL/TO quirks)
   LIB-PRIM-COUNT 1+ TO LIB-PRIM-COUNT
   FORTH-DEFS
   ;
