@@ -156,27 +156,40 @@ VARIABLE A64-M
   A64-D @ $1F AND OR  W,
   ;
 
-\ LDR Xt, PC+8 literal (imm19=2)
+\ LDR Xt, PC+8 literal (imm19=2) — legacy helper
 : LDR64-PC+8,  ( xn -- )
   $1F AND  $58000000 OR  2 5 LSHIFT OR  W,
   ;
 
-: CALL-ABS-PREP,  ( -- )
-  ALIGN4-T
-  X16 LDR64-PC+8,
-  X16 BLR-X,
+\ Unconditional B with imm26 word offset (from this insn)
+: B-IMM,  ( imm26 -- )
+  $3FFFFFF AND  $14000000 OR  W,
   ;
 
-\ taddr → host address in .quad so BLR works if code runs from T-CODE-BASE mapping
+\ LDR Xt, PC+12 (imm19=3) — skips BLR and B to land on .quad
+: LDR64-PC+12,  ( xn -- )
+  $1F AND  $58000000 OR  3 5 LSHIFT OR  W,
+  ;
+
+\ Call layout (must not RET into the .quad!):
+\   0: LDR X16, #3     ; load .quad at +12
+\   4: BLR X16
+\   8: B   #3          ; skip .quad → +12 from here = +20 absolute
+\  12: .quad host-addr
+\  20: continues
 : CALL-ABS,  ( taddr -- )
-  CALL-ABS-PREP,
+  ALIGN4-T
+  X16 LDR64-PC+12,
+  X16 BLR-X,
+  3 B-IMM,                         \ skip 3 words: lo, hi of quad, to past
   THERE ,-T
   ;
 
 : JMP-ABS,  ( taddr -- )
   ALIGN4-T
-  X16 LDR64-PC+8,
-  X16 BR-X,
+  X16 LDR64-PC+12,
+  X16 BR-X,                        \ no return; still skip pattern for pool
+  3 B-IMM,
   THERE ,-T
   ;
 

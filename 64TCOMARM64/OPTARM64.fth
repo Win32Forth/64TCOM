@@ -28,10 +28,12 @@ VARIABLE A64-COLD
 
 S" BIN" IMAGE.EXT PLACE
 
-\ End of library stubs (LIBARM64 sets after prims). Defined here because
-\ OPT is loaded before LIB.
+\ End of library stubs / lib symbol count (LIBARM64 sets these).
+\ Must live here: OPT is compiled before LIB is loaded.
 VARIABLE LIB-CODE-END
 0 LIB-CODE-END !
+VARIABLE LIB-SYM-N
+0 LIB-SYM-N !
 
 \ -----------------------------------------------------------------------------
 \ Compile hooks → A64
@@ -174,10 +176,8 @@ DEFER SAVE-IMAGE
 ' (SAVE-IMAGE-A64) IS SAVE-IMAGE
 
 : SYM-CLEAR-APP  ( -- )
-  \ Keep library symbol slots; drop app TARGET/FWD/CODE names
-  [DEFINED] LIB-SYM-N [IF]
-    LIB-SYM-N @ SYM-N !
-  [THEN]
+  \ Keep library symbol slots only (LIB-SYM-N set by LIBARM64)
+  LIB-SYM-N @ SYM-N !
   ;
 
 : TARGET-INIT  ( -- )
@@ -208,7 +208,7 @@ DEFER SAVE-IMAGE
   TVERSION CR
   .64HOST
   S" ARM64: CALL-ABS = LDR X16,[PC+8]; BLR X16; .quad" TYPE CR
-  S" Words: TARGET-INIT T: ;T G, G' LIB, ARM64-FINISH ARM64-DEMO FWD-ARM64" TYPE CR
+  S" Words: ARM64-DEMO .RUN-ANS FWD-ARM64 RUN-T" TYPE CR
   [DEFINED] .DIR [IF] .DIR [THEN]
   ;
 

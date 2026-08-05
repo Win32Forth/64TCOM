@@ -91,6 +91,10 @@ VARIABLE SM
   5 RSHIFT $7FFFF AND
   DUP $40000 AND IF  $80000 -  THEN
   ;
+: SIM-IMM26 ( insn -- n )
+  $3FFFFFF AND
+  DUP $2000000 AND IF  $FC000000 OR  THEN
+  ;
 
 : SIM-STEP  ( -- )
   SIM-HALT @ IF EXIT THEN
@@ -103,9 +107,15 @@ VARIABLE SM
   THEN
   DUP SIM-W@
   SWAP 4 + SIM-PC !
-  \ insn
+  \ insn on stack; SIM-PC = next sequential
 
   DUP $D503201F = IF DROP EXIT THEN
+
+  \ B imm26
+  DUP $FC000000 AND $14000000 = IF
+    SIM-IMM26 4 * SIM-PC @ 4 - + SIM-PC !
+    DROP EXIT
+  THEN
 
   \ RET Xn
   DUP $FFFFFC1F AND $D65F0000 = IF
@@ -121,14 +131,14 @@ VARIABLE SM
     DROP EXIT
   THEN
 
-  \ BLR Xn
+  \ BLR Xn  (return to following insn — should be B that skips .quad)
   DUP $FFFFFC1F AND $D63F0000 = IF
     SIM-PC @ SIM-R-PUSH
     SIM-RN SIM-X@ HOST>T SIM-PC !
     DROP EXIT
   THEN
 
-  \ LDR Xt, label (64-bit literal)  top byte 0x58
+  \ LDR Xt literal 64
   DUP 24 RSHIFT $FF AND $58 = IF
     DUP SIM-RD SD !
     DUP SIM-IMM19 4 * SIM-PC @ 4 - + @-T
@@ -157,14 +167,14 @@ VARIABLE SM
     DROP EXIT
   THEN
 
-  \ MOV Xd, Xm  (ORR Xd, XZR, Xm)
+  \ MOV Xd,Xm
   DUP $FFE0FFE0 AND $AA0003E0 = IF
     DUP SIM-RD SD !
     SIM-RM SIM-X@ SD @ SIM-X!
     DROP EXIT
   THEN
 
-  \ ADD Xd, Xn, Xm
+  \ ADD
   DUP $FF200000 AND $8B000000 = IF
     DUP SIM-RD SD !
     DUP SIM-RN SIM-X@ SN !
@@ -173,11 +183,11 @@ VARIABLE SM
     DROP EXIT
   THEN
 
-  \ SUB Xd, Xn, Xm
+  \ SUB  Xd = Xn - Xm
   DUP $FF200000 AND $CB000000 = IF
     DUP SIM-RD SD !
     DUP SIM-RN SIM-X@ SN !
-    SIM-RM SIM-X@ SN @ SWAP -     \ xn - xm
+    SN @  SIM-RM SIM-X@  -
     SD @ SIM-X!
     DROP EXIT
   THEN
