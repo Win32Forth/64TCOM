@@ -26,6 +26,12 @@ Thin director (not full COMPILE1/2)
 -----------------------------------
   TARGET-INIT  T: ;T  L: ;L  G, GCALL GJMP  LIB,  GEN-FINISH  GEN-DEMO
 
+Pitfall fixed (2026-08-05)
+--------------------------
+  Do not put  T: NAME … ;T  inside a colon definition. While compiling
+  that colon, Forth looks up NAME (e.g. HI) and reports "undefined: HI".
+  T: / L: / GCODE are interpret-only; GEN-DEMO uses EVALUATE for its sample.
+
 Next steps
 ----------
   Full director port, real assembler, real target (e.g. ARM64 ITC),

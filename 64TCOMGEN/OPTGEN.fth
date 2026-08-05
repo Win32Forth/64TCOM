@@ -230,7 +230,13 @@ $10 CONSTANT GEN-TAG-HDR
   CREATE ,  DOES> @
   ;
 
+: ?INTERPRET-ONLY  ( c-addr u -- )
+  \ Abort if used while compiling a colon definition (name must be parsed now)
+  STATE @ IF  TCOM-ABORT  ELSE  2DROP  THEN
+  ;
+
 : T:  ( "<spaces>name" -- )
+  S" T: is interpret-only (not inside a colon def)" ?INTERPRET-ONLY
   ?EXECUTING
   START-T:
   HERE-T >R
@@ -247,6 +253,7 @@ $10 CONSTANT GEN-TAG-HDR
   ; IMMEDIATE
 
 : L:  ( "<spaces>name" -- )
+  S" L: is interpret-only (not inside a colon def)" ?INTERPRET-ONLY
   ?EXECUTING
   TRUE TO ?LIB
   START-L:
@@ -263,6 +270,7 @@ $10 CONSTANT GEN-TAG-HDR
   ; IMMEDIATE
 
 : GCODE  ( "<spaces>name" -- )
+  S" GCODE is interpret-only (not inside a colon def)" ?INTERPRET-ONLY
   ?EXECUTING
   TCODE-START
   HERE-T >R
@@ -327,20 +335,23 @@ DEFER SAVE-IMAGE
   ." Words: TARGET-INIT  T: ;T  L: ;L  G, GCALL GJMP  GEN-FINISH  GEN-DEMO" CR
   ;
 
-: GEN-DEMO  ( -- )
-  TARGET-INIT
-  /SHOW
-  T: HI
-    $1234 G,
-    ['] DUP# LIB,
-  ;T
-  GEN-FINISH
+\ GEN-DEMO must not embed "T: HI" inside a colon definition — the text
+\ interpreter would look up HI while compiling GEN-DEMO (undefined: HI).
+\ Run the sample via EVALUATE so T: parses HI at interpret time.
+
+: GEN-DEMO-DUMP  ( -- )
   CR ." GEN-DEMO done. HERE-T=" HERE-T . CR
   ." First bytes: "
   HERE-T 0 MAX  32 MIN  0 ?DO
     I C@-T  BASE @ >R HEX  0 <# # # #> TYPE SPACE  R> BASE !
   LOOP
   CR
+  ;
+
+: GEN-DEMO  ( -- )
+  S" TARGET-INIT /SHOW T: HI $1234 G, ' DUP# LIB, ;T GEN-FINISH"
+  EVALUATE
+  GEN-DEMO-DUMP
   ;
 
 FORTH DEFINITIONS
