@@ -199,11 +199,10 @@ $10 CONSTANT GEN-TAG-HDR
 \ Patch one forward CALL address cell (site) with final target address.
 \ Stack: ( site final-addr -- )   !-T is ( x taddr -- )
 : (%RESOLVE-1)  ( site final-addr -- )
-  {: site final :}
   ?QUIET 0= IF
-    ." Resolving @" SPACE site H. ." -> " final H. CR
+    ." Resolving @" SPACE OVER H. ." -> " DUP H. CR
   THEN
-  final site !-T
+  SWAP !-T
   ;
 ' (%RESOLVE-1) IS RESOLVE-1
 

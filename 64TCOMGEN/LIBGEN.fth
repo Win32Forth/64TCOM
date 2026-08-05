@@ -4,6 +4,7 @@
 \ Requires: 64HOST.fth, 64DIR.fth, ASMGEN, OPTGEN
 \
 \ LIB, is defined in 64DIR (bumps use counts). Do not redefine here.
+\ No {: :} locals (same policy as 64DIR).
 
 TCOM-ANEW LIBGEN
 
@@ -19,20 +20,24 @@ FALSE VALUE LIB-VERBOSE
 : LIB-VERBOSE-ON   ( -- )  TRUE  TO LIB-VERBOSE ;
 : LIB-VERBOSE-OFF  ( -- )  FALSE TO LIB-VERBOSE ;
 
+VARIABLE LIB-I
+VARIABLE LIB-CA
+VARIABLE LIB-U
+VARIABLE LIB-CK
+
 : LIB-PRIM  ( "<spaces>name" -- )
-  {: | cookie i ca u :}
   HOST-DEFS
-  LIB-NEXT @ TO cookie
-  cookie CONSTANT
-  SYM-N @ TO i
-  LAST NAME>STRING TO u TO ca
-  ca u i SYM-PUT-NAME
-  SYM-LIBRARY i SYM-TYPE!
-  cookie i SYM-ADDR!
-  0 i SYM-USES!
+  LIB-NEXT @ LIB-CK !
+  LIB-CK @ CONSTANT
+  SYM-N @ LIB-I !
+  LAST NAME>STRING LIB-U ! LIB-CA !
+  LIB-CA @ LIB-U @ LIB-I @ SYM-PUT-NAME
+  SYM-LIBRARY LIB-I @ SYM-TYPE!
+  LIB-CK @ LIB-I @ SYM-ADDR!
+  0 LIB-I @ SYM-USES!
   1 SYM-N +!
   LIB-VERBOSE IF
-    S" Library cookie " TYPE ca u TYPE SPACE cookie SYM-HEX. CR
+    S" Library cookie " TYPE LIB-CA @ LIB-U @ TYPE SPACE LIB-CK @ SYM-HEX. CR
   THEN
   8 LIB-NEXT +!
   1 LIB-PRIM-COUNT +!
