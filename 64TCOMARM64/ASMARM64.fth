@@ -194,8 +194,23 @@ VARIABLE A64-M
   0 X0 MOV-X-IMM64,               \ empty TOS
   ;
 
+\ CBNZ/CBZ Xt, imm19 (word offset from this instruction)
+: CBNZ-X,  ( xt imm19 -- )
+  A64-I !   A64-D !
+  $B5000000
+  A64-I @ $7FFFF AND 5 LSHIFT OR
+  A64-D @ $1F AND OR  W,
+  ;
+
+: CBZ-X,  ( xt imm19 -- )
+  A64-I !   A64-D !
+  $B4000000
+  A64-I @ $7FFFF AND 5 LSHIFT OR
+  A64-D @ $1F AND OR  W,
+  ;
+
 : .ASMARM64  ( -- )
-  S" ASMARM64: ABI X0=TOS X19=DSP; W, RET, STR-PRE, LDR-POST, ADD/SUB, CALL-ABS" TYPE CR
+  S" ASMARM64: ABI X0=TOS X19=DSP; CALL-ABS; CBNZ/CBZ" TYPE CR
   ;
 
 FORTH DEFINITIONS

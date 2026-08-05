@@ -173,9 +173,17 @@ DEFER SAVE-IMAGE
   ;
 ' (SAVE-IMAGE-A64) IS SAVE-IMAGE
 
+: SYM-CLEAR-APP  ( -- )
+  \ Keep library symbol slots; drop app TARGET/FWD/CODE names
+  [DEFINED] LIB-SYM-N [IF]
+    LIB-SYM-N @ SYM-N !
+  [THEN]
+  ;
+
 : TARGET-INIT  ( -- )
   ?LIB IF  S" Can't use TARGET-INIT in a library routine" TCOM-ABORT  THEN
   T-CODE-BASE 0= IF  TCOM-INIT-MEM-DEFAULT  THEN
+  SYM-CLEAR-APP
   LIB-CODE-END @ DUP A64-CODE-START ! DP-T !
   0 DP-D !
   TCOM-ORDER
@@ -186,7 +194,7 @@ DEFER SAVE-IMAGE
   THEN
   SET-COLD-ENTRY
   \ Cold prologue: X19 = data stack top (host), X0 = 0
-  T-DATA-BASE T-DATA-MAX + 64 -   \ room under end of data image
+  T-DATA-BASE T-DATA-MAX + 64 -
   DSP-INIT,
   ;
 
@@ -236,6 +244,11 @@ VARIABLE AD-BASE
 
 : FWD-ARM64  ( -- )
   S" FWDARM64.fth" INCLUDED
+  ;
+
+: RUN-ARM64-DEMO  ( -- )
+  ARM64-DEMO
+  [DEFINED] .RUN-ANS [IF] .RUN-ANS [THEN]
   ;
 
 FORTH DEFINITIONS

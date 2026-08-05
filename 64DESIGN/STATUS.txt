@@ -8,7 +8,8 @@ YOU ARE HERE
   Phase 0–2        DONE
   Phase 3.0b       DONE   — ARM64 pack emit + demos
   Phase 3.0c       DONE   — ABI X0/X19; real DUP/DROP/+/…; LIT push
-  Phase 3.1+              — BRANCH/0BRANCH, run harness, richer ASM
+  Phase 3.0d       DONE   — SIM run harness; BRANCH/ZBRANCH; SYM-CLEAR-APP
+  Phase 3.1+              — richer ASM, image save, native call (kernel)
 
 Coding style (host/director/GEN)
 --------------------------------
@@ -46,7 +47,7 @@ Phase checklist
 [x] 3.0a Pack name + tree: 64TCOMARM64/
 [x] 3.0b TARGETARM64 + ASMARM64 + OPTARM64 + LIBARM64 + demos (v0.1)
 [x] 3.0c Real prim bodies (DUP DROP SWAP OVER + - @ !); LIT push; host CALL quads
-[ ] 3.0d Host run harness / BRANCH# ZBRANCH# / clear app symbols on INIT
+[x] 3.0d SIMARM64 RUN-ANS; BRANCH#/ZBRANCH#; SYM-CLEAR-APP on TARGET-INIT
 [ ] 3.1  Grow Forth-style AArch64 assembler
 [ ] 4.0  Utilities (listing, xref, debugger) in 64TCOMUTILS
 
@@ -87,5 +88,5 @@ Design docs (background)
 
 Next step
 ---------
-  FLOAD TARGETARM64.fth / ARM64-DEMO / FWD-ARM64
-  Then 3.0d: execute image from host, BRANCH/0BRANCH, image save.
+  FLOAD TARGETARM64.fth / ARM64-DEMO / .RUN-ANS / FWD-ARM64
+  Then 3.1: more assembler; optional image save / kernel native call.

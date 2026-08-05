@@ -1,0 +1,258 @@
+\ SIMARM64.fth — Host-safe run of our A64 subset
+\
+\ Public domain. Requires pack image in T-CODE-BASE.
+\ Does not BLR into the buffer (would smash 64Forth VM X19–X24).
+
+TCOM-ANEW SIMARM64
+
+FORTH DEFINITIONS
+DECIMAL
+
+VARIABLE SIM-PC
+VARIABLE SIM-X0
+VARIABLE SIM-X1
+VARIABLE SIM-X16
+VARIABLE SIM-X19
+VARIABLE SIM-HALT
+VARIABLE SIM-STEPS
+VARIABLE SIM-MAX
+100000 SIM-MAX !
+
+CREATE SIM-R  64 CELLS ALLOT
+VARIABLE SIM-RP
+
+VARIABLE SD
+VARIABLE SN
+VARIABLE SM
+
+: SIM-R-CLEAR  ( -- )  SIM-R SIM-RP ! ;
+: SIM-R-PUSH   ( x -- )
+  SIM-RP @ SIM-R 64 CELLS + U>= IF S" SIM R overflow" TCOM-ABORT THEN
+  SIM-RP @ !  CELL SIM-RP +!
+  ;
+: SIM-R-POP    ( -- x )
+  SIM-RP @ SIM-R U<= IF S" SIM R underflow" TCOM-ABORT THEN
+  CELL NEGATE SIM-RP +!  SIM-RP @ @
+  ;
+: SIM-R-EMPTY? ( -- f )  SIM-RP @ SIM-R = ;
+
+: SIM-W@  ( taddr -- u32 )
+  DUP C@-T
+  OVER 1 + C@-T  8 LSHIFT OR
+  OVER 2 + C@-T 16 LSHIFT OR
+  SWAP 3 + C@-T 24 LSHIFT OR
+  ;
+
+: SIM-X!  ( x reg -- )
+  DUP 0  = IF DROP SIM-X0  ! EXIT THEN
+  DUP 1  = IF DROP SIM-X1  ! EXIT THEN
+  DUP 16 = IF DROP SIM-X16 ! EXIT THEN
+  DUP 19 = IF DROP SIM-X19 ! EXIT THEN
+  2DROP
+  ;
+
+: SIM-X@  ( reg -- x )
+  DUP 0  = IF DROP SIM-X0  @ EXIT THEN
+  DUP 1  = IF DROP SIM-X1  @ EXIT THEN
+  DUP 16 = IF DROP SIM-X16 @ EXIT THEN
+  DUP 19 = IF DROP SIM-X19 @ EXIT THEN
+  DROP 0
+  ;
+
+: HOST>T  ( host -- taddr )  T-CODE-BASE - TARGET-ORIGIN - ;
+
+: SIM-LOAD64  ( host -- x )
+  0  8 0 DO  OVER I + C@  I 8 * LSHIFT OR  LOOP  NIP
+  ;
+
+: SIM-STORE64  ( x host -- )
+  8 0 DO
+    OVER $FF AND OVER C!
+    SWAP 8 RSHIFT SWAP 1+
+  LOOP 2DROP
+  ;
+
+: SIM-INIT  ( -- )
+  T-DATA-BASE T-DATA-MAX + 64 - SIM-X19 !
+  0 SIM-X0 !  0 SIM-X1 !  0 SIM-X16 !
+  SIM-R-CLEAR  0 SIM-STEPS !  FALSE SIM-HALT !
+  ;
+
+: SIM-RD    ( insn -- r )  $1F AND ;
+: SIM-RN    ( insn -- r )  5 RSHIFT $1F AND ;
+: SIM-RM    ( insn -- r )  16 RSHIFT $1F AND ;
+: SIM-IMM16 ( insn -- u )  5 RSHIFT $FFFF AND ;
+: SIM-HW    ( insn -- u )  21 RSHIFT 3 AND ;
+: SIM-IMM9  ( insn -- n )
+  12 RSHIFT $1FF AND
+  DUP 256 AND IF  512 -  THEN
+  ;
+: SIM-IMM19 ( insn -- n )
+  5 RSHIFT $7FFFF AND
+  DUP $40000 AND IF  $80000 -  THEN
+  ;
+
+: SIM-STEP  ( -- )
+  SIM-HALT @ IF EXIT THEN
+  1 SIM-STEPS +!
+  SIM-STEPS @ SIM-MAX @ > IF
+    TRUE SIM-HALT !  S" SIM: step limit" TYPE CR EXIT
+  THEN
+  SIM-PC @ DUP 0< OVER T-CODE-MAX U>= OR IF
+    DROP TRUE SIM-HALT !  S" SIM: bad PC " TYPE SIM-PC @ . CR EXIT
+  THEN
+  DUP SIM-W@
+  SWAP 4 + SIM-PC !
+  \ insn
+
+  DUP $D503201F = IF DROP EXIT THEN
+
+  \ RET Xn
+  DUP $FFFFFC1F AND $D65F0000 = IF
+    DROP
+    SIM-R-EMPTY? IF TRUE SIM-HALT ! EXIT THEN
+    SIM-R-POP SIM-PC !
+    EXIT
+  THEN
+
+  \ BR Xn
+  DUP $FFFFFC1F AND $D61F0000 = IF
+    SIM-RN SIM-X@ HOST>T SIM-PC !
+    DROP EXIT
+  THEN
+
+  \ BLR Xn
+  DUP $FFFFFC1F AND $D63F0000 = IF
+    SIM-PC @ SIM-R-PUSH
+    SIM-RN SIM-X@ HOST>T SIM-PC !
+    DROP EXIT
+  THEN
+
+  \ LDR Xt, label (64-bit literal)  top byte 0x58
+  DUP 24 RSHIFT $FF AND $58 = IF
+    DUP SIM-RD SD !
+    DUP SIM-IMM19 4 * SIM-PC @ 4 - + @-T
+    SD @ SIM-X!
+    DROP EXIT
+  THEN
+
+  \ MOVZ
+  DUP $FF800000 AND $D2800000 = IF
+    DUP SIM-RD SD !
+    DUP SIM-IMM16
+    OVER SIM-HW 16 * LSHIFT
+    SD @ SIM-X!
+    DROP EXIT
+  THEN
+
+  \ MOVK
+  DUP $FF800000 AND $F2800000 = IF
+    DUP SIM-RD SD !
+    DUP SIM-HW 16 * SN !
+    DUP SIM-IMM16 SM !
+    SD @ SIM-X@
+    $FFFF SN @ LSHIFT INVERT AND
+    SM @ SN @ LSHIFT OR
+    SD @ SIM-X!
+    DROP EXIT
+  THEN
+
+  \ MOV Xd, Xm  (ORR Xd, XZR, Xm)
+  DUP $FFE0FFE0 AND $AA0003E0 = IF
+    DUP SIM-RD SD !
+    SIM-RM SIM-X@ SD @ SIM-X!
+    DROP EXIT
+  THEN
+
+  \ ADD Xd, Xn, Xm
+  DUP $FF200000 AND $8B000000 = IF
+    DUP SIM-RD SD !
+    DUP SIM-RN SIM-X@ SN !
+    SIM-RM SIM-X@ SN @ +
+    SD @ SIM-X!
+    DROP EXIT
+  THEN
+
+  \ SUB Xd, Xn, Xm
+  DUP $FF200000 AND $CB000000 = IF
+    DUP SIM-RD SD !
+    DUP SIM-RN SIM-X@ SN !
+    SIM-RM SIM-X@ SN @ SWAP -     \ xn - xm
+    SD @ SIM-X!
+    DROP EXIT
+  THEN
+
+  \ STR pre-index
+  DUP $FFC00C00 AND $F8000C00 = IF
+    DUP SIM-RD SD !
+    DUP SIM-RN SN !
+    SIM-IMM9 SM !
+    SN @ SIM-X@ SM @ +
+    DUP SN @ SIM-X!
+    SD @ SIM-X@ SWAP SIM-STORE64
+    DROP EXIT
+  THEN
+
+  \ LDR post-index
+  DUP $FFC00C00 AND $F8400400 = IF
+    DUP SIM-RD SD !
+    DUP SIM-RN SN !
+    SIM-IMM9 SM !
+    SN @ SIM-X@
+    DUP SIM-LOAD64 SD @ SIM-X!
+    SM @ + SN @ SIM-X!
+    DROP EXIT
+  THEN
+
+  \ LDR [n,#0]
+  DUP $FFC00000 AND $F9400000 = IF
+    DUP SIM-RD SD !
+    SIM-RN SIM-X@ SIM-LOAD64 SD @ SIM-X!
+    DROP EXIT
+  THEN
+
+  \ STR [n,#0]
+  DUP $FFC00000 AND $F9000000 = IF
+    DUP SIM-RD SIM-X@
+    SWAP SIM-RN SIM-X@ SIM-STORE64
+    DROP EXIT
+  THEN
+
+  \ CBNZ
+  DUP 24 RSHIFT $FF AND $B5 = IF
+    DUP SIM-RD SIM-X@ 0= IF DROP EXIT THEN
+    SIM-IMM19 4 * SIM-PC @ 4 - + SIM-PC !
+    DROP EXIT
+  THEN
+
+  \ CBZ
+  DUP 24 RSHIFT $FF AND $B4 = IF
+    DUP SIM-RD SIM-X@ IF DROP EXIT THEN
+    SIM-IMM19 4 * SIM-PC @ 4 - + SIM-PC !
+    DROP EXIT
+  THEN
+
+  S" SIM: unknown " TYPE DUP SYM-HEX. S" PC=" TYPE SIM-PC @ 4 - . CR
+  TRUE SIM-HALT !
+  DROP
+  ;
+
+: SIM-RUN  ( taddr -- x0 )
+  SIM-INIT  SIM-PC !
+  BEGIN SIM-HALT @ 0= WHILE SIM-STEP REPEAT
+  SIM-X0 @
+  ;
+
+: RUN-T    ( taddr -- x0 )  SIM-RUN ;
+: RUN-SYM  ( ca u -- x0 )  SYM-FIND-IX SYM-ADDR@ RUN-T ;
+: RUN-ANS  ( -- x0 )  S" ANS" RUN-SYM ;
+
+: .RUN-ANS  ( -- )
+  RUN-ANS
+  S" RUN-ANS => " TYPE DUP . CR
+  5 <> IF S" RUN-ANS fail: expected 5" TYPE CR ABORT THEN
+  S" RUN-ANS: OK" TYPE CR
+  ;
+
+FORTH DEFINITIONS
+S" SIMARM64 loaded (RUN-T RUN-ANS .RUN-ANS)." TYPE CR
