@@ -1,8 +1,9 @@
 \ FWDDEMO.fth — interpret-time forward-ref smoke (loaded by FWD-DEMO)
 \ Public domain. Requires TARGETGEN already loaded.
 \
-\ Checks must run inside a colon definition: interpret-time IF/THEN is
-\ not reliable (compile-only on many Forths). Use VARIABLE not VALUE/TO.
+\ Checks run inside a colon (interpret IF is unreliable).
+\ Fresh forward: best after FLOAD TARGETGEN (empty HELLO). Re-runs may
+\ already have HELLO in the table → G' emits CALL directly (still OK).
 
 TARGET-INIT
 /SHOW
