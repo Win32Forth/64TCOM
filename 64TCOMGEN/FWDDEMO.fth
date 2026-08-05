@@ -1,8 +1,5 @@
 \ FWDDEMO.fth — interpret-time forward-ref smoke (loaded by FWD-DEMO)
 \ Public domain. Requires TARGETGEN already loaded.
-\
-\ MAIN references HELLO before HELLO is defined; resolve patches CALL.
-\ Use S" … TYPE at interpret time (." can be compile-only / awkward).
 
 TARGET-INIT
 /SHOW
@@ -28,8 +25,8 @@ S" HELLO" SYM-FIND-IX TO (FD-IX)
 (FD-IX) SYM-TYPE@ TO (FD-TY)
 
 (FD-TY) SYM-TARGET <> IF
-  S" FWD-DEMO fail: HELLO type=" TYPE (FD-TY) . 
-  S" ix=" TYPE (FD-IX) . 
+  S" FWD-DEMO fail: HELLO type=" TYPE (FD-TY) .
+  S" ix=" TYPE (FD-IX) .
   S" (want TARGET=" TYPE SYM-TARGET . S" )" TYPE CR
   ABORT
 THEN

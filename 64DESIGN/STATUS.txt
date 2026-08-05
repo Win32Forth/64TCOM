@@ -22,8 +22,15 @@ Coding style (host/director/GEN)
     \ or the user's output-local form without | temps:
     : test {: bingo bongo -- bango :} bingo bongo + TO bango ;
 
-  Prefer:  {: in1 in2 | temp1 temp2 :}  then leave results on the stack.
-  Avoid:   {: in | temp -- out :}  (mix of | and -- failed: "undefined: out")
+  Output locals are returned automatically — do not push them before ; :
+
+    : SYM-FIND-IX  {: ca u -- ix :}
+      ca u SYM-FIND IF TO ix ELSE DROP … THEN
+      ;   \ ix is left on the stack by the locals mechanism
+
+  Temps:  {: in | temp :}  (not auto-returned).
+  Avoid:  {: in | temp -- out :}  (mix failed: "undefined: out" on 64Forth).
+  Loop scratch: VARIABLEs (SYM-I …) when outs are also needed.
 
 
 Phase checklist
