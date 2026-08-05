@@ -63,19 +63,15 @@ VARIABLE SYM-N
 
 : SYM-GET-NAME  ( i -- c-addr u )  SYM-NBUF COUNT ;
 
-\ Case-insensitive string equality (ca1 u1) (ca2 u2)
-: SYM-STR=  ( ca1 u1 ca2 u2 -- flag )
-  \ Case-insensitive equality.
-  \ ca1 u1 ca2 u2 -> ROT OVER: ca1 ca2 u2 u1 u2 ; <> compares lengths
-  ROT OVER <> IF                   \ lengths differ: stack ca1 ca2 u2
-    2DROP DROP FALSE EXIT
-  THEN                             \ lengths equal: ca1 ca2 u
-  0 ?DO
-    OVER I + C@ SYM-UPC            \ char from ca1
-    OVER I + C@ SYM-UPC            \ char from ca2
-    <> IF  2DROP UNLOOP FALSE EXIT  THEN
+\ Case-insensitive string equality — use locals (clear & reliable)
+: SYM-STR=  {: a1 u1 a2 u2 -- flag :}
+  u1 u2 <> IF FALSE EXIT THEN
+  u1 0 DO
+    a1 I + C@ SYM-UPC
+    a2 I + C@ SYM-UPC
+    <> IF UNLOOP FALSE EXIT THEN
   LOOP
-  2DROP TRUE
+  TRUE
   ;
 
 : SYM-NAME=  ( c-addr u i -- flag )
