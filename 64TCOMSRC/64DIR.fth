@@ -1,6 +1,7 @@
 \ 64DIR.fth — Thin 64TCOM director + host symbol table (Phase 1.2)
 \
 \ Public domain. Requires 64HOST.fth. Load before GEN pack.
+\ Names stored UPPERCASE; SYM-FIND and G' are case-insensitive.
 
 TCOM-ANEW 64DIR
 
@@ -13,7 +14,6 @@ DECIMAL
 3 CONSTANT SYM-CODE
 4 CONSTANT SYM-FORWARD
 
-\ Parallel arrays
 256 CONSTANT SYM-MAX
 32  CONSTANT /SNAME
 
@@ -44,18 +44,40 @@ VARIABLE SYM-N
 
 : SYM-NBUF  ( i -- c-addr )  /SNAME * SYMN + ;
 
+: SYM-UPC  ( c -- c' )
+  DUP [CHAR] a [CHAR] z WITHIN IF  32 -  THEN
+  ;
+
+\ Store counted name UPPERCASE into slot i
 : SYM-PUT-NAME  ( c-addr u i -- )
   >R
   31 MIN
   DUP R@ SYM-NBUF C!
-  R@ SYM-NBUF CHAR+ SWAP MOVE
-  R> DROP
+  0 ?DO
+    DUP I + C@ SYM-UPC
+    R@ SYM-NBUF 1+ I + C!
+  LOOP
+  DROP R> DROP
   ;
 
 : SYM-GET-NAME  ( i -- c-addr u )  SYM-NBUF COUNT ;
 
+\ Case-insensitive string equality (ca1 u1) (ca2 u2)
+: SYM-STR=  ( ca1 u1 ca2 u2 -- flag )
+  \ Compare two strings case-insensitively
+  ROT OVER <> IF                   \ ( ca1 ca2 u2 u1 ) then u1 u2 <>
+    2DROP DROP FALSE EXIT          \ ( ca1 ca2 u2 ) after IF consumed flag
+  THEN                             \ ( ca1 ca2 u )
+  0 ?DO
+    OVER I + C@ SYM-UPC
+    OVER I + C@ SYM-UPC
+    <> IF  2DROP UNLOOP FALSE EXIT  THEN
+  LOOP
+  2DROP TRUE
+  ;
+
 : SYM-NAME=  ( c-addr u i -- flag )
-  SYM-GET-NAME COMPARE 0=
+  SYM-GET-NAME SYM-STR=
   ;
 
 : SYM-FIND  ( c-addr u -- i true | false )
@@ -68,21 +90,19 @@ VARIABLE SYM-N
   ;
 
 \ ( c-addr u type addr -- i )
-\ Hold type and addr in two cells at PAD (avoid R-stack confusion)
 : SYM-ADD
-  PAD CELL+ !                      \ addr at PAD+CELL
-  PAD !                            \ type at PAD
-  \ stack: ca u
+  PAD CELL+ !                      \ addr
+  PAD !                            \ type
   2DUP SYM-FIND IF                 \ ca u i
-    NIP NIP                        \ i
+    NIP NIP
     PAD @ OVER SYM-TYPE!
     PAD CELL+ @ OVER SYM-ADDR!
     EXIT
-  THEN                             \ ca u
+  THEN
   SYM-N @ SYM-MAX U>= IF
     2DROP S" Symbol table full" TCOM-ABORT
   THEN
-  SYM-N @ SYM-PUT-NAME             \ ca u i
+  SYM-N @ SYM-PUT-NAME
   PAD @       SYM-N @ SYM-TYPE!
   PAD CELL+ @ SYM-N @ SYM-ADDR!
   0           SYM-N @ SYM-USES!
@@ -91,27 +111,22 @@ VARIABLE SYM-N
   ;
 
 : SYM-ADD-LAST  ( type addr -- i )
-  \ type addr on stack; name from LAST
-  LAST NAME>STRING                 \ type addr ca u
-  2SWAP                            \ ca u type addr
-  SYM-ADD
+  LAST NAME>STRING 2SWAP SYM-ADD
   ;
 
-\ Register LAST host word: name from LAST, cookie from argument
 : SYM-REG-LIB  ( cookie -- )
-  SYM-LIBRARY SWAP                 \ type cookie
+  SYM-LIBRARY SWAP
   SYM-ADD-LAST DROP
   ;
 
 : .SYM-TYPE  ( type -- )
-  DUP SYM-TARGET  = IF DROP ." TARGET" EXIT THEN
-  DUP SYM-LIBRARY = IF DROP ." LIB"    EXIT THEN
-  DUP SYM-CODE    = IF DROP ." CODE"   EXIT THEN
-  DUP SYM-FORWARD = IF DROP ." FWD"    EXIT THEN
-  DROP ." ?"
+  DUP SYM-TARGET  = IF DROP S" TARGET" TYPE EXIT THEN
+  DUP SYM-LIBRARY = IF DROP S" LIB" TYPE EXIT THEN
+  DUP SYM-CODE    = IF DROP S" CODE" TYPE EXIT THEN
+  DUP SYM-FORWARD = IF DROP S" FWD" TYPE EXIT THEN
+  DROP S" ?" TYPE
   ;
 
-\ Print u in hex without using >R inside a DO LOOP (that corrupts I!)
 : SYM-HEX.  ( u -- )
   BASE @ SWAP HEX 0 <# #S #> TYPE SPACE BASE !
   ;
@@ -130,9 +145,13 @@ VARIABLE SYM-N
   LOOP
   ;
 
-\ =============================================================================
-\ Director
-\ =============================================================================
+: .SYMA  ( -- )
+  S" SYMA raw (first 16):" TYPE CR
+  SYM-N @ 0 MAX 16 MIN 0 ?DO
+    I 3 .R S" : " TYPE
+    I CELLS SYMA + @ SYM-HEX. CR
+  LOOP
+  ;
 
 : ?INTERPRET-ONLY  ( c-addr u -- )
   STATE @ IF TCOM-ABORT ELSE 2DROP THEN
@@ -201,7 +220,7 @@ VARIABLE SYM-N
 : G'  ( "<spaces>name" -- )
   BL WORD COUNT
   2DUP SYM-FIND 0= IF
-    TYPE ."  ?" CR
+    TYPE S"  ?" TYPE CR
     S" unknown symbol" TCOM-ABORT
   THEN
   NIP NIP
@@ -209,25 +228,23 @@ VARIABLE SYM-N
   SYM-ADDR@ COMP-CALL
   ;
 
-: LIB,  ( xt -- )  EXECUTE COMP-CALL ;
+: LIB,  ( xt -- )
+  EXECUTE                             ( cookie )
+  DUP >R
+  SYM-N @ 0 DO
+    I SYM-ADDR@ R@ = IF  I SYM-USE+  LEAVE  THEN
+  LOOP
+  R> COMP-CALL
+  ;
 
 DEFER DIR-ON-TARGET-INIT
 : (DIR-ON-TARGET-INIT-NOOP) ( -- )  ;
 ' (DIR-ON-TARGET-INIT-NOOP) IS DIR-ON-TARGET-INIT
 
 : .DIR  ( -- )
-  ." 64DIR Phase 1.2 — symbols + thin director" CR
-  ."   T: ;T L: ;L GCODE G, GCALL GJMP G' LIB, .SYMBOLS SYM-CLEAR" CR
+  S" 64DIR Phase 1.2 — symbols + thin director" TYPE CR
+  S"   T: ;T L: ;L GCODE G, GCALL GJMP G' LIB, .SYMBOLS" TYPE CR
   .SYMBOLS
-  ;
-
-: .SYMA  ( -- )
-  S" SYMA raw (first 16):" TYPE CR
-  SYM-N @ 0 MAX 16 MIN 0 ?DO
-    I 3 .R S" : " TYPE
-    I CELLS SYMA + @ SYM-HEX.
-    CR
-  LOOP
   ;
 
 : SYM-SMOKE  ( -- )
@@ -235,9 +252,11 @@ DEFER DIR-ON-TARGET-INIT
   S" AAA" SYM-LIBRARY $8000 SYM-ADD DROP
   S" BBB" SYM-LIBRARY $8008 SYM-ADD DROP
   S" CCC" SYM-TARGET  $0001 SYM-ADD DROP
-  0 SYM-ADDR@ $8000 <> IF S" SYM-SMOKE fail0 got " TYPE 0 SYM-ADDR@ H. CR ABORT THEN
-  1 SYM-ADDR@ $8008 <> IF S" SYM-SMOKE fail1 got " TYPE 1 SYM-ADDR@ H. CR ABORT THEN
-  2 SYM-ADDR@ $0001 <> IF S" SYM-SMOKE fail2 got " TYPE 2 SYM-ADDR@ H. CR ABORT THEN
+  0 SYM-ADDR@ $8000 <> IF S" SYM-SMOKE fail0" TYPE CR ABORT THEN
+  1 SYM-ADDR@ $8008 <> IF S" SYM-SMOKE fail1" TYPE CR ABORT THEN
+  2 SYM-ADDR@ $0001 <> IF S" SYM-SMOKE fail2" TYPE CR ABORT THEN
+  \ case-insensitive find
+  S" aaa" SYM-FIND 0= IF S" SYM-SMOKE casefail" TYPE CR ABORT THEN DROP
   S" SYM-SMOKE: OK" TYPE CR
   SYM-CLEAR
   ;
