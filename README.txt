@@ -1,6 +1,7 @@
-64TCOM
-======
+64TCOM (public domain)
+======================
 See README.md for the full project overview, heritage, layout, and status.
+See PUBLIC_DOMAIN for the short dedication.
 
   64DESIGN/          Design documents
   64TCOMSRC/         Director sources (in progress)

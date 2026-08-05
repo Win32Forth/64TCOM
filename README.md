@@ -4,7 +4,7 @@
 
 It is **not** an F-PC 16-bit translation layer. The compiler director is being redesigned and re-implemented for 64Forth’s cell size and host environment, while preserving classic TCOM’s multi-target architecture (director + pluggable target packs).
 
-Public domain lineage: classic **TCOM** and **F-PC** by Tom Zimmer and contributors.
+**Public domain.** 64TCOM, like classic **TCOM** and **F-PC** (Tom Zimmer and contributors), is dedicated to the public domain.
 
 ---
 
@@ -95,6 +95,11 @@ Classic sources used for reference are kept in this repo under **`REFERENCE_FILE
 
 ## License / distribution
 
-Classic **F-PC** and **TCOM** were released as **public domain** by Tom Zimmer.  
-**64TCOM** continues in that spirit unless a more specific notice is added later.  
+**64TCOM is public domain.**
+
+You may use, copy, modify, and distribute it freely, for any purpose, with or without attribution.
+
+Classic **F-PC** and **TCOM** were also released as public domain by Tom Zimmer and contributors.  
 Reference trees under `REFERENCE_FILES/` retain their original historical notices where present.
+
+See [PUBLIC_DOMAIN](PUBLIC_DOMAIN) for the short dedication.
