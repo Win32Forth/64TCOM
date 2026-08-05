@@ -1,5 +1,6 @@
 \ GENDEMO.fth — interpret-time GEN smoke (loaded by GEN-DEMO)
 \ Public domain. Requires TARGETGEN already loaded.
+\ Use S" … TYPE at interpret time (." can be compile-only / awkward).
 
 TARGET-INIT
 /SHOW
@@ -11,8 +12,9 @@ T: HI
 
 GEN-FINISH
 
-CR ." GEN-DEMO done. HERE-T=" HERE-T . CR
-." First bytes: "
+CR
+S" GEN-DEMO done. HERE-T=" TYPE HERE-T . CR
+S" First bytes: " TYPE
 HERE-T 0 MAX 32 MIN 0
 BEGIN 2DUP < WHILE
   DUP C@-T H2.
@@ -20,4 +22,4 @@ BEGIN 2DUP < WHILE
 REPEAT
 2DROP CR
 .SYMBOLS
-." GEN-DEMO: OK" CR
+S" GEN-DEMO: OK" TYPE CR

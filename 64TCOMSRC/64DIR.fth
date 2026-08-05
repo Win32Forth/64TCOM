@@ -132,6 +132,12 @@ VARIABLE SYM-N
   FALSE
   ;
 
+\ Found → ix only; missing → message + abort (clean stack for demos/scripts)
+: SYM-FIND-IX  ( c-addr u -- ix )
+  SYM-FIND IF EXIT THEN
+  S" symbol not found in table" TCOM-ABORT
+  ;
+
 : SYM-ADD  ( c-addr u type addr -- ix )
   {: ca u typ adr | i :}
   ca u SYM-FIND IF
@@ -443,12 +449,11 @@ DEFER DIR-ON-FINISH
   1 SYM-ADDR@ $8008 <> IF S" SYM-SMOKE fail1" TYPE CR ABORT THEN
   2 SYM-ADDR@ $0001 <> IF S" SYM-SMOKE fail2" TYPE CR ABORT THEN
   S"  slot0=[" TYPE 0 SYM-GET-NAME TYPE S" ]" TYPE CR
-  S" aaa" SYM-FIND 0= IF S" SYM-SMOKE casefail" TYPE CR ABORT THEN DROP
-  S" AaA" SYM-FIND 0= IF S" SYM-SMOKE casefail2" TYPE CR ABORT THEN DROP
+  S" aaa" SYM-FIND-IX DROP
+  S" AaA" SYM-FIND-IX DROP
   \ forward entry without image
   S" LATER" SYM-FORWARD SYM-NO-CHAIN SYM-ADD DROP
-  S" later" SYM-FIND 0= IF S" SYM-SMOKE fwdfail" TYPE CR ABORT THEN
-  DROP
+  S" later" SYM-FIND-IX DROP
   SYM-UNRES-COUNT 1 <> IF S" SYM-SMOKE unrescnt" TYPE CR ABORT THEN
   S" SYM-SMOKE: OK" TYPE CR
   SYM-CLEAR

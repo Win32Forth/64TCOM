@@ -2,6 +2,7 @@
 \ Public domain. Requires TARGETGEN already loaded.
 \
 \ MAIN references HELLO before HELLO is defined; resolve patches CALL.
+\ Use S" … TYPE at interpret time (." can be compile-only / awkward).
 
 TARGET-INIT
 /SHOW
@@ -16,37 +17,27 @@ T: HELLO
 
 GEN-FINISH
 
-CR ." FWD-DEMO done. HERE-T=" HERE-T . CR
+CR
+S" FWD-DEMO done. HERE-T=" TYPE HERE-T . CR
 .SYMBOLS
 
-S" HELLO" SYM-FIND 0= IF
-  ." FWD-DEMO fail: HELLO missing" CR ABORT
+\ HELLO must exist, be TARGET (resolved), and have uses >= 1
+S" HELLO" SYM-FIND-IX
+DUP SYM-TYPE@ SYM-FORWARD = IF
+  DROP
+  S" FWD-DEMO fail: HELLO still FWD" TYPE CR ABORT
 THEN
-DROP
-DROP
-
-S" HELLO" SYM-FIND 0= IF
-  ." FWD-DEMO fail: HELLO missing (2)" CR ABORT
+DUP SYM-TYPE@ SYM-TARGET <> IF
+  DROP
+  S" FWD-DEMO fail: HELLO not TARGET" TYPE CR ABORT
 THEN
-DROP
-SYM-TYPE@ SYM-FORWARD = IF
-  ." FWD-DEMO fail: HELLO still FWD" CR ABORT
-THEN
-
-S" MAIN" SYM-FIND 0= IF
-  ." FWD-DEMO fail: MAIN missing" CR ABORT
-THEN
-DROP
-SYM-TYPE@ SYM-TARGET <> IF
-  ." FWD-DEMO fail: MAIN not TARGET" CR ABORT
-THEN
-
-S" HELLO" SYM-FIND 0= IF
-  ." FWD-DEMO fail: HELLO uses" CR ABORT
-THEN
-DROP
 SYM-USES@ 1 < IF
-  ." FWD-DEMO fail: HELLO uses < 1" CR ABORT
+  S" FWD-DEMO fail: HELLO uses < 1" TYPE CR ABORT
 THEN
 
-." FWD-DEMO: OK (forward HELLO resolved)" CR
+S" MAIN" SYM-FIND-IX
+SYM-TYPE@ SYM-TARGET <> IF
+  S" FWD-DEMO fail: MAIN not TARGET" TYPE CR ABORT
+THEN
+
+S" FWD-DEMO: OK (forward HELLO resolved)" TYPE CR
