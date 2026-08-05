@@ -1,0 +1,38 @@
+What is a “library cookie”?
+===========================
+(64TCOM GEN — plain-language note)
+
+In classic TCOM, the *library* is a pool of reusable target routines
+(DUP, @, EXIT, …). When your program uses one, TCOM either:
+
+  • emits a CALL to that routine’s address in the target image, or
+  • later resolves a forward reference to it.
+
+Until we have a full director and a real CPU backend, GEN does not lay
+down real machine code for those routines. Instead, each stub library
+word (DUP#, EXIT#, …) is given a **unique number** on the host — we call
+that number a **cookie**.
+
+Example:
+  DUP#   returns  $8038
+  DROP#  returns  $8040
+
+When GEN “compiles”  ' DUP# LIB,  it writes a CALL tag into the GEN image
+whose operand is that cookie ($8038). That is enough to exercise:
+
+  • the deferred COMP-CALL hook
+  • the target image buffer (HERE-T moves)
+  • the idea of “reference library prim X”
+
+It is **not** a real code address on ARM64 (or 8086). A later real target
+pack will replace cookies with true entry addresses (or ITC CFases).
+
+Why names end in # 
+------------------
+So we never hide FORTH’s real DUP, EXIT, @, etc. while testing.
+
+Verbose listing
+---------------
+By default LIBGEN only prints a one-line summary.
+  LIB-VERBOSE-ON    — print each cookie as it is defined
+  LIB-VERBOSE-OFF   — default

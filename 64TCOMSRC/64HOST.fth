@@ -18,11 +18,28 @@
 \
 \ Load (from 64TCOMSRC, or any path):
 \   INCLUDE 64HOST.fth
-\ Reload-safe via ANEW.
+\ Reload-safe via TCOM-ANEW (quiet; no "Loading module" banner).
 \
 \ Status: Phase 1 scaffold — not a full director.
 
-ANEW 64HOST
+FORTH DEFINITIONS
+DECIMAL
+
+\ Quiet counterpart to 64Forth ANEW — same FORGET/CREATE reload semantics,
+\ without printing "Loading module:" (nested INCLUDE of pack files stays tidy).
+[UNDEFINED] TCOM-ANEW [IF]
+: TCOM-ANEW  ( "<spaces>name" -- )
+  >IN @ >R
+  BL WORD FIND IF
+    DROP  R@ >IN !  FORGET
+  ELSE
+    DROP
+  THEN
+  R> >IN !  CREATE
+  ;
+[THEN]
+
+TCOM-ANEW 64HOST
 
 FORTH DEFINITIONS
 DECIMAL

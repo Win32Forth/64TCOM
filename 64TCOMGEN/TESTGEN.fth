@@ -6,12 +6,12 @@
 \   FLOAD TARGETGEN.fth
 \   FLOAD TESTGEN.fth
 
-ANEW TESTGEN
+TCOM-ANEW TESTGEN
 
 FORTH DEFINITIONS
 DECIMAL
 
-CR ." TESTGEN: compiling sample under GEN…" CR
+." TESTGEN: compiling sample under GEN…" CR
 
 TARGET-INIT
 /SHOW

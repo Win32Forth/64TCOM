@@ -9,7 +9,7 @@
 \
 \ Requires: 64HOST.fth already loaded.
 
-ANEW ASMGEN
+TCOM-ANEW ASMGEN
 
 FORTH DEFINITIONS
 DECIMAL

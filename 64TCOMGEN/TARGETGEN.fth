@@ -20,12 +20,22 @@
 \   GEN-DEMO      short self-test
 \   FLOAD TESTGEN.fth
 
-ANEW TARGETGEN
+\ Need TCOM-ANEW before the pack marker (defined in 64HOST; bootstrap copy here)
+FORTH DEFINITIONS DECIMAL
+[UNDEFINED] TCOM-ANEW [IF]
+: TCOM-ANEW  ( "<spaces>name" -- )
+  >IN @ >R
+  BL WORD FIND IF  DROP R@ >IN ! FORGET  ELSE  DROP  THEN
+  R> >IN !  CREATE
+  ;
+[THEN]
+
+TCOM-ANEW TARGETGEN
 
 FORTH DEFINITIONS
 DECIMAL
 
-." === 64TCOM GEN: loading ===" CR
+." 64TCOM GEN: loading…" CR
 
 \ --- Host layer (parent directory) ------------------------------------------
 \ 64Forth nested INCLUDE sets logical cwd to this file's directory, so
@@ -44,5 +54,5 @@ INCLUDE LIBGEN.fth
 TCOM-ORDER
 TCOM-WARN-ON
 
-." === 64TCOM GEN ready === " TVERSION CR
+." 64TCOM GEN ready — " TVERSION CR
 ." Try:  .GEN   GEN-DEMO   FLOAD TESTGEN.fth" CR

@@ -11,13 +11,21 @@
 \
 \ Requires: 64HOST.fth, ASMGEN.fth, OPTGEN.fth
 
-ANEW LIBGEN
+TCOM-ANEW LIBGEN
 
 FORTH DEFINITIONS
 DECIMAL
 
 \ Cookies are host-side IDs in a high range (not real image offsets).
+\ See comment block at end of this file / 64DESIGN notes: a "library cookie"
+\ is just a unique ID for a stub library word (e.g. DUP# → $8038), used by
+\ CALL tags until a real target has real addresses.
 $8000 VALUE LIB-COOKIE-NEXT
+0 VALUE LIB-PRIM-COUNT          \ how many LIB-PRIM names this load
+
+FALSE VALUE LIB-VERBOSE         \ TRUE → print each cookie line
+: LIB-VERBOSE-ON   ( -- )  TRUE  TO LIB-VERBOSE ;
+: LIB-VERBOSE-OFF  ( -- )  FALSE TO LIB-VERBOSE ;
 
 : LIB-CREATE  ( cookie -- )
   CREATE ,  DOES> @
@@ -27,11 +35,12 @@ $8000 VALUE LIB-COOKIE-NEXT
   HOST-DEFS
   LIB-COOKIE-NEXT >R           ( R: cookie )
   R@ LIB-CREATE                \ parses name; host word returns cookie
-  ?QUIET 0= IF
+  LIB-VERBOSE IF
     ." Library cookie " LAST NAME>STRING TYPE SPACE R@ H. CR
   THEN
   R> DROP
   LIB-COOKIE-NEXT T-CELL + TO LIB-COOKIE-NEXT
+  LIB-PRIM-COUNT 1+ TO LIB-PRIM-COUNT
   FORTH-DEFS
   ;
 
@@ -60,11 +69,12 @@ LIB-PRIM EXEC#
 LIB-PRIM NOOP#
 
 : .LIBGEN  ( -- )
-  CR ." LIBGEN: host-side library cookies (names end with #)" CR
+  ." LIBGEN: " LIB-PRIM-COUNT . ." library cookies (IDs for stub prims like DUP#)." CR
   ."   Example:  T: FOO  $AA G,  ' DUP# LIB,  ;T" CR
-  ."   Next cookie=" LIB-COOKIE-NEXT H. CR
+  ."   Next cookie id=" LIB-COOKIE-NEXT H. CR
+  ."   LIB-VERBOSE-ON  to list each cookie at define time." CR
   ;
 
 FORTH DEFINITIONS
 >FORTH
-." LIBGEN loaded." CR
+." LIBGEN: " LIB-PRIM-COUNT . ." library cookies ready (DUP# EXIT# …)." CR
