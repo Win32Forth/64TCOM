@@ -13,15 +13,17 @@ YOU ARE HERE
 
 Coding style (host/director/GEN)
 --------------------------------
-  Prefer ANS locals  {: in | temp -- out :}  over  >R R@ R>
-  Reason: >R inside DO LOOP corrupts I (caused all SYMA dumps to show
-  $8050 when BASE was saved on the return stack). 64Forth supports:
+  Prefer ANS locals over >R R@ R> (return stack collides with DO/I).
 
+  64Forth form that works reliably in this codebase:
+
+    : test {: bingo bongo | bango :} bingo bongo + TO bango  bango ;
+    \ or the user's output-local form without | temps:
     : test {: bingo bongo -- bango :} bingo bongo + TO bango ;
 
-  64DIR / LIBGEN / GEN dumps / (T-BSWAP64) / H. / H2. / TCOM-ANEW
-  are written this way. Avoid DO LOOP when a local-index BEGIN WHILE
-  is clearer.
+  Prefer:  {: in1 in2 | temp1 temp2 :}  then leave results on the stack.
+  Avoid:   {: in | temp -- out :}  (mix of | and -- failed: "undefined: out")
+
 
 
 Phase checklist

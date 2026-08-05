@@ -336,16 +336,18 @@ DEFER T-SWAP-BYTES   \ ( x -- x' ) optional transform of a T-CELL value
 : /LOW-HIGH  ( -- )  ['] (T-SWAP-NONE) IS T-SWAP-BYTES ;
 
 \ Full 64-bit byte swap (for /HIGH-LOW when T-CELL = 8)
-\ Locals only — never >R inside DO (corrupts I / loop control)
+\ Locals: inputs and | temps only; leave result on stack (no -- outs).
+\ Mixing "{: in | temp -- out :}" is not reliable on 64Forth.
 : (T-BSWAP64)  ( u -- u' )
-  {: u | k -- out :}
-  0 TO out
+  {: u | k res :}
+  0 TO res
   0 TO k
   BEGIN k 8 < WHILE
-    out 8 LSHIFT  u $FF AND OR  TO out
+    res 8 LSHIFT  u $FF AND OR  TO res
     u 8 RSHIFT TO u
     k 1+ TO k
   REPEAT
+  res
   ;
 : /HIGH-LOW  ( -- )  ['] (T-BSWAP64) IS T-SWAP-BYTES ;
 

@@ -2,7 +2,13 @@
 \
 \ Public domain. Requires 64HOST.fth. Load before GEN pack.
 \
-\ Prefer ANS locals {: name -- out :} over >R/R@ (avoids DO LOOP collisions).
+\ Prefer ANS locals over >R/R@ (avoids DO LOOP collisions).
+\ 64Forth style that works reliably:
+\   {: in1 in2 | temp1 temp2 :}   \ inputs + zeroed temps
+\   leave results on the data stack explicitly
+\ Avoid mixing  "{: in | temp -- out :}"  — output section after --
+\ with | temps is unreliable; simple "{: a b -- c :}" may work but
+\ we stick to inputs/temps + explicit stack for portability.
 
 TCOM-ANEW 64DIR
 
@@ -35,30 +41,41 @@ VARIABLE SYM-N
 
 : SYM-COUNT  ( -- n )  SYM-N @ ;
 
-: SYM-TYPE@  {: i -- n :}  i CELLS SYMT + @ TO n ;
-: SYM-ADDR@  {: i -- n :}  i CELLS SYMA + @ TO n ;
-: SYM-USES@  {: i -- n :}  i CELLS SYMU + @ TO n ;
+: SYM-TYPE@  ( i -- n )
+  {: i :}  i CELLS SYMT + @ ;
+: SYM-ADDR@  ( i -- n )
+  {: i :}  i CELLS SYMA + @ ;
+: SYM-USES@  ( i -- n )
+  {: i :}  i CELLS SYMU + @ ;
 
-: SYM-TYPE!  {: n i :}  n i CELLS SYMT + ! ;
-: SYM-ADDR!  {: n i :}  n i CELLS SYMA + ! ;
-: SYM-USES!  {: n i :}  n i CELLS SYMU + ! ;
+: SYM-TYPE!  ( n i -- )
+  {: n i :}  n i CELLS SYMT + ! ;
+: SYM-ADDR!  ( n i -- )
+  {: n i :}  n i CELLS SYMA + ! ;
+: SYM-USES!  ( n i -- )
+  {: n i :}  n i CELLS SYMU + ! ;
 
-: SYM-USE+  {: i | v :}
+: SYM-USE+  ( i -- )
+  {: i | v :}
   i SYM-USES@ 1+ TO v
   v i SYM-USES!
   ;
 
-: SYM-NBUF  {: i -- a :}  i /SNAME * SYMN + TO a ;
+: SYM-NBUF  ( i -- a )
+  {: i :}  i /SNAME * SYMN + ;
 
-: SYM-UPC  {: c -- c2 :}
+: SYM-UPC  ( c -- c2 )
+  {: c | c2 :}
   c [CHAR] a >= c [CHAR] z <= AND IF
     c 32 - TO c2
   ELSE
     c TO c2
   THEN
+  c2
   ;
 
-: SYM-PUT-NAME  {: src u i | dest lim k ch :}
+: SYM-PUT-NAME  ( src u i -- )
+  {: src u i | dest lim k ch :}
   u 31 MIN TO lim
   i SYM-NBUF TO dest
   lim dest C!
@@ -70,28 +87,32 @@ VARIABLE SYM-N
   REPEAT
   ;
 
-: SYM-GET-NAME  {: i -- addr len :}
+: SYM-GET-NAME  ( i -- addr len )
+  {: i | addr len :}
   i SYM-NBUF COUNT TO len TO addr
+  addr len
   ;
 
-: SYM-STR=  {: a1 u1 a2 u2 | k c1 c2 -- flag :}
-  u1 u2 <> IF FALSE TO flag EXIT THEN
+: SYM-STR=  ( a1 u1 a2 u2 -- flag )
+  {: a1 u1 a2 u2 | k c1 c2 :}
+  u1 u2 <> IF FALSE EXIT THEN
   0 TO k
   BEGIN k u1 < WHILE
     a1 k + C@ SYM-UPC TO c1
     a2 k + C@ SYM-UPC TO c2
-    c1 c2 <> IF FALSE TO flag EXIT THEN
+    c1 c2 <> IF FALSE EXIT THEN
     k 1+ TO k
   REPEAT
-  TRUE TO flag
+  TRUE
   ;
 
-: SYM-NAME=  {: ca u i | a2 u2 -- flag :}
+: SYM-NAME=  ( ca u i -- flag )
+  {: ca u i | a2 u2 :}
   i SYM-GET-NAME TO u2 TO a2
-  ca u a2 u2 SYM-STR= TO flag
+  ca u a2 u2 SYM-STR=
   ;
 
-\ Returns ix and found-flag on stack (not only locals) for callers that IF
+\ Returns ix and found-flag on stack for callers that IF
 : SYM-FIND  ( c-addr u -- ix true | false )
   {: ca u | i :}
   SYM-N @ 0= IF FALSE EXIT THEN
@@ -111,7 +132,7 @@ VARIABLE SYM-N
     adr i SYM-ADDR!
     i EXIT
   THEN
-  \ not found — flag false was consumed; nothing else on stack from FIND
+  \ not found — flag false was consumed
   SYM-N @ SYM-MAX U>= IF
     S" Symbol table full" TCOM-ABORT
   THEN
@@ -135,7 +156,8 @@ VARIABLE SYM-N
   SYM-LIBRARY cookie SYM-ADD-LAST DROP
   ;
 
-: .SYM-TYPE  {: typ :}
+: .SYM-TYPE  ( typ -- )
+  {: typ :}
   typ SYM-TARGET  = IF S" TARGET" TYPE EXIT THEN
   typ SYM-LIBRARY = IF S" LIB" TYPE EXIT THEN
   typ SYM-CODE    = IF S" CODE" TYPE EXIT THEN
@@ -143,7 +165,8 @@ VARIABLE SYM-N
   S" ?" TYPE
   ;
 
-: SYM-HEX.  {: u | old :}
+: SYM-HEX.  ( u -- )
+  {: u | old :}
   BASE @ TO old
   HEX
   u 0 <# #S #> TYPE SPACE
@@ -151,7 +174,7 @@ VARIABLE SYM-N
   ;
 
 : .SYMBOLS  ( -- )
-  {: i :}
+  {: | i :}
   S" Symbols: " TYPE SYM-COUNT 0 .R S"  / " TYPE SYM-MAX 0 .R CR
   SYM-COUNT 0= IF S"   (none)" TYPE CR EXIT THEN
   0 TO i
@@ -168,7 +191,7 @@ VARIABLE SYM-N
   ;
 
 : .SYMA  ( -- )
-  {: i :}
+  {: | i :}
   S" SYMA raw (first 16):" TYPE CR
   0 TO i
   BEGIN i SYM-N @ < i 16 < AND WHILE
@@ -178,7 +201,8 @@ VARIABLE SYM-N
   REPEAT
   ;
 
-: ?INTERPRET-ONLY  {: ca u :}
+: ?INTERPRET-ONLY  ( ca u -- )
+  {: ca u :}
   STATE @ IF ca u TCOM-ABORT THEN
   ;
 
@@ -279,7 +303,6 @@ DEFER DIR-ON-TARGET-INIT
   ;
 
 : SYM-SMOKE  ( -- )
-  {: ix :}
   SYM-CLEAR
   S" AAA" SYM-LIBRARY $8000 SYM-ADD DROP
   S" BBB" SYM-LIBRARY $8008 SYM-ADD DROP
