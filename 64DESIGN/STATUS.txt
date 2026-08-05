@@ -1,14 +1,15 @@
 64TCOM — Project status (living document)
 ==========================================
 Update this file when phase boundaries move.
-Last updated: 2026-08-05 (locals rewrite)
+Last updated: 2026-08-05 (Phase 1.3)
 
 YOU ARE HERE
 ------------
   Phase 0          DONE   — design, naming, layout, GitHub
   Phase 1 host     DONE   — 64HOST.fth (vocs, image buffers, hooks)
   Phase 1.2        DONE   — 64DIR.fth symbol table + T:/L:/G' director
-  Phase 2 GEN      PARTIAL — TARGETGEN loads; GEN-DEMO / TESTGEN run
+  Phase 1.3        DONE   — forward refs, resolve chains, options
+  Phase 2 GEN      PARTIAL — TARGETGEN loads; GEN-DEMO / FWD-DEMO / TESTGEN
   Phase 3+         NOT STARTED — real assembler / ARM64 ITC / image files
 
 Coding style (host/director/GEN)
@@ -25,7 +26,6 @@ Coding style (host/director/GEN)
   Avoid:   {: in | temp -- out :}  (mix of | and -- failed: "undefined: out")
 
 
-
 Phase checklist
 ---------------
 [x] 0.1  Product name 64TCOM, tree under Documents/64TCOM
@@ -34,10 +34,10 @@ Phase checklist
 [x] 1.1  64HOST.fth — HOST/COMPILER/TARGET, target mem, DEFER hooks, U>=
 [x] 1.1b Quiet TCOM-ANEW; GEN load chain; GEN tags; cookies
 [x] 1.2  Symbol table + 64DIR director (name → type/addr/uses)
-[ ] 1.3  Full COMPILE1/2-style director (forward refs, L: auto-include, options)
+[x] 1.3  Forward refs + resolve chains + options surface
 [x] 2.0  GEN pack loadable (ASMGEN OPTGEN LIBGEN TARGETGEN)
 [x] 2.1  LIB-PRIM registers into SYM table; T: records symbols; G' looks up
-[ ] 2.2  Forward references + richer resolve
+[x] 2.2  Forward references + richer resolve (same as 1.3 on GEN)
 [ ] 3.0  First real target pack (e.g. ARM64 ITC hybrid)
 [ ] 3.1  Forth-style assembler
 [ ] 4.0  Utilities (listing, xref, debugger) in 64TCOMUTILS
@@ -46,28 +46,30 @@ Phase checklist
 What works today
 ----------------
   FLOAD TARGETGEN.fth   (from 64TCOMGEN)
-  .GEN  .DIR  .SYMBOLS  GEN-DEMO  FLOAD TESTGEN.fth
-  64HOST-SMOKE  SYM-SMOKE  (case-insensitive find: aaa / AaA)
-  Target image tags: LIT/CALL/RET/NOP/… in T-CODE-BASE
-  Library cookies: DUP# DROP# … also entered in symbol table as SYM-LIBRARY
-  T: / L: / G' use the Phase 1.2 director in 64DIR.fth
+  .GEN  .DIR  .SYMBOLS  .UNRES  .OPTIONS
+  GEN-DEMO  FWD-DEMO  FLOAD TESTGEN.fth
+  64HOST-SMOKE  SYM-SMOKE  (case-insensitive find + FWD count)
+  G' unknown-name → SYM-FORWARD + fixup chain; T: name resolves chain
+  Unresolved FWD at GEN-FINISH aborts (unless /NOFWDABORT)
+  Library cookies: DUP# … as SYM-LIBRARY
   No >R/R> in live 64TCOM source (locals only)
 
 
 Key source files
 ----------------
-  64TCOMSRC/64HOST.fth     Host layer
-  64TCOMSRC/64DIR.fth      Symbol table + thin director (Phase 1.2) ✅
+  64TCOMSRC/64HOST.fth     Host layer + options
+  64TCOMSRC/64DIR.fth      Symbol table + director (Phase 1.3) ✅
   64TCOMGEN/TARGETGEN.fth  Load: HOST → DIR → ASM → OPT → LIB
-  64TCOMGEN/OPTGEN.fth     GEN hooks + tag stream + TARGET-INIT
-  64TCOMGEN/LIBGEN.fth     Library cookies + SYM-REG-LAST-LIB
-  64TCOMGEN/TESTGEN.fth    Sample compile
+  64TCOMGEN/OPTGEN.fth     GEN hooks + RESOLVE-1 + demos
+  64TCOMGEN/LIBGEN.fth     Library cookies
+  64TCOMGEN/TESTGEN.fth    Sample compile (uses G')
   REFERENCE_FILES/         Classic F-PC 3.6 + TCOM 2.5
 
 
 Design docs (background)
 ------------------------
   STATUS.txt  ← start here for “where are we?”
+  Phase 1.3 notes.txt
   TCOM to 64Forth Port Analysis.docx
   TCOM on 64Forth Phase 0 Design.docx
   64TCOM Naming and Layout.docx
@@ -78,5 +80,6 @@ Design docs (background)
 
 Next step (after this check-in)
 -------------------------------
-  Phase 1.3: forward references, richer resolve, options surface;
-  still GEN backend. Then Phase 3: real target pack (ARM64 ITC).
+  Phase 3: first real target pack (ARM64 ITC hybrid) and/or
+  library auto-include body for LIB-AUTO-INCLUDE;
+  image file save; Forth-style assembler.

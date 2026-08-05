@@ -196,9 +196,14 @@ $10 CONSTANT GEN-TAG-HDR
   ;
 ' (%COMP-HEADER) IS COMP-HEADER
 
-: (%RESOLVE-1)  ( addr -- )
-  ?QUIET 0= IF  ." Resolving forward ref at " DUP H. ." -> HERE-T" CR  THEN
-  DROP
+\ Patch one forward CALL address cell (site) with final target address.
+\ Stack: ( site final-addr -- )   !-T is ( x taddr -- )
+: (%RESOLVE-1)  ( site final-addr -- )
+  {: site final :}
+  ?QUIET 0= IF
+    ." Resolving @" SPACE site H. ." -> " final H. CR
+  THEN
+  final site !-T
   ;
 ' (%RESOLVE-1) IS RESOLVE-1
 
@@ -225,6 +230,7 @@ DEFER SAVE-IMAGE
 : (TARGET-FINISH-GEN)  ( -- )
   ?QUIET 0= IF ." Performing cleanup after compile completion" CR THEN
   DATA-SEG-FIX
+  [DEFINED] DIR-ON-FINISH [IF] DIR-ON-FINISH [THEN]
   ;
 ' (TARGET-FINISH-GEN) IS TARGET-FINISH
 
@@ -262,7 +268,8 @@ DEFER SAVE-IMAGE
   TVERSION CR
   .64HOST
   ." GEN tags: LIT=01 CALL=02 RET=03 NOP=04 JMP=05 0BR=06 HDR=10" CR
-  ." Words: TARGET-INIT T: ;T L: ;L G, G' LIB, GEN-FINISH GEN-DEMO .SYMBOLS" CR
+  ." Words: TARGET-INIT T: ;T L: ;L G, G' LIB, GEN-FINISH" CR
+  ."        GEN-DEMO FWD-DEMO .SYMBOLS .UNRES .OPTIONS" CR
   [DEFINED] .DIR [IF] .DIR [THEN]
   ;
 
@@ -280,11 +287,31 @@ DEFER SAVE-IMAGE
   [DEFINED] .SYMBOLS [IF] .SYMBOLS [THEN]
   ;
 
-\ T: HI must run at interpret time (EVALUATE), not inside this colon.
+\ T: / G' bodies must run at interpret time (EVALUATE), not inside colon.
 : GEN-DEMO  ( -- )
   S" TARGET-INIT /SHOW T: HI $1234 G, ' DUP# LIB, ;T GEN-FINISH"
   EVALUATE
   GEN-DEMO-DUMP
+  ;
+
+\ Phase 1.3: MAIN calls HELLO before HELLO is defined; chain is patched at T: HELLO
+: FWD-DEMO  ( -- )
+  S" TARGET-INIT /SHOW T: MAIN G' HELLO ;T T: HELLO $1111 G, ;T GEN-FINISH"
+  EVALUATE
+  ." FWD-DEMO done. HERE-T=" HERE-T . CR
+  [DEFINED] .SYMBOLS [IF] .SYMBOLS [THEN]
+  S" HELLO" SYM-FIND 0= IF
+    ." FWD-DEMO fail: HELLO missing" CR ABORT
+  THEN
+  DROP
+  \ HELLO must be TARGET (resolved), not FWD
+  S" HELLO" SYM-FIND DROP SYM-TYPE@ SYM-FORWARD = IF
+    ." FWD-DEMO fail: HELLO still FWD" CR ABORT
+  THEN
+  S" MAIN" SYM-FIND DROP SYM-TYPE@ SYM-TARGET <> IF
+    ." FWD-DEMO fail: MAIN not TARGET" CR ABORT
+  THEN
+  ." FWD-DEMO: OK (forward HELLO resolved)" CR
   ;
 
 FORTH DEFINITIONS

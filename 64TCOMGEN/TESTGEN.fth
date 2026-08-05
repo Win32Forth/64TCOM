@@ -30,7 +30,7 @@ T: HELLO
 ;T
 
 T: MAIN
-  HELLO GCALL       \ HELLO returns cookie; CALL it
+  G' HELLO          \ name lookup (works even if order were reversed)
   0 G,
 ;T
 

@@ -1,0 +1,67 @@
+64TCOM Phase 1.3 — Forward references, resolve, options
+=======================================================
+Date: 2026-08-05
+
+Goals (from STATUS)
+-------------------
+  • Forward references (classic COMPILE1/2 style, simplified for GEN)
+  • Richer resolve (patch CALL sites when name is defined)
+  • Options surface (.OPTIONS and /SHOW /QUIET /SAVE …)
+  • L: auto-include hook (LIB-AUTO-INCLUDE; default none)
+
+
+Forward references
+------------------
+  G' name
+    1. SYM-FIND — if known and not FWD, COMP-CALL real address
+    2. LIB-AUTO-INCLUDE (ca u -- ix true | false) — packs may install
+    3. Else create SYM-FORWARD with SYMA = SYM-NO-CHAIN (-1)
+    4. SYM-COMPILE-REF:
+         - resolved: COMP-CALL (addr)
+         - forward:  COMP-CALL 0, then treat (HERE-T − T-CELL) as a
+                     fixup site; link sites through the image cells;
+                     SYMA = chain head
+
+  Empty chain sentinel is -1 (not 0: 0 is a valid code offset).
+
+  Forward refs while ?LIB (inside L:…;L) abort — classic rule.
+
+
+Resolve
+-------
+  T: / L: / GCODE use SYM-DEFINE-LAST:
+    if name was SYM-FORWARD, SYM-RESOLVE-TO walks the chain and calls
+    RESOLVE-1 ( site final-addr -- ) which for GEN does: final site !-T
+    then sets type (TARGET/LIBRARY/CODE) and final address.
+
+  GEN-FINISH → TARGET-FINISH → DIR-ON-FINISH → SYM-CHECK-UNRES
+    reports .UNRES; aborts if ?FWDABORT (default true).
+    /NOFWDABORT softens to warn-only.
+
+
+Options (64HOST)
+----------------
+  /SHOW /NOSHOW  /QUIET /NOQUIET  /OPT /NOOPT
+  NOSAVE /SAVE   /FWDABORT /NOFWDABORT
+  .OPTIONS
+
+
+L: auto-include
+---------------
+  DEFER LIB-AUTO-INCLUDE  ( ca u -- ix true | false )
+  Default: always false.  A future library pack can search a catalog
+  and INCLUDE library source, then return the new symbol index.
+
+
+Smoke tests
+-----------
+  SYM-SMOKE     — table + case + FWD entry count (at 64DIR load)
+  GEN-DEMO      — lit + LIB, (no forward)
+  FWD-DEMO      — T: MAIN G' HELLO ;T then T: HELLO … ;T
+  .UNRES        — list remaining FWD symbols
+
+
+Not in 1.3 (later)
+------------------
+  Full COMPILE1/2 interpret loop, library file auto-load from disk,
+  branch local labels, relative RESOLVE_1 for real CPU packs.

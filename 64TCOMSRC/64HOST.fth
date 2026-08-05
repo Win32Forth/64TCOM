@@ -258,12 +258,27 @@ FALSE VALUE ?INTERPRETIVE \ interpretive compile path
 FALSE VALUE ?NOSAVE       \ do not write image file
 FALSE VALUE ?UNRES        \ unresolved forward refs remain
 FALSE VALUE ?QUIET        \ quiet messages
+FALSE VALUE ?FWDABORT     \ if true, unresolved FWD at finish aborts (default true)
 
-: NOSAVE  ( -- )  TRUE  TO ?NOSAVE ;
-: /OPT    ( -- )  TRUE  TO ?OPT ;
-: /NOOPT  ( -- )  FALSE TO ?OPT ;
-: /SHOW   ( -- )  TRUE  TO ?SHOW ;
-: /QUIET  ( -- )  TRUE  TO ?QUIET ;
+: NOSAVE    ( -- )  TRUE  TO ?NOSAVE ;
+: /SAVE     ( -- )  FALSE TO ?NOSAVE ;
+: /OPT      ( -- )  TRUE  TO ?OPT ;
+: /NOOPT    ( -- )  FALSE TO ?OPT ;
+: /SHOW     ( -- )  TRUE  TO ?SHOW ;
+: /NOSHOW   ( -- )  FALSE TO ?SHOW ;
+: /QUIET    ( -- )  TRUE  TO ?QUIET ;
+: /NOQUIET  ( -- )  FALSE TO ?QUIET ;
+: /FWDABORT ( -- )  TRUE  TO ?FWDABORT ;
+: /NOFWDABORT ( -- ) FALSE TO ?FWDABORT ;
+
+: .OPTIONS  ( -- )
+  ." 64TCOM options:" CR
+  ."   ?SHOW=" ?SHOW . ."  ?QUIET=" ?QUIET . ."  ?OPT=" ?OPT . CR
+  ."   ?NOSAVE=" ?NOSAVE . ."  ?LIB=" ?LIB . ."  ?UNRES=" ?UNRES . CR
+  ."   ?FWDABORT=" ?FWDABORT . ."  ?INTERPRETIVE=" ?INTERPRETIVE . CR
+  ."   /SHOW /NOSHOW /QUIET /NOQUIET /OPT /NOOPT" CR
+  ."   NOSAVE /SAVE /FWDABORT /NOFWDABORT" CR
+  ;
 
 \ =============================================================================
 \ Error helpers and CSP
@@ -606,7 +621,7 @@ DEFER MACRO-START
 DEFER LCODE-START
 DEFER TCODE-START
 DEFER COMP-HEADER
-DEFER RESOLVE-1
+DEFER RESOLVE-1       \ ( site final-addr -- ) patch one forward CALL site
 DEFER SUB-RET
 
 \ Assembler lifecycle — declared here so 64DIR can compile GCODE before ASMGEN
@@ -621,6 +636,7 @@ DEFER END-CODE
 : (STUB-SYM)    ( sym -- )
   ?SHOW IF  ." [stub] symbol ref " . CR  THEN  DROP
   ;
+: (STUB-RESOLVE-1)  ( site final -- )  2DROP ;
 
 ' (STUB-SYM)   IS COMP-CALL
 ' (STUB-DROP)  IS COMP-JMP-IMM
@@ -653,7 +669,7 @@ DEFER END-CODE
 ' (STUB-NOOP)  IS LCODE-START
 ' (STUB-NOOP)  IS TCODE-START
 ' (STUB-DROP)  IS COMP-HEADER
-' (STUB-DROP)  IS RESOLVE-1
+' (STUB-RESOLVE-1) IS RESOLVE-1
 ' (STUB-NOOP)  IS SUB-RET
 
 \ Image extension name (classic image.ext)
