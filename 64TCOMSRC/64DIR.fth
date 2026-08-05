@@ -45,7 +45,8 @@ VARIABLE SYM-N
 : SYM-NBUF  ( i -- c-addr )  /SNAME * SYMN + ;
 
 : SYM-UPC  ( c -- c' )
-  DUP [CHAR] a [CHAR] z WITHIN IF  32 -  THEN
+  \ a..z inclusive → A..Z  (WITHIN is [lo,hi) so use z+1)
+  DUP [CHAR] a [CHAR] z 1+ WITHIN IF  32 -  THEN
   ;
 
 \ Store counted name UPPERCASE into slot i
@@ -64,13 +65,14 @@ VARIABLE SYM-N
 
 \ Case-insensitive string equality (ca1 u1) (ca2 u2)
 : SYM-STR=  ( ca1 u1 ca2 u2 -- flag )
-  \ Compare two strings case-insensitively
-  ROT OVER <> IF                   \ ( ca1 ca2 u2 u1 ) then u1 u2 <>
-    2DROP DROP FALSE EXIT          \ ( ca1 ca2 u2 ) after IF consumed flag
-  THEN                             \ ( ca1 ca2 u )
+  \ Case-insensitive equality.
+  \ ca1 u1 ca2 u2 -> ROT OVER: ca1 ca2 u2 u1 u2 ; <> compares lengths
+  ROT OVER <> IF                   \ lengths differ: stack ca1 ca2 u2
+    2DROP DROP FALSE EXIT
+  THEN                             \ lengths equal: ca1 ca2 u
   0 ?DO
-    OVER I + C@ SYM-UPC
-    OVER I + C@ SYM-UPC
+    OVER I + C@ SYM-UPC            \ char from ca1
+    OVER I + C@ SYM-UPC            \ char from ca2
     <> IF  2DROP UNLOOP FALSE EXIT  THEN
   LOOP
   2DROP TRUE
