@@ -13,6 +13,18 @@ What 64Forth already provides (not reimplemented)
   ALLOCATE FREE RESIZE
   CELL CELLS ANEW MARKER
   THROW CATCH, File words, etc.
+  U< U> >= <= <> 0<> 0> WITHIN NIP TUCK ERASE FILL …
+
+Compatibility extras in 64HOST (candidates for 64Forth kernel)
+--------------------------------------------------------------
+  Defined only if [UNDEFINED], so a later kernel definition wins:
+
+  U>=  U<=  UMIN  UMAX
+  BOUNDS  -ROT  CELL-  CHAR-  NOT  BETWEEN
+  2NIP  3DUP  H.
+
+  Note: U>= was required immediately (bounds checks in 64HOST).
+  Prefer promoting these into 64Forth Core Ext style helpers later.
 
 What 64HOST adds
 ----------------
@@ -53,3 +65,4 @@ Load
 Next
 ----
   Thin director slice + wire 64TCOMGEN/TARGETGEN.fth load order.
+  Promote U>= / U<= / BOUNDS / … into 64Forth kernel when convenient.

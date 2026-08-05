@@ -28,6 +28,74 @@ FORTH DEFINITIONS
 DECIMAL
 
 \ =============================================================================
+\ Compatibility extras (missing or handy on 64Forth; candidates for the kernel)
+\ =============================================================================
+\
+\ 64Forth already has U< U> >= <= <> 0<> 0> WITHIN, etc.
+\ These fill gaps used by 64TCOM (and common in F-PC / ANS practice).
+\ Prefer [UNDEFINED] so a later 64Forth built-in wins without redefinition.
+
+\ --- Unsigned comparisons ---
+[UNDEFINED] U>= [IF]
+: U>=  ( u1 u2 -- flag )  U< 0= ;   \ u1 >= u2 (unsigned)
+[THEN]
+
+[UNDEFINED] U<= [IF]
+: U<=  ( u1 u2 -- flag )  U> 0= ;   \ u1 <= u2 (unsigned)
+[THEN]
+
+[UNDEFINED] UMIN [IF]
+: UMIN  ( u1 u2 -- u )  2DUP U< IF DROP ELSE NIP THEN ;
+[THEN]
+
+[UNDEFINED] UMAX [IF]
+: UMAX  ( u1 u2 -- u )  2DUP U< IF NIP ELSE DROP THEN ;
+[THEN]
+
+\ --- Address / string helpers ---
+[UNDEFINED] BOUNDS [IF]
+: BOUNDS  ( addr len -- addr+len addr )  OVER + SWAP ;
+[THEN]
+
+[UNDEFINED] -ROT [IF]
+: -ROT  ( x1 x2 x3 -- x3 x1 x2 )  ROT ROT ;
+[THEN]
+
+[UNDEFINED] CELL- [IF]
+: CELL-  ( a-addr -- a-addr' )  CELL - ;
+[THEN]
+
+[UNDEFINED] CHAR- [IF]
+: CHAR-  ( c-addr -- c-addr' )  1- ;
+[THEN]
+
+\ Logical NOT (flag invert). Bitwise complement remains INVERT.
+[UNDEFINED] NOT [IF]
+: NOT  ( x -- flag )  0= ;
+[THEN]
+
+\ Inclusive range: lo <= n <= hi  (uses WITHIN: lo <= n < hi+1)
+[UNDEFINED] BETWEEN [IF]
+: BETWEEN  ( n lo hi -- flag )  1+ WITHIN ;
+[THEN]
+
+\ --- Double / stack sugar used often in ports ---
+[UNDEFINED] 2NIP [IF]
+: 2NIP  ( x1 x2 x3 x4 -- x3 x4 )  2SWAP 2DROP ;
+[THEN]
+
+[UNDEFINED] 3DUP [IF]
+: 3DUP  ( x1 x2 x3 -- x1 x2 x3 x1 x2 x3 )
+  2 PICK  2 PICK  2 PICK ;
+[THEN]
+
+\ --- Display ---
+[UNDEFINED] H. [IF]
+: H.  ( u -- )  \ unsigned in hex with trailing space, BASE restored
+  BASE @ >R  HEX  U.  R> BASE ! ;
+[THEN]
+
+\ =============================================================================
 \ Identification
 \ =============================================================================
 
