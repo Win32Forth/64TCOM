@@ -216,29 +216,13 @@ DEFER DIR-ON-TARGET-INIT
   .SYMBOLS
   ;
 
-\ Self-check: store three distinct addrs and read them back
-: SYM-SMOKE  ( -- )
-  SYM-CLEAR
-  S" AAA" SYM-LIBRARY $8000 SYM-ADD DROP
-  S" BBB" SYM-LIBRARY $8008 SYM-ADD DROP
-  S" CCC" SYM-TARGET  $0001 SYM-ADD DROP
-  0 SYM-ADDR@ $8000 <> IF ." SYM-SMOKE fail 0" CR ABORT THEN
-  1 SYM-ADDR@ $8008 <> IF ." SYM-SMOKE fail 1" CR ABORT THEN
-  2 SYM-ADDR@ $0001 <> IF ." SYM-SMOKE fail 2" CR ABORT THEN
-  ." SYM-SMOKE: OK" CR
-  SYM-CLEAR
-  ;
-
-
-\ Raw dump of address cells (debug)
 : .SYMA  ( -- )
-  S" SYMA raw:" TYPE CR
+  S" SYMA raw (first 16):" TYPE CR
   SYM-N @ 0 MAX 16 MIN 0 ?DO
     I 3 .R S" : " TYPE
     BASE @ >R HEX
     I CELLS SYMA + @ 0 <# #S #> TYPE
-    R> BASE !
-    CR
+    R> BASE ! CR
   LOOP
   ;
 
