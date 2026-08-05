@@ -252,18 +252,21 @@ VARIABLE A64-T
   ;
 
 \ ----- patch helpers -----
+\ imm = (dest - taddr) / 4.  With ( dest taddr ) on stack, 2DUP - gives dest-taddr.
+
 : PATCH-B  ( dest taddr -- )
-  \ imm26 = (dest - taddr) / 4
-  2DUP SWAP - 4 /
+  2DUP - 4 /
   $3FFFFFF AND $14000000 OR
-  SWAP PATCH-W DROP
+  SWAP PATCH-W
+  DROP
   ;
 
 : PATCH-BCOND  ( dest taddr -- )
   DUP W@-T $F AND A64-D !
-  2DUP SWAP - 4 /
+  2DUP - 4 /
   $7FFFF AND 5 LSHIFT $54000000 OR A64-D @ OR
-  SWAP PATCH-W DROP
+  SWAP PATCH-W
+  DROP
   ;
 
 \ ----- structured control (asm) -----

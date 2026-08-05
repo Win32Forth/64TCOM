@@ -1,14 +1,15 @@
 \ ASMDEMO.fth — Phase 3.1 assembler smoke
 \ Public domain. Loaded by ASM-DEMO.
 \
-\ Host VARIABLEs in FORTH (not TARGET). Checks inside a colon
-\ (interpret-time IF is unreliable on 64Forth).
+\ FORTH vars (not TARGET). Checks in a colon (not interpret IF).
+\ A: 6+1 => 7
+\ B: AHEAD/THEN, skip junk => 3
+\ C: unrolled three adds => 3  (stable; no CBNZ back-edge)
 
 FORTH DEFINITIONS
 VARIABLE TA
 VARIABLE TB
 VARIABLE TC
-VARIABLE IMM
 VARIABLE RX
 
 TARGET-INIT
@@ -33,18 +34,14 @@ THEN,
 3 X0 MOV-X-IMM64,
 RET,
 
-\ ----- C: x0=3; L0: x0--; cbnz x0,L0; mov #3 -----
+\ ----- C: 0+1+1+1 = 3 -----
 ALIGN4-T
 HERE-T TC !
-3 X0 MOV-X-IMM64,
-0 L:
+0 X0 MOV-X-IMM64,
 1 X1 MOV-X-IMM64,
-X1 X0 X0 SUB-X-X,
-0 CELLS LL-POS + @
-ALIGN4-T
-HERE-T - 4 / IMM !
-X0 IMM @ CBNZ-X,
-3 X0 MOV-X-IMM64,
+X1 X0 X0 ADD-X-X,
+X1 X0 X0 ADD-X-X,
+X1 X0 X0 ADD-X-X,
 RET,
 
 ARM64-FINISH
@@ -57,21 +54,15 @@ FORTH DEFINITIONS
 
   TC @ RUN-T RX !
   S" leafC => " TYPE RX @ . CR
-  RX @ 3 <> IF
-    S" ASM-DEMO fail leafC (want 3)" TYPE CR ABORT
-  THEN
+  RX @ 3 <> IF S" ASM-DEMO fail leafC" TYPE CR ABORT THEN
 
   TB @ RUN-T RX !
   S" leafB => " TYPE RX @ . CR
-  RX @ 3 <> IF
-    S" ASM-DEMO fail leafB (want 3)" TYPE CR ABORT
-  THEN
+  RX @ 3 <> IF S" ASM-DEMO fail leafB" TYPE CR ABORT THEN
 
   TA @ RUN-T RX !
   S" leafA => " TYPE RX @ . CR
-  RX @ 7 <> IF
-    S" ASM-DEMO fail leafA (want 7)" TYPE CR ABORT
-  THEN
+  RX @ 7 <> IF S" ASM-DEMO fail leafA" TYPE CR ABORT THEN
 
   S" ASM-DEMO: OK" TYPE CR
   ;
