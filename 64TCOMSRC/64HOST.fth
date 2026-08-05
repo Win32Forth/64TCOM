@@ -109,23 +109,22 @@ DECIMAL
 [THEN]
 
 \ --- Display ---
+VARIABLE H-BASE-SAVE
+
 [UNDEFINED] H. [IF]
 : H.  ( u -- )  \ unsigned in hex with trailing space, BASE restored
-  {: u | old :}
-  BASE @ TO old
-  HEX
-  u U.
-  old BASE !
+  BASE @ H-BASE-SAVE !
+  HEX U.
+  H-BASE-SAVE @ BASE !
   ;
 [THEN]
 
-\ Two-digit hex byte + space (safe inside loops; uses locals, not >R)
+\ Two-digit hex byte + space (no locals, no >R)
 : H2.  ( u -- )
-  {: u | old :}
-  BASE @ TO old
+  BASE @ H-BASE-SAVE !
   HEX
-  u 0 <# # # #> TYPE SPACE
-  old BASE !
+  0 <# # # #> TYPE SPACE
+  H-BASE-SAVE @ BASE !
   ;
 
 \ =============================================================================
