@@ -1,7 +1,9 @@
 \ LIBGEN.fth — Stub target library for 64TCOM GEN
 \
 \ Public domain.
-\ Requires: 64HOST.fth, 64DIR.fth (symbol table), ASMGEN, OPTGEN
+\ Requires: 64HOST.fth, 64DIR.fth, ASMGEN, OPTGEN
+\
+\ LIB, is defined in 64DIR (bumps use counts). Do not redefine here.
 
 TCOM-ANEW LIBGEN
 
@@ -17,30 +19,25 @@ FALSE VALUE LIB-VERBOSE
 : LIB-VERBOSE-ON   ( -- )  TRUE  TO LIB-VERBOSE ;
 : LIB-VERBOSE-OFF  ( -- )  FALSE TO LIB-VERBOSE ;
 
-\ Define host CONSTANT <name> = cookie, and write symbol row directly
-\ (does not use SYM-ADD — isolates table writes for reliability).
 : LIB-PRIM  ( "<spaces>name" -- )
+  {: | cookie i ca u :}
   HOST-DEFS
-  LIB-NEXT @ CONSTANT                 \ cookie CONSTANT name
-  \ index for new symbol row
-  SYM-N @ >R                          ( R: i )
-  LAST NAME>STRING R@ SYM-PUT-NAME
-  SYM-LIBRARY R@ SYM-TYPE!
-  LIB-NEXT @  R@ SYM-ADDR!            \ same cookie as CONSTANT
-  0           R@ SYM-USES!
-  R> DROP
+  LIB-NEXT @ TO cookie
+  cookie CONSTANT
+  SYM-N @ TO i
+  LAST NAME>STRING TO u TO ca
+  ca u i SYM-PUT-NAME
+  SYM-LIBRARY i SYM-TYPE!
+  cookie i SYM-ADDR!
+  0 i SYM-USES!
   1 SYM-N +!
   LIB-VERBOSE IF
-    ." Library cookie " LAST NAME>STRING TYPE SPACE LIB-NEXT @ H. CR
+    S" Library cookie " TYPE ca u TYPE SPACE cookie SYM-HEX. CR
   THEN
   8 LIB-NEXT +!
   1 LIB-PRIM-COUNT +!
   FORTH-DEFS
   ;
-
-: LIB-CALL  ( cookie -- )  COMP-CALL ;
-
-: LIB,  ( xt -- )  EXECUTE COMP-CALL ;
 
 LIB-PRIM LIT#
 LIB-PRIM EXIT#
@@ -61,8 +58,7 @@ LIB-PRIM NOOP#
 : .LIBGEN  ( -- )
   S" LIBGEN: " TYPE LIB-PRIM-COUNT @ 0 .R
   S"  library cookies. Next=" TYPE
-  BASE @ >R HEX LIB-NEXT @ U. R> BASE !
-  CR
+  LIB-NEXT @ SYM-HEX. CR
   ;
 
 FORTH DEFINITIONS

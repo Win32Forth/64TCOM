@@ -267,11 +267,15 @@ DEFER SAVE-IMAGE
   ;
 
 : GEN-DEMO-DUMP  ( -- )
+  {: | n i :}
   ." GEN-DEMO done. HERE-T=" HERE-T . CR
   ." First bytes: "
-  HERE-T 0 MAX  32 MIN  0 ?DO
-    I C@-T  BASE @ >R HEX  0 <# # # #> TYPE SPACE  R> BASE !
-  LOOP
+  HERE-T 0 MAX  32 MIN TO n
+  0 TO i
+  BEGIN i n < WHILE
+    i C@-T H2.
+    i 1+ TO i
+  REPEAT
   CR
   [DEFINED] .SYMBOLS [IF] .SYMBOLS [THEN]
   ;

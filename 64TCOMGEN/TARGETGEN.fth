@@ -25,9 +25,10 @@
 FORTH DEFINITIONS DECIMAL
 [UNDEFINED] TCOM-ANEW [IF]
 : TCOM-ANEW  ( "<spaces>name" -- )
-  >IN @ >R
-  BL WORD FIND IF  DROP R@ >IN ! FORGET  ELSE  DROP  THEN
-  R> >IN !  CREATE
+  {: | pos :}
+  >IN @ TO pos
+  BL WORD FIND IF  DROP pos >IN ! FORGET  ELSE  DROP  THEN
+  pos >IN !  CREATE
   ;
 [THEN]
 

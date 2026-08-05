@@ -1,7 +1,7 @@
 64TCOM — Project status (living document)
 ==========================================
 Update this file when phase boundaries move.
-Last updated: 2026-08-05
+Last updated: 2026-08-05 (locals rewrite)
 
 YOU ARE HERE
 ------------
@@ -10,6 +10,18 @@ YOU ARE HERE
   Phase 1.2        DONE   — 64DIR.fth symbol table + T:/L:/G' director
   Phase 2 GEN      PARTIAL — TARGETGEN loads; GEN-DEMO / TESTGEN run
   Phase 3+         NOT STARTED — real assembler / ARM64 ITC / image files
+
+Coding style (host/director/GEN)
+--------------------------------
+  Prefer ANS locals  {: in | temp -- out :}  over  >R R@ R>
+  Reason: >R inside DO LOOP corrupts I (caused all SYMA dumps to show
+  $8050 when BASE was saved on the return stack). 64Forth supports:
+
+    : test {: bingo bongo -- bango :} bingo bongo + TO bango ;
+
+  64DIR / LIBGEN / GEN dumps / (T-BSWAP64) / H. / H2. / TCOM-ANEW
+  are written this way. Avoid DO LOOP when a local-index BEGIN WHILE
+  is clearer.
 
 
 Phase checklist
@@ -33,10 +45,11 @@ What works today
 ----------------
   FLOAD TARGETGEN.fth   (from 64TCOMGEN)
   .GEN  .DIR  .SYMBOLS  GEN-DEMO  FLOAD TESTGEN.fth
-  64HOST-SMOKE
+  64HOST-SMOKE  SYM-SMOKE  (case-insensitive find: aaa / AaA)
   Target image tags: LIT/CALL/RET/NOP/… in T-CODE-BASE
   Library cookies: DUP# DROP# … also entered in symbol table as SYM-LIBRARY
   T: / L: / G' use the Phase 1.2 director in 64DIR.fth
+  No >R/R> in live 64TCOM source (locals only)
 
 
 Key source files

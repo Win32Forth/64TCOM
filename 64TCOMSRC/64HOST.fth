@@ -27,15 +27,17 @@ DECIMAL
 
 \ Quiet counterpart to 64Forth ANEW — same FORGET/CREATE reload semantics,
 \ without printing "Loading module:" (nested INCLUDE of pack files stays tidy).
+\ Prefer ANS locals over >R/R> (return stack collides with DO LOOP / I).
 [UNDEFINED] TCOM-ANEW [IF]
 : TCOM-ANEW  ( "<spaces>name" -- )
-  >IN @ >R
+  {: | pos :}
+  >IN @ TO pos
   BL WORD FIND IF
-    DROP  R@ >IN !  FORGET
+    DROP  pos >IN !  FORGET
   ELSE
     DROP
   THEN
-  R> >IN !  CREATE
+  pos >IN !  CREATE
   ;
 [THEN]
 
@@ -109,8 +111,22 @@ DECIMAL
 \ --- Display ---
 [UNDEFINED] H. [IF]
 : H.  ( u -- )  \ unsigned in hex with trailing space, BASE restored
-  BASE @ >R  HEX  U.  R> BASE ! ;
+  {: u | old :}
+  BASE @ TO old
+  HEX
+  u U.
+  old BASE !
+  ;
 [THEN]
+
+\ Two-digit hex byte + space (safe inside loops; uses locals, not >R)
+: H2.  ( u -- )
+  {: u | old :}
+  BASE @ TO old
+  HEX
+  u 0 <# # # #> TYPE SPACE
+  old BASE !
+  ;
 
 \ =============================================================================
 \ Identification
@@ -173,17 +189,19 @@ VOCABULARY HTARGET
 \ (Body still goes at HERE in the shared dictionary.)
 
 : H:  ( "<spaces>name" -- )
-  GET-CURRENT >R
+  {: | old :}
+  GET-CURRENT TO old
   HOST DEFINITIONS
   :
-  R> SET-CURRENT
+  old SET-CURRENT
   ;
 
 : C:  ( "<spaces>name" -- )
-  GET-CURRENT >R
+  {: | old :}
+  GET-CURRENT TO old
   COMPILER DEFINITIONS
   :
-  R> SET-CURRENT
+  old SET-CURRENT
   ;
 
 \ =============================================================================
@@ -318,15 +336,16 @@ DEFER T-SWAP-BYTES   \ ( x -- x' ) optional transform of a T-CELL value
 : /LOW-HIGH  ( -- )  ['] (T-SWAP-NONE) IS T-SWAP-BYTES ;
 
 \ Full 64-bit byte swap (for /HIGH-LOW when T-CELL = 8)
+\ Locals only — never >R inside DO (corrupts I / loop control)
 : (T-BSWAP64)  ( u -- u' )
-  >R
-  0
-  8 0 DO
-    8 LSHIFT
-    R@ $FF AND OR
-    R> 8 RSHIFT >R
-  LOOP
-  R> DROP
+  {: u | k -- out :}
+  0 TO out
+  0 TO k
+  BEGIN k 8 < WHILE
+    out 8 LSHIFT  u $FF AND OR  TO out
+    u 8 RSHIFT TO u
+    k 1+ TO k
+  REPEAT
   ;
 : /HIGH-LOW  ( -- )  ['] (T-BSWAP64) IS T-SWAP-BYTES ;
 
@@ -644,13 +663,15 @@ S" BIN" IMAGE.EXT PLACE
 \ =============================================================================
 
 : .64HOST  ( -- )
+  {: | old :}
   CR 64HOST-VER
   ." T-CELL=" T-CELL . ." bytes" CR
-  BASE @ >R HEX
+  BASE @ TO old
+  HEX
   ." CODE image: base=" T-CODE-BASE U. ."  max=" DECIMAL T-CODE-MAX . ."  HERE-T=" HERE-T . CR
   HEX
   ." DATA image: base=" T-DATA-BASE U. ."  max=" DECIMAL T-DATA-MAX . ."  HERE-D=" HERE-D . CR
-  R> BASE !
+  old BASE !
   ." Mode=" TCOM-MODE .
   TCOM-MODE TCOM-MODE-LIBRARY = IF ." (LIBRARY)" THEN
   TCOM-MODE TCOM-MODE-TARGET  = IF ." (TARGET)"  THEN

@@ -40,10 +40,16 @@ CR ." TESTGEN complete." CR
 ." HERE-T=" HERE-T .  ."  COLD-START=" COLD-START . CR
 ." HELLO cookie=" HELLO .  ."  MAIN cookie=" MAIN . CR
 ." Dump (up to 64 bytes):" CR
-HERE-T 64 MIN  0 ?DO
-  I C@-T
-  BASE @ >R HEX  0 <# # # #> TYPE SPACE  R> BASE !
-  I 15 AND 15 = IF CR THEN
-LOOP
+: (TESTGEN-DUMP)  ( -- )
+  {: | n i :}
+  HERE-T 64 MIN TO n
+  0 TO i
+  BEGIN i n < WHILE
+    i C@-T H2.
+    i 15 AND 15 = IF CR THEN
+    i 1+ TO i
+  REPEAT
+  ;
+(TESTGEN-DUMP)
 CR
 ." TESTGEN: OK (GEN log + image tags only)" CR
