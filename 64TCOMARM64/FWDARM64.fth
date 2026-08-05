@@ -1,0 +1,42 @@
+\ FWDARM64.fth — forward-ref smoke on ARM64 pack
+\ Public domain. Loaded by FWD-ARM64.
+
+TARGET-INIT
+/SHOW
+
+T: MAIN
+  G' HELLO
+;T
+
+T: HELLO
+  $1111 G,
+;T
+
+ARM64-FINISH
+
+CR
+S" FWD-ARM64 done. HERE-T=" TYPE HERE-T . CR
+.SYMBOLS
+
+VARIABLE FD-IX
+VARIABLE FD-TY
+
+: FWD-ARM64-CHECK  ( -- )
+  S" HELLO" SYM-FIND-IX FD-IX !
+  FD-IX @ SYM-TYPE@ FD-TY !
+  FD-TY @ SYM-TARGET <> IF
+    S" FWD-ARM64 fail: HELLO type=" TYPE FD-TY @ .
+    S" ix=" TYPE FD-IX @ . CR
+    ABORT
+  THEN
+  FD-IX @ SYM-USES@ 1 < IF
+    S" FWD-ARM64 fail: HELLO uses" TYPE CR ABORT
+  THEN
+  S" MAIN" SYM-FIND-IX FD-IX !
+  FD-IX @ SYM-TYPE@ SYM-TARGET <> IF
+    S" FWD-ARM64 fail: MAIN" TYPE CR ABORT
+  THEN
+  S" FWD-ARM64: OK (forward HELLO resolved)" TYPE CR
+  ;
+
+FWD-ARM64-CHECK

@@ -54,15 +54,21 @@ Classic sources used for reference are kept in this repo under **`REFERENCE_FILE
 | `ASMGEN.fth` / `OPTGEN.fth` / `LIBGEN.fth` | Stub assembler, hooks, cookies |
 | `GENDEMO.fth` / `FWDDEMO.fth` | Demos |
 
-### ARM64 pack (`64TCOMARM64/`) — Phase 3
+### ARM64 pack (`64TCOMARM64/`) — Phase 3.0 v0.1
 
 | File | Role |
 |------|------|
-| `TARGETARM64.fth` | Load chain (planned) |
-| `ASMARM64.fth` | AArch64 Forth-style assembler (planned) |
-| `OPTARM64.fth` | Target interface hooks (planned) |
-| `LIBARM64.fth` | ITC hybrid library (planned) |
-| `README.txt` / `TARGETARM64.txt` | Naming and notes |
+| `TARGETARM64.fth` | Load HOST → DIR → ASM → OPT → LIB |
+| `ASMARM64.fth` | AArch64 emitters (`W,` `RET,` `CALL-ABS,` …) |
+| `OPTARM64.fth` | COMP-* → real A64; `ARM64-DEMO` / `FWD-ARM64` |
+| `LIBARM64.fth` | Library stubs (RET each; real addresses) |
+| `ARM64DEMO.fth` / `FWDARM64.fth` | Demos |
+
+```forth
+FLOAD TARGETARM64.fth
+ARM64-DEMO
+FWD-ARM64
+```
 
 ### Design documents (`64DESIGN/`)
 

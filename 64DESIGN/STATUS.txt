@@ -1,17 +1,16 @@
 64TCOM — Project status (living document)
 ==========================================
 Update this file when phase boundaries move.
-Last updated: 2026-08-05 (Phase 3 named: 64TCOMARM64)
+Last updated: 2026-08-05 (Phase 3.0 ARM64 pack v0.1)
 
 YOU ARE HERE
 ------------
   Phase 0          DONE   — design, naming, layout, GitHub
-  Phase 1 host     DONE   — 64HOST.fth (vocs, image buffers, hooks)
-  Phase 1.2        DONE   — 64DIR.fth symbol table + T:/L:/G' director
-  Phase 1.3        DONE   — forward refs, resolve chains, options
-  Phase 2 GEN      DONE   — TARGETGEN; GEN-DEMO / FWD-DEMO green
-  Phase 3 ARM64    START  — pack name 64TCOMARM64 (scaffold); implement next
-  Phase 3.1+               Forth-style A64 assembler growth, image files
+  Phase 1 host     DONE   — 64HOST.fth
+  Phase 1.2–1.3    DONE   — 64DIR symbols, forwards
+  Phase 2 GEN      DONE   — GEN-DEMO / FWD-DEMO green
+  Phase 3.0 ARM64  v0.1   — 64TCOMARM64 loadable; real A64 bytes; demos
+  Phase 3.1+              — richer assembler, real prim bodies, image files
 
 Coding style (host/director/GEN)
 --------------------------------
@@ -46,9 +45,10 @@ Phase checklist
 [x] 2.0  GEN pack loadable (ASMGEN OPTGEN LIBGEN TARGETGEN)
 [x] 2.1  LIB-PRIM registers into SYM table; T: records symbols; G' looks up
 [x] 2.2  Forward references + richer resolve (same as 1.3 on GEN)
-[x] 3.0a Pack name + tree: 64TCOMARM64/ (TARGETARM64, ASMARM64, …)
-[ ] 3.0  First real ARM64 ITC hybrid pack (emit A64, runtime, demo)
-[ ] 3.1  Forth-style AArch64 assembler (grow with library needs)
+[x] 3.0a Pack name + tree: 64TCOMARM64/
+[x] 3.0b TARGETARM64 + ASMARM64 + OPTARM64 + LIBARM64 + demos (v0.1)
+[ ] 3.0c Real primitive bodies (DUP# etc.), runnable snippet / more ITC
+[ ] 3.1  Grow Forth-style AArch64 assembler
 [ ] 4.0  Utilities (listing, xref, debugger) in 64TCOMUTILS
 
 
@@ -69,7 +69,7 @@ Key source files
   64TCOMSRC/64HOST.fth     Host layer + options
   64TCOMSRC/64DIR.fth      Symbol table + director (Phase 1.3) ✅
   64TCOMGEN/               GEN pack (tutorial tags) — DONE for demos
-  64TCOMARM64/             ARM64 real pack — Phase 3 (scaffold)
+  64TCOMARM64/             ARM64 pack v0.1 — FLOAD TARGETARM64.fth
   REFERENCE_FILES/         Classic F-PC 3.6 + TCOM 2.5
 
 
@@ -88,5 +88,5 @@ Design docs (background)
 
 Next step
 ---------
-  Implement 64TCOMARM64: TARGETARM64 load chain, minimal ASMARM64,
-  OPTARM64 hooks, LIBARM64 ITC hybrid, ARM64-DEMO.
+  Exercise: FLOAD TARGETARM64.fth / ARM64-DEMO / FWD-ARM64
+  Then: real lib prim bodies, richer ASM, image save.
