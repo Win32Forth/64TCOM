@@ -28,12 +28,46 @@ VARIABLE A64-COLD
 
 S" BIN" IMAGE.EXT PLACE
 
+\ Default output leaf name (cwd-relative; 64Forth may remap bundle paths)
+CREATE IMAGE-FILENAME  128 ALLOT
+S" tcomarm64.bin" IMAGE-FILENAME PLACE
+
+CREATE IMAGE-MAPNAME  128 ALLOT
+S" tcomarm64.map" IMAGE-MAPNAME PLACE
+
 \ End of library stubs / lib symbol count (LIBARM64 sets these).
 \ Must live here: OPT is compiled before LIB is loaded.
 VARIABLE LIB-CODE-END
 0 LIB-CODE-END !
 VARIABLE LIB-SYM-N
 0 LIB-SYM-N !
+
+FALSE VALUE ?SAVE-MAP     \ also write .map text alongside .bin
+: /MAP    ( -- )  TRUE  TO ?SAVE-MAP ;
+: /NOMAP  ( -- )  FALSE TO ?SAVE-MAP ;
+
+\ Optional 32-byte header before raw code (off by default = pure flat A64)
+FALSE VALUE ?IMAGE-HDR
+: /HDR    ( -- )  TRUE  TO ?IMAGE-HDR ;
+: /NOHDR  ( -- )  FALSE TO ?IMAGE-HDR ;
+
+32 CONSTANT /A64-HDR
+CREATE A64-HDR  32 ALLOT
+
+: (A64-FILL-HDR)  ( -- )
+  A64-HDR /A64-HDR ERASE
+  \ magic "64TCOMA" at bytes 0..6
+  [CHAR] 6 A64-HDR C!
+  [CHAR] 4 A64-HDR 1 + C!
+  [CHAR] T A64-HDR 2 + C!
+  [CHAR] C A64-HDR 3 + C!
+  [CHAR] O A64-HDR 4 + C!
+  [CHAR] M A64-HDR 5 + C!
+  [CHAR] A A64-HDR 6 + C!
+  1 A64-HDR 8 + !                 \ version
+  HERE-T A64-HDR 16 + !           \ code size
+  A64-COLD @ A64-HDR 24 + !       \ cold offset
+  ;
 
 \ -----------------------------------------------------------------------------
 \ Compile hooks → A64
@@ -166,12 +200,90 @@ DEFER SAVE-IMAGE
   ;
 ' (TARGET-FINISH-A64) IS TARGET-FINISH
 
+\ Write raw CODE bytes [0, HERE-T) to file (c-addr u = name)
+: SAVE-IMAGE-AS  ( c-addr u -- )
+  W/O BIN CREATE-FILE  ( fid ior )
+  IF
+    DROP
+    S" SAVE-IMAGE: CREATE-FILE failed for " TYPE TYPE CR
+    EXIT
+  THEN
+  >R                                    \ R: fid
+  ?IMAGE-HDR IF
+    (A64-FILL-HDR)
+    A64-HDR /A64-HDR R@ WRITE-FILE
+    IF  S" SAVE-IMAGE: header WRITE-FILE failed" TYPE CR  THEN
+  THEN
+  T-CODE-BASE HERE-T R@ WRITE-FILE  ( ior )
+  IF  S" SAVE-IMAGE: code WRITE-FILE failed" TYPE CR  THEN
+  R@ CLOSE-FILE DROP
+  R> DROP
+  ?QUIET 0= IF
+    S" SAVE-IMAGE: wrote " TYPE HERE-T 0 .R
+    S"  code bytes" TYPE
+    ?IMAGE-HDR IF S"  (+32-byte hdr)" TYPE THEN
+    S"  -> " TYPE
+    \ reprint name from IMAGE-FILENAME if same; caller should TYPE name
+    CR
+  THEN
+  ;
+
+: SAVE-IMAGE-FILE  ( -- )
+  IMAGE-FILENAME COUNT SAVE-IMAGE-AS
+  ?QUIET 0= IF
+    S"   file: " TYPE IMAGE-FILENAME COUNT TYPE CR
+  THEN
+  ;
+
+VARIABLE MAP-BASE
+VARIABLE MAP-FID
+
+: (MAP-NL)  ( -- )
+  10 PAD C!  PAD 1 MAP-FID @ WRITE-FILE DROP
+  ;
+
+: (MAP-S)  ( c-addr u -- )  MAP-FID @ WRITE-FILE DROP ;
+
+: (MAP-U.)  ( u -- )
+  0 <# #S #> (MAP-S)
+  ;
+
+: SAVE-MAP-FILE  ( -- )
+  IMAGE-MAPNAME COUNT W/O CREATE-FILE  ( fid ior )
+  IF DROP S" SAVE-MAP: CREATE-FILE failed" TYPE CR EXIT THEN
+  MAP-FID !
+  S" 64TCOM ARM64 image map" (MAP-S) (MAP-NL)
+  S" HERE-T=" (MAP-S)
+  BASE @ MAP-BASE !
+  HEX
+  HERE-T (MAP-U.) (MAP-NL)
+  S" COLD=" (MAP-S)  A64-COLD @ (MAP-U.) (MAP-NL)
+  S" LIB-END=" (MAP-S)  LIB-CODE-END @ (MAP-U.) (MAP-NL)
+  (MAP-NL) S" Symbols:" (MAP-S) (MAP-NL)
+  0
+  BEGIN DUP SYM-N @ < WHILE
+    DUP (MAP-U.)  S"  " (MAP-S)
+    DUP SYM-GET-NAME (MAP-S)
+    S"  type=" (MAP-S)  DUP SYM-TYPE@ (MAP-U.)
+    S"  @" (MAP-S)  DUP SYM-ADDR@ (MAP-U.)
+    (MAP-NL)
+    1+
+  REPEAT DROP
+  MAP-BASE @ BASE !
+  MAP-FID @ CLOSE-FILE DROP
+  ?QUIET 0= IF
+    S" SAVE-MAP: " TYPE IMAGE-MAPNAME COUNT TYPE CR
+  THEN
+  ;
+
 : (SAVE-IMAGE-A64)  ( -- )
   ?QUIET 0= IF
     ." ARM64: image in memory  HERE-T=" HERE-T .
     ."  COLD=" A64-COLD @ .
     ."  LIB-END=" LIB-CODE-END @ . CR
   THEN
+  SAVE-IMAGE-FILE
+  ?SAVE-MAP IF  SAVE-MAP-FILE  THEN
   ;
 ' (SAVE-IMAGE-A64) IS SAVE-IMAGE
 
@@ -251,6 +363,9 @@ VARIABLE AD-BASE
   TVERSION CR
   .64HOST
   .ASMARM64
+  S" Image: " TYPE IMAGE-FILENAME COUNT TYPE
+  S"   map: " TYPE IMAGE-MAPNAME COUNT TYPE CR
+  S"   /MAP /NOMAP  /HDR /NOHDR  NOSAVE /SAVE  SAVE-IMAGE-FILE" TYPE CR
   S" Try: ARM64-DEMO .RUN-ANS FWD-ARM64 ASM-DEMO" TYPE CR
   [DEFINED] .DIR [IF] .DIR [THEN]
   ;

@@ -46,9 +46,27 @@ Assembler 3.1
   Control: AHEAD THEN, AIF, AELSE, ATHEN,
   Demo: ASM-DEMO  (leaf 7 and count-to-3 loop via sim)
 
+Image save
+----------
+  After compile (ARM64-FINISH), SAVE-IMAGE writes:
+
+    tcomarm64.bin   — raw CODE bytes [0, HERE-T)  (default)
+    tcomarm64.map   — if /MAP : text map with COLD, LIB-END, symbols
+
+  Options:
+    /SAVE / NOSAVE     enable/disable auto-save on finish (default save on)
+    /MAP  / /NOMAP     also write .map (default off)
+    /HDR  / /NOHDR     prepend 32-byte header "64TCOMA" + sizes (default off)
+    SAVE-IMAGE-FILE    force write now
+    S" my.bin" SAVE-IMAGE-AS
+
+  Inspect raw A64 (no header):
+    llvm-objdump -D -b binary -m aarch64 tcomarm64.bin
+    # or:  hexdump -C tcomarm64.bin | head
+
 Not yet
 -------
-  Native BLR into buffer (kernel VM save), Mach-O save, full ISA/NEON.
+  Native BLR into buffer (kernel VM save), Mach-O, full ISA/NEON.
 
 Files
 -----

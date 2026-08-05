@@ -8,7 +8,8 @@ YOU ARE HERE
   Phase 0–2        DONE
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
-  Phase 3.2+              — image save; optional kernel native call
+  Phase 3.2        DONE   — SAVE-IMAGE → tcomarm64.bin (+ optional .map/.hdr)
+  Phase 3.3+              — optional kernel native call / Mach-O
 
 Coding style (host/director/GEN)
 --------------------------------
@@ -48,7 +49,8 @@ Phase checklist
 [x] 3.0c Real prim bodies (DUP DROP SWAP OVER + - @ !); LIT push; host CALL quads
 [x] 3.0d SIMARM64 RUN-ANS; BRANCH#/ZBRANCH#; SYM-CLEAR-APP on TARGET-INIT
 [x] 3.1  Richer ASMARM64 (regs, logic, B.cond, labels, AIF); ASM-DEMO
-[ ] 3.2  Image file save / kernel native execute
+[x] 3.2  SAVE-IMAGE-FILE / SAVE-IMAGE-AS / optional .map and 32-byte hdr
+[ ] 3.3  Kernel native execute / Mach-O (optional)
 [ ] 4.0  Utilities (listing, xref, debugger) in 64TCOMUTILS
 
 
@@ -88,5 +90,5 @@ Design docs (background)
 
 Next step
 ---------
-  FLOAD TARGETARM64.fth / ARM64-DEMO / .RUN-ANS / ASM-DEMO / FWD-ARM64
-  Then 3.2: image save or kernel-assisted native run.
+  ARM64-DEMO then check tcomarm64.bin in cwd (or Application Support).
+  Optional: /MAP before finish; llvm-objdump on the .bin.
