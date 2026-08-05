@@ -1,21 +1,11 @@
 \ 64DIR.fth — Thin 64TCOM director + host symbol table (Phase 1.2)
 \
-\ Public domain.
-\
-\ Requires: 64HOST.fth
-\ Load before GEN pack (ASMGEN/OPTGEN/LIBGEN).
-\
-\ Symbol table: name → type, addr/cookie, use count
-\ Director (interpret-only): T: ;T L: ;L GCODE G, GCALL GJMP G' LIB,
+\ Public domain. Requires 64HOST.fth. Load before GEN pack.
 
 TCOM-ANEW 64DIR
 
 FORTH DEFINITIONS
 DECIMAL
-
-\ =============================================================================
-\ Symbol types
-\ =============================================================================
 
 0 CONSTANT SYM-NONE
 1 CONSTANT SYM-TARGET
@@ -23,83 +13,93 @@ DECIMAL
 3 CONSTANT SYM-CODE
 4 CONSTANT SYM-FORWARD
 
-\ =============================================================================
-\ Table
-\ =============================================================================
-
+\ Parallel arrays
 256 CONSTANT SYM-MAX
-32  CONSTANT SYM-NAME-SIZE
+32  CONSTANT /SNAME
 
-CREATE SYM-NAMES  SYM-MAX SYM-NAME-SIZE * ALLOT
-CREATE SYM-TYPE   SYM-MAX CELLS ALLOT
-CREATE SYM-ADDR   SYM-MAX CELLS ALLOT
-CREATE SYM-USES   SYM-MAX CELLS ALLOT
-
-0 VALUE SYM-COUNT
-
-: SYM-NAME  ( i -- c-addr )  SYM-NAME-SIZE * SYM-NAMES + ;
-: SYM-TYPE! ( x i -- )  CELLS SYM-TYPE + ! ;
-: SYM-TYPE@ ( i -- x )  CELLS SYM-TYPE + @ ;
-: SYM-ADDR! ( x i -- )  CELLS SYM-ADDR + ! ;
-: SYM-ADDR@ ( i -- x )  CELLS SYM-ADDR + @ ;
-: SYM-USES! ( x i -- )  CELLS SYM-USES + ! ;
-: SYM-USES@ ( i -- x )  CELLS SYM-USES + @ ;
+CREATE SYMT  SYM-MAX CELLS ALLOT
+CREATE SYMA  SYM-MAX CELLS ALLOT
+CREATE SYMU  SYM-MAX CELLS ALLOT
+CREATE SYMN  SYM-MAX /SNAME * ALLOT
+VARIABLE SYM-N
+0 SYM-N !
 
 : SYM-CLEAR  ( -- )
-  0 TO SYM-COUNT
-  SYM-NAMES SYM-MAX SYM-NAME-SIZE * ERASE
-  SYM-TYPE  SYM-MAX CELLS ERASE
-  SYM-ADDR  SYM-MAX CELLS ERASE
-  SYM-USES  SYM-MAX CELLS ERASE
+  0 SYM-N !
+  SYMT SYM-MAX CELLS ERASE
+  SYMA SYM-MAX CELLS ERASE
+  SYMU SYM-MAX CELLS ERASE
+  SYMN SYM-MAX /SNAME * ERASE
   ;
 
+: SYM-COUNT  ( -- n )  SYM-N @ ;
+
+: SYM-TYPE@  ( i -- n )  CELLS SYMT + @ ;
+: SYM-ADDR@  ( i -- n )  CELLS SYMA + @ ;
+: SYM-USES@  ( i -- n )  CELLS SYMU + @ ;
+: SYM-TYPE!  ( n i -- )  CELLS SYMT + ! ;
+: SYM-ADDR!  ( n i -- )  CELLS SYMA + ! ;
+: SYM-USES!  ( n i -- )  CELLS SYMU + ! ;
+: SYM-USE+   ( i -- )    DUP SYM-USES@ 1+ SWAP SYM-USES! ;
+
+: SYM-NBUF  ( i -- c-addr )  /SNAME * SYMN + ;
+
+: SYM-PUT-NAME  ( c-addr u i -- )
+  >R
+  31 MIN
+  DUP R@ SYM-NBUF C!
+  R@ SYM-NBUF CHAR+ SWAP MOVE
+  R> DROP
+  ;
+
+: SYM-GET-NAME  ( i -- c-addr u )  SYM-NBUF COUNT ;
+
 : SYM-NAME=  ( c-addr u i -- flag )
-  SYM-NAME COUNT COMPARE 0=
+  SYM-GET-NAME COMPARE 0=
   ;
 
 : SYM-FIND  ( c-addr u -- i true | false )
-  SYM-COUNT 0= IF  2DROP FALSE EXIT  THEN
-  SYM-COUNT 0 DO
+  SYM-N @ 0= IF  2DROP FALSE EXIT  THEN
+  SYM-N @ 0 DO
     2DUP I SYM-NAME=
     IF  2DROP I TRUE UNLOOP EXIT  THEN
   LOOP
   2DROP FALSE
   ;
 
-: SYM-USE+  ( i -- )  DUP SYM-USES@ 1+ SWAP SYM-USES! ;
-
-\ SYM-ADD ( c-addr u type addr -- i )
-\ No VALUE/TO temps — keep type/addr on the return stack only.
-: SYM-ADD  ( c-addr u type addr -- i )
-  2SWAP                                 ( type addr ca u )
-  2DUP SYM-FIND IF                      ( type addr ca u i )
-    >R 2DROP                            ( type addr ) ( R: i )
-    OVER R@ SYM-TYPE!                   ( type addr )
-    NIP R@ SYM-ADDR!                    ( )
-    R> EXIT                             ( i )
-  THEN                                  ( type addr ca u )
-  SYM-COUNT SYM-MAX U>= IF
-    2DROP 2DROP
-    S" Symbol table full" TCOM-ABORT
+\ ( c-addr u type addr -- i )
+\ Hold type and addr in two cells at PAD (avoid R-stack confusion)
+: SYM-ADD
+  PAD CELL+ !                      \ addr at PAD+CELL
+  PAD !                            \ type at PAD
+  \ stack: ca u
+  2DUP SYM-FIND IF                 \ ca u i
+    NIP NIP                        \ i
+    PAD @ OVER SYM-TYPE!
+    PAD CELL+ @ OVER SYM-ADDR!
+    EXIT
+  THEN                             \ ca u
+  SYM-N @ SYM-MAX U>= IF
+    2DROP S" Symbol table full" TCOM-ABORT
   THEN
-  2SWAP                                 ( ca u type addr )
-  >R >R                                 ( ca u ) ( R: addr type )
-  SYM-COUNT SYM-NAME PLACE
-  R> SYM-COUNT SYM-TYPE!
-  R> SYM-COUNT SYM-ADDR!
-  0 SYM-COUNT SYM-USES!
-  SYM-COUNT
-  SYM-COUNT 1+ TO SYM-COUNT
+  SYM-N @ SYM-PUT-NAME             \ ca u i
+  PAD @       SYM-N @ SYM-TYPE!
+  PAD CELL+ @ SYM-N @ SYM-ADDR!
+  0           SYM-N @ SYM-USES!
+  SYM-N @
+  1 SYM-N +!
   ;
 
 : SYM-ADD-LAST  ( type addr -- i )
-  LAST NAME>STRING 2SWAP SYM-ADD
+  \ type addr on stack; name from LAST
+  LAST NAME>STRING                 \ type addr ca u
+  2SWAP                            \ ca u type addr
+  SYM-ADD
   ;
 
-\ Register LAST (a LIB-CREATE word) using the cookie in its data field
-: SYM-REG-LAST-LIB  ( -- )
-  LAST >BODY CELL+ @                    ( cookie )
-  SYM-LIBRARY SWAP                      ( type cookie )
+\ Register LAST host word: name from LAST, cookie from argument
+: SYM-REG-LIB  ( cookie -- )
+  SYM-LIBRARY SWAP                 \ type cookie
   SYM-ADD-LAST DROP
   ;
 
@@ -116,17 +116,17 @@ CREATE SYM-USES   SYM-MAX CELLS ALLOT
   SYM-COUNT 0= IF ."   (none)" CR EXIT THEN
   SYM-COUNT 0 DO
     I 3 .R SPACE
-    I SYM-NAME COUNT TYPE
-    16 I SYM-NAME C@ - 0 MAX SPACES
+    I SYM-GET-NAME TYPE
+    16 I SYM-NBUF C@ - 0 MAX SPACES
     I SYM-TYPE@ .SYM-TYPE
     ."  @ "
-    BASE @ >R HEX I SYM-ADDR@ U. R> BASE !
-    ." uses=" I SYM-USES@ . CR
+    BASE @ >R HEX I SYM-ADDR@ 0 <# #S #> TYPE R> BASE !
+    SPACE ." uses=" I SYM-USES@ 0 .R CR
   LOOP
   ;
 
 \ =============================================================================
-\ Director (interpret-only)
+\ Director
 \ =============================================================================
 
 : ?INTERPRET-ONLY  ( c-addr u -- )
@@ -143,9 +143,9 @@ CREATE SYM-USES   SYM-MAX CELLS ALLOT
   START-T:
   HERE-T >R
   R@ (T-COOKIE)
-  \ START-T: (OPTGEN) already prints "Defining-: "; only add the name here
   ?QUIET 0= IF LAST NAME>STRING TYPE CR THEN
-  LAST NAME>STRING PAD PLACE PAD COMP-HEADER
+  LAST NAME>STRING PAD 2 CELLS + PLACE
+  PAD 2 CELLS + COMP-HEADER
   SYM-TARGET R@ SYM-ADD-LAST DROP
   R> DROP
   TRUE TO ?INTERPRETIVE
@@ -164,7 +164,8 @@ CREATE SYM-USES   SYM-MAX CELLS ALLOT
   HERE-T >R
   R@ (T-COOKIE)
   ?QUIET 0= IF LAST NAME>STRING TYPE CR THEN
-  LAST NAME>STRING PAD PLACE PAD COMP-HEADER
+  LAST NAME>STRING PAD 2 CELLS + PLACE
+  PAD 2 CELLS + COMP-HEADER
   SYM-LIBRARY R@ SYM-ADD-LAST DROP
   R> DROP
   ;
@@ -181,7 +182,8 @@ CREATE SYM-USES   SYM-MAX CELLS ALLOT
   HERE-T >R
   R@ (T-COOKIE)
   ?QUIET 0= IF LAST NAME>STRING TYPE CR THEN
-  LAST NAME>STRING PAD PLACE PAD COMP-HEADER
+  LAST NAME>STRING PAD 2 CELLS + PLACE
+  PAD 2 CELLS + COMP-HEADER
   SYM-CODE R@ SYM-ADD-LAST DROP
   R> DROP
   SETASSEM
@@ -214,6 +216,45 @@ DEFER DIR-ON-TARGET-INIT
   .SYMBOLS
   ;
 
+\ Self-check: store three distinct addrs and read them back
+: SYM-SMOKE  ( -- )
+  SYM-CLEAR
+  S" AAA" SYM-LIBRARY $8000 SYM-ADD DROP
+  S" BBB" SYM-LIBRARY $8008 SYM-ADD DROP
+  S" CCC" SYM-TARGET  $0001 SYM-ADD DROP
+  0 SYM-ADDR@ $8000 <> IF ." SYM-SMOKE fail 0" CR ABORT THEN
+  1 SYM-ADDR@ $8008 <> IF ." SYM-SMOKE fail 1" CR ABORT THEN
+  2 SYM-ADDR@ $0001 <> IF ." SYM-SMOKE fail 2" CR ABORT THEN
+  ." SYM-SMOKE: OK" CR
+  SYM-CLEAR
+  ;
+
+
+\ Raw dump of address cells (debug)
+: .SYMA  ( -- )
+  S" SYMA raw:" TYPE CR
+  SYM-N @ 0 MAX 16 MIN 0 ?DO
+    I 3 .R S" : " TYPE
+    BASE @ >R HEX
+    I CELLS SYMA + @ 0 <# #S #> TYPE
+    R> BASE !
+    CR
+  LOOP
+  ;
+
+: SYM-SMOKE  ( -- )
+  SYM-CLEAR
+  S" AAA" SYM-LIBRARY $8000 SYM-ADD DROP
+  S" BBB" SYM-LIBRARY $8008 SYM-ADD DROP
+  S" CCC" SYM-TARGET  $0001 SYM-ADD DROP
+  0 SYM-ADDR@ $8000 <> IF S" SYM-SMOKE fail0 got " TYPE 0 SYM-ADDR@ H. CR ABORT THEN
+  1 SYM-ADDR@ $8008 <> IF S" SYM-SMOKE fail1 got " TYPE 1 SYM-ADDR@ H. CR ABORT THEN
+  2 SYM-ADDR@ $0001 <> IF S" SYM-SMOKE fail2 got " TYPE 2 SYM-ADDR@ H. CR ABORT THEN
+  S" SYM-SMOKE: OK" TYPE CR
+  SYM-CLEAR
+  ;
+
 FORTH DEFINITIONS
 SYM-CLEAR
-." 64DIR loaded (symbol table + director)." CR
+SYM-SMOKE
+S" 64DIR loaded (symbol table + director)." TYPE CR
