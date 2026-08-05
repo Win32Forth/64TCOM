@@ -4,31 +4,28 @@
 \ Classic analogue: tcom25/TCOMGEN/TARGGEN.FTH
 \
 \ Load order:
-\   1. ../64TCOMSRC/64HOST.fth   — host layer
-\   2. ../64TCOMSRC/64DIR.fth    — symbol table + thin director (Phase 1.2)
-\   3. ASMGEN.fth                — stub assembler
-\   4. OPTGEN.fth                — GEN deferred hooks + tag stream
-\   5. LIBGEN.fth                — library cookies (+ SYM registration)
+\   1. ../64TCOMSRC/64HOST.fth
+\   2. ../64TCOMSRC/64DIR.fth
+\   3. ASMGEN.fth  OPTGEN.fth  LIBGEN.fth
 \
-\ How to load (from 64Forth):
-\   CHDIR to the 64TCOMGEN directory, then:
-\     FLOAD TARGETGEN.fth
-\   Or INCLUDE with a full path to this file (nested relatives resolve
-\   next to each included file on 64Forth).
-\
-\ After load:
-\   .GEN          status
-\   GEN-DEMO      short self-test
-\   FLOAD TESTGEN.fth
+\ Debug hang / load position:
+\   FILE-ECHO ON          \ echo each source line as it is interpreted
+\   FLOAD TARGETGEN.fth
+\   FILE-ECHO OFF         \ quiet again when done
+\ Breadcrumbs also print [TARGETGEN] / [64DIR] markers via TYPE.
 
-\ Need TCOM-ANEW before the pack marker (defined in 64HOST; bootstrap copy here)
 FORTH DEFINITIONS DECIMAL
+
+\ Bootstrap TCOM-ANEW (no locals — keep load path simple)
 [UNDEFINED] TCOM-ANEW [IF]
 : TCOM-ANEW  ( "<spaces>name" -- )
-  {: | pos :}
-  >IN @ TO pos
-  BL WORD FIND IF  DROP pos >IN ! FORGET  ELSE  DROP  THEN
-  pos >IN !  CREATE
+  >IN @
+  BL WORD FIND IF
+    DROP OVER >IN ! FORGET
+  ELSE
+    DROP
+  THEN
+  >IN !  CREATE
   ;
 [THEN]
 
@@ -37,25 +34,31 @@ TCOM-ANEW TARGETGEN
 FORTH DEFINITIONS
 DECIMAL
 
-." 64TCOM GEN: loading..." CR
+\ Echo loaded source lines (64Forth host extension)
+FILE-ECHO ON
 
-\ --- Host layer (parent directory) ------------------------------------------
-\ 64Forth nested INCLUDE sets logical cwd to this file's directory, so
-\ ../64TCOMSRC/64HOST.fth resolves correctly when this file is loaded.
+S" [TARGETGEN] loading..." TYPE CR
 
+S" [TARGETGEN] 64HOST..." TYPE CR
 INCLUDE ../64TCOMSRC/64HOST.fth
+S" [TARGETGEN] 64HOST done" TYPE CR
+
+S" [TARGETGEN] 64DIR..." TYPE CR
 INCLUDE ../64TCOMSRC/64DIR.fth
+S" [TARGETGEN] 64DIR done" TYPE CR
 
-\ --- GEN pack ---------------------------------------------------------------
-
+S" [TARGETGEN] ASMGEN..." TYPE CR
 INCLUDE ASMGEN.fth
+S" [TARGETGEN] OPTGEN..." TYPE CR
 INCLUDE OPTGEN.fth
+S" [TARGETGEN] LIBGEN..." TYPE CR
 INCLUDE LIBGEN.fth
-
-\ --- Ready ------------------------------------------------------------------
+S" [TARGETGEN] pack done" TYPE CR
 
 TCOM-ORDER
 TCOM-WARN-ON
 
-." 64TCOM GEN ready — " TVERSION CR
-." Try:  .GEN  .DIR  .SYMBOLS  GEN-DEMO  FLOAD TESTGEN.fth" CR
+FILE-ECHO OFF
+
+S" 64TCOM GEN ready — " TYPE TVERSION CR
+S" Try:  .GEN  .DIR  .SYMBOLS  GEN-DEMO  FWD-DEMO" TYPE CR

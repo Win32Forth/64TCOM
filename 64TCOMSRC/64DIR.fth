@@ -2,16 +2,18 @@
 \
 \ Public domain. Requires 64HOST.fth. Load before GEN pack.
 \
-\ NO {: :} locals in this file. 64Forth locals have been unreliable here
-\ (undefined: out / flag / ix; results not returned). Use data stack +
-\ VARIABLEs only. Also no >R (corrupts DO LOOP / I).
-\
-\ Phase 1.3: forward refs, resolve chains, .UNRES, options, LIB-AUTO-INCLUDE
+\ No {: :} locals (unreliable on this 64Forth). No >R.
+\ Scratch VARIABLEs are partitioned so nested calls never clobber
+\ a caller's loop index (SYM-FIND vs SYM-STR= hung the system).
+
+S" [64DIR] start" TYPE CR
 
 TCOM-ANEW 64DIR
 
 FORTH DEFINITIONS
 DECIMAL
+
+S" [64DIR] tables..." TYPE CR
 
 0 CONSTANT SYM-NONE
 1 CONSTANT SYM-TARGET
@@ -31,17 +33,43 @@ CREATE SYMN  SYM-MAX /SNAME * ALLOT
 VARIABLE SYM-N
 0 SYM-N !
 
-\ Scratch (never live across public API calls that re-enter)
-VARIABLE SYM-I
-VARIABLE SYM-K
-VARIABLE SYM-A
-VARIABLE SYM-B
-VARIABLE SYM-C
-VARIABLE SYM-T
-VARIABLE SYM-U
-VARIABLE SYM-X
-VARIABLE SYM-Y
-VARIABLE SYM-Z
+\ --- scratch: SYM-FIND (must not overlap SYM-STR= / SYM-PUT-NAME) ---
+VARIABLE F-CA
+VARIABLE F-U
+VARIABLE F-I
+
+\ --- scratch: SYM-STR= ---
+VARIABLE S-A1
+VARIABLE S-U1
+VARIABLE S-A2
+VARIABLE S-U2
+VARIABLE S-I
+
+\ --- scratch: SYM-PUT-NAME ---
+VARIABLE P-SRC
+VARIABLE P-U
+VARIABLE P-I
+VARIABLE P-DST
+VARIABLE P-K
+
+\ --- scratch: define / resolve / compile / misc ---
+VARIABLE D-CA
+VARIABLE D-U
+VARIABLE D-TYP
+VARIABLE D-ADR
+VARIABLE D-IX
+VARIABLE R-IX
+VARIABLE R-FIN
+VARIABLE R-TYP
+VARIABLE R-SITE
+VARIABLE R-NEXT
+VARIABLE C-IX
+VARIABLE C-SITE
+VARIABLE C-OLD
+VARIABLE M-I
+VARIABLE M-N
+VARIABLE M-BASE
+VARIABLE M-TMP
 
 : SYM-CLEAR  ( -- )
   0 SYM-N !
@@ -73,16 +101,16 @@ VARIABLE SYM-Z
   ;
 
 : SYM-PUT-NAME  ( src u i -- )
-  SYM-X !                          \ i
-  31 MIN SYM-U !                   \ u clamped
-  SYM-A !                          \ src
-  SYM-X @ SYM-NBUF SYM-B !         \ dest
-  SYM-U @ SYM-B @ C!
-  0 SYM-I !
-  BEGIN SYM-I @ SYM-U @ < WHILE
-    SYM-A @ SYM-I @ + C@ SYM-UPC
-    SYM-B @ 1+ SYM-I @ + C!
-    1 SYM-I +!
+  P-I !                            \ i
+  31 MIN P-U !                     \ u
+  P-SRC !                          \ src
+  P-I @ SYM-NBUF P-DST !
+  P-U @ P-DST @ C!
+  0 P-K !
+  BEGIN P-K @ P-U @ < WHILE
+    P-SRC @ P-K @ + C@ SYM-UPC
+    P-DST @ 1+ P-K @ + C!
+    1 P-K +!
   REPEAT
   ;
 
@@ -91,17 +119,17 @@ VARIABLE SYM-Z
   ;
 
 : SYM-STR=  ( a1 u1 a2 u2 -- tf )
-  SYM-U !                          \ u2
-  SYM-B !                          \ a2
-  SYM-K !                          \ u1
-  SYM-A !                          \ a1
-  SYM-K @ SYM-U @ <> IF FALSE EXIT THEN
-  0 SYM-I !
-  BEGIN SYM-I @ SYM-K @ < WHILE
-    SYM-A @ SYM-I @ + C@ SYM-UPC
-    SYM-B @ SYM-I @ + C@ SYM-UPC
+  S-U2 !
+  S-A2 !
+  S-U1 !
+  S-A1 !
+  S-U1 @ S-U2 @ <> IF FALSE EXIT THEN
+  0 S-I !
+  BEGIN S-I @ S-U1 @ < WHILE
+    S-A1 @ S-I @ + C@ SYM-UPC
+    S-A2 @ S-I @ + C@ SYM-UPC
     <> IF FALSE EXIT THEN
-    1 SYM-I +!
+    1 S-I +!
   REPEAT
   TRUE
   ;
@@ -111,15 +139,15 @@ VARIABLE SYM-Z
   ;
 
 : SYM-FIND  ( c-addr u -- ix true | false )
-  SYM-U !                          \ u
-  SYM-A !                          \ ca
+  F-U !
+  F-CA !
   SYM-N @ 0= IF FALSE EXIT THEN
-  0 SYM-I !
-  BEGIN SYM-I @ SYM-N @ < WHILE
-    SYM-A @ SYM-U @ SYM-I @ SYM-NAME= IF
-      SYM-I @ TRUE EXIT
+  0 F-I !
+  BEGIN F-I @ SYM-N @ < WHILE
+    F-CA @ F-U @ F-I @ SYM-NAME= IF
+      F-I @ TRUE EXIT
     THEN
-    1 SYM-I +!
+    1 F-I +!
   REPEAT
   FALSE
   ;
@@ -130,64 +158,64 @@ VARIABLE SYM-Z
   ;
 
 : SYM-ADD  ( c-addr u type addr -- ix )
-  SYM-Z !                          \ addr
-  SYM-T !                          \ type
-  SYM-U !                          \ u
-  SYM-A !                          \ ca
-  SYM-A @ SYM-U @ SYM-FIND IF      \ ix
-    DUP SYM-T @ SWAP SYM-TYPE!
-    DUP SYM-Z @ SWAP SYM-ADDR!
+  D-ADR !
+  D-TYP !
+  D-U !
+  D-CA !
+  D-CA @ D-U @ SYM-FIND IF         \ ix
+    DUP D-TYP @ SWAP SYM-TYPE!
+    DUP D-ADR @ SWAP SYM-ADDR!
     EXIT
   THEN
   SYM-N @ SYM-MAX U>= IF
     S" Symbol table full" TCOM-ABORT
   THEN
   SYM-N @                          \ new ix
-  SYM-A @ SYM-U @  2 PICK  SYM-PUT-NAME
-  DUP SYM-T @ SWAP SYM-TYPE!
-  DUP SYM-Z @ SWAP SYM-ADDR!
+  D-CA @ D-U @ 2 PICK SYM-PUT-NAME
+  DUP D-TYP @ SWAP SYM-TYPE!
+  DUP D-ADR @ SWAP SYM-ADDR!
   DUP 0 SWAP SYM-USES!
   1 SYM-N +!
   ;
 
 : SYM-RESOLVE-TO  ( ix final typ -- )
-  SYM-T !                          \ typ
-  SYM-Y !                          \ final
-  SYM-X !                          \ ix
-  SYM-X @ SYM-TYPE@ SYM-FORWARD = IF
-    SYM-X @ SYM-ADDR@ SYM-A !      \ site = chain head
-    BEGIN SYM-A @ SYM-NO-CHAIN <> WHILE
-      SYM-A @ @-T SYM-B !          \ next
-      SYM-A @ SYM-Y @ RESOLVE-1
-      SYM-B @ SYM-A !
+  R-TYP !
+  R-FIN !
+  R-IX !
+  R-IX @ SYM-TYPE@ SYM-FORWARD = IF
+    R-IX @ SYM-ADDR@ R-SITE !
+    BEGIN R-SITE @ SYM-NO-CHAIN <> WHILE
+      R-SITE @ @-T R-NEXT !
+      R-SITE @ R-FIN @ RESOLVE-1
+      R-NEXT @ R-SITE !
     REPEAT
   THEN
-  SYM-Y @ SYM-X @ SYM-ADDR!
-  SYM-T @ SYM-X @ SYM-TYPE!
+  R-FIN @ R-IX @ SYM-ADDR!
+  R-TYP @ R-IX @ SYM-TYPE!
   ;
 
 : SYM-DEFINE  ( c-addr u type addr -- ix )
-  SYM-Z !                          \ addr
-  SYM-T !                          \ type
+  D-ADR !
+  D-TYP !
   2DUP SYM-FIND IF                 \ ca u ix
-    SYM-X !                        \ ix
+    D-IX !
     2DROP
-    SYM-X @ SYM-TYPE@ SYM-FORWARD = IF
-      SYM-X @ SYM-Z @ SYM-T @ SYM-RESOLVE-TO
+    D-IX @ SYM-TYPE@ SYM-FORWARD = IF
+      D-IX @ D-ADR @ D-TYP @ SYM-RESOLVE-TO
     ELSE
-      SYM-T @ SYM-X @ SYM-TYPE!
-      SYM-Z @ SYM-X @ SYM-ADDR!
+      D-TYP @ D-IX @ SYM-TYPE!
+      D-ADR @ D-IX @ SYM-ADDR!
     THEN
-    SYM-X @
-  ELSE
-    SYM-T @ SYM-Z @ SYM-ADD
+    D-IX @
+  ELSE                             \ ca u
+    D-TYP @ D-ADR @ SYM-ADD
   THEN
   ;
 
 : SYM-DEFINE-LAST  ( type addr -- ix )
-  SYM-Z ! SYM-T !
+  D-ADR ! D-TYP !
   LAST NAME>STRING
-  SYM-T @ SYM-Z @ SYM-DEFINE
+  D-TYP @ D-ADR @ SYM-DEFINE
   ;
 
 : SYM-ADD-LAST  ( type addr -- ix )  SYM-DEFINE-LAST ;
@@ -197,22 +225,22 @@ VARIABLE SYM-Z
   ;
 
 : SYM-HEX.  ( u -- )
-  BASE @ SYM-A !
+  BASE @ M-BASE !
   HEX
   0 <# #S #> TYPE SPACE
-  SYM-A @ BASE !
+  M-BASE @ BASE !
   ;
 
 : SYM-COMPILE-REF  ( ix -- )
   DUP SYM-USE+
   DUP SYM-TYPE@ SYM-FORWARD = IF
     0 COMP-CALL
-    HERE-T T-CELL - SYM-A !        \ site
-    DUP SYM-ADDR@ SYM-B !          \ old head  (ix still under)
-    SYM-B @ SYM-A @ !-T
-    SYM-A @ SWAP SYM-ADDR!         \ ix
+    HERE-T T-CELL - C-SITE !
+    DUP SYM-ADDR@ C-OLD !
+    C-OLD @ C-SITE @ !-T
+    C-SITE @ SWAP SYM-ADDR!
     ?SHOW IF
-      S"   [fwd fixup @" TYPE SYM-A @ SYM-HEX. S" ]" TYPE CR
+      S"   [fwd fixup @" TYPE C-SITE @ SYM-HEX. S" ]" TYPE CR
     THEN
   ELSE
     SYM-ADDR@ COMP-CALL
@@ -221,27 +249,27 @@ VARIABLE SYM-Z
 
 : SYM-UNRES-COUNT  ( -- n )
   0
-  0 SYM-I !
-  BEGIN SYM-I @ SYM-N @ < WHILE
-    SYM-I @ SYM-TYPE@ SYM-FORWARD = IF 1+ THEN
-    1 SYM-I +!
+  0 M-I !
+  BEGIN M-I @ SYM-N @ < WHILE
+    M-I @ SYM-TYPE@ SYM-FORWARD = IF 1+ THEN
+    1 M-I +!
   REPEAT
   ;
 
 : .UNRES  ( -- )
   S" Unresolved forward references:" TYPE CR
-  0 SYM-A !
-  0 SYM-I !
-  BEGIN SYM-I @ SYM-N @ < WHILE
-    SYM-I @ SYM-TYPE@ SYM-FORWARD = IF
-      S"   " TYPE SYM-I @ SYM-GET-NAME TYPE
-      S"  uses=" TYPE SYM-I @ SYM-USES@ 0 .R
-      S"  chain@" TYPE SYM-I @ SYM-ADDR@ SYM-HEX. CR
-      1 SYM-A +!
+  0 M-N !
+  0 M-I !
+  BEGIN M-I @ SYM-N @ < WHILE
+    M-I @ SYM-TYPE@ SYM-FORWARD = IF
+      S"   " TYPE M-I @ SYM-GET-NAME TYPE
+      S"  uses=" TYPE M-I @ SYM-USES@ 0 .R
+      S"  chain@" TYPE M-I @ SYM-ADDR@ SYM-HEX. CR
+      1 M-N +!
     THEN
-    1 SYM-I +!
+    1 M-I +!
   REPEAT
-  SYM-A @ 0= IF S"   (none)" TYPE CR THEN
+  M-N @ 0= IF S"   (none)" TYPE CR THEN
   ;
 
 : SYM-CHECK-UNRES  ( -- )
@@ -271,26 +299,26 @@ DEFER LIB-AUTO-INCLUDE
 : .SYMBOLS  ( -- )
   S" Symbols: " TYPE SYM-COUNT 0 .R S"  / " TYPE SYM-MAX 0 .R CR
   SYM-COUNT 0= IF S"   (none)" TYPE CR EXIT THEN
-  0 SYM-I !
-  BEGIN SYM-I @ SYM-COUNT < WHILE
-    SYM-I @ 3 .R SPACE
-    SYM-I @ SYM-GET-NAME TYPE
-    16 SYM-I @ SYM-NBUF C@ - 0 MAX SPACES
-    SYM-I @ SYM-TYPE@ .SYM-TYPE
+  0 M-I !
+  BEGIN M-I @ SYM-COUNT < WHILE
+    M-I @ 3 .R SPACE
+    M-I @ SYM-GET-NAME TYPE
+    16 M-I @ SYM-NBUF C@ - 0 MAX SPACES
+    M-I @ SYM-TYPE@ .SYM-TYPE
     S"  @ " TYPE
-    SYM-I @ SYM-ADDR@ SYM-HEX.
-    S" uses=" TYPE SYM-I @ SYM-USES@ 0 .R CR
-    1 SYM-I +!
+    M-I @ SYM-ADDR@ SYM-HEX.
+    S" uses=" TYPE M-I @ SYM-USES@ 0 .R CR
+    1 M-I +!
   REPEAT
   ;
 
 : .SYMA  ( -- )
   S" SYMA raw (first 16):" TYPE CR
-  0 SYM-I !
-  BEGIN SYM-I @ SYM-N @ < SYM-I @ 16 < AND WHILE
-    SYM-I @ 3 .R S" : " TYPE
-    SYM-I @ SYM-ADDR@ SYM-HEX. CR
-    1 SYM-I +!
+  0 M-I !
+  BEGIN M-I @ SYM-N @ < M-I @ 16 < AND WHILE
+    M-I @ 3 .R S" : " TYPE
+    M-I @ SYM-ADDR@ SYM-HEX. CR
+    1 M-I +!
   REPEAT
   ;
 
@@ -306,13 +334,13 @@ DEFER LIB-AUTO-INCLUDE
   S" T: is interpret-only (not inside a colon def)" ?INTERPRET-ONLY
   ?EXECUTING
   START-T:
-  HERE-T SYM-A !
-  SYM-A @ (T-COOKIE)
+  HERE-T M-TMP !
+  M-TMP @ (T-COOKIE)
   LAST NAME>STRING
   ?QUIET 0= IF 2DUP TYPE CR THEN
   2DUP PAD 2 CELLS + PLACE
   PAD 2 CELLS + COMP-HEADER
-  SYM-TARGET SYM-A @ SYM-DEFINE-LAST DROP
+  SYM-TARGET M-TMP @ SYM-DEFINE-LAST DROP
   TRUE TO ?INTERPRETIVE
   ;
 
@@ -326,13 +354,13 @@ DEFER LIB-AUTO-INCLUDE
   ?EXECUTING
   TRUE TO ?LIB
   START-L:
-  HERE-T SYM-A !
-  SYM-A @ (T-COOKIE)
+  HERE-T M-TMP !
+  M-TMP @ (T-COOKIE)
   LAST NAME>STRING
   ?QUIET 0= IF 2DUP TYPE CR THEN
   2DUP PAD 2 CELLS + PLACE
   PAD 2 CELLS + COMP-HEADER
-  SYM-LIBRARY SYM-A @ SYM-DEFINE-LAST DROP
+  SYM-LIBRARY M-TMP @ SYM-DEFINE-LAST DROP
   ;
 
 : ;L  ( -- )
@@ -344,13 +372,13 @@ DEFER LIB-AUTO-INCLUDE
   S" GCODE is interpret-only (not inside a colon def)" ?INTERPRET-ONLY
   ?EXECUTING
   TCODE-START
-  HERE-T SYM-A !
-  SYM-A @ (T-COOKIE)
+  HERE-T M-TMP !
+  M-TMP @ (T-COOKIE)
   LAST NAME>STRING
   ?QUIET 0= IF 2DUP TYPE CR THEN
   2DUP PAD 2 CELLS + PLACE
   PAD 2 CELLS + COMP-HEADER
-  SYM-CODE SYM-A @ SYM-DEFINE-LAST DROP
+  SYM-CODE M-TMP @ SYM-DEFINE-LAST DROP
   SETASSEM
   ;
 
@@ -359,18 +387,18 @@ DEFER LIB-AUTO-INCLUDE
 : GJMP  ( addr -- )  COMP-JMP-IMM ;
 
 : G'  ( "<spaces>name" -- )
-  BL WORD COUNT                 \ ca u
-  2DUP SYM-FIND IF              \ ca u ix
-    NIP NIP                     \ ix
+  BL WORD COUNT
+  2DUP SYM-FIND IF
+    NIP NIP
   ELSE
-    2DUP LIB-AUTO-INCLUDE IF    \ ca u ix
+    2DUP LIB-AUTO-INCLUDE IF
       NIP NIP
     ELSE
       ?LIB IF
         TYPE S"  ?" TYPE CR
         S" forward reference not allowed in library" TCOM-ABORT
       THEN
-      2DUP SYM-FORWARD SYM-NO-CHAIN SYM-ADD   \ ca u ix
+      2DUP SYM-FORWARD SYM-NO-CHAIN SYM-ADD
       ?QUIET 0= IF
         S" Forward: " TYPE
         ROT ROT TYPE CR
@@ -383,13 +411,13 @@ DEFER LIB-AUTO-INCLUDE
   ;
 
 : LIB,  ( xt -- )
-  EXECUTE SYM-A !                  \ cookie
-  0 SYM-I !
-  BEGIN SYM-I @ SYM-N @ < WHILE
-    SYM-I @ SYM-ADDR@ SYM-A @ = IF SYM-I @ SYM-USE+ THEN
-    1 SYM-I +!
+  EXECUTE M-TMP !
+  0 M-I !
+  BEGIN M-I @ SYM-N @ < WHILE
+    M-I @ SYM-ADDR@ M-TMP @ = IF M-I @ SYM-USE+ THEN
+    1 M-I +!
   REPEAT
-  SYM-A @ COMP-CALL
+  M-TMP @ COMP-CALL
   ;
 
 DEFER DIR-ON-TARGET-INIT
@@ -401,12 +429,13 @@ DEFER DIR-ON-FINISH
 ' (DIR-ON-FINISH) IS DIR-ON-FINISH
 
 : .DIR  ( -- )
-  S" 64DIR Phase 1.3 — symbols, forward refs, resolve (no locals)" TYPE CR
+  S" 64DIR Phase 1.3 — symbols, forward refs, resolve" TYPE CR
   S"   T: ;T L: ;L GCODE G, GCALL GJMP G' LIB, .SYMBOLS .UNRES .OPTIONS" TYPE CR
   .SYMBOLS
   ;
 
 : SYM-SMOKE  ( -- )
+  S" [64DIR] SYM-SMOKE add..." TYPE CR
   SYM-CLEAR
   S" AAA" SYM-LIBRARY $8000 SYM-ADD DROP
   S" BBB" SYM-LIBRARY $8008 SYM-ADD DROP
@@ -415,6 +444,7 @@ DEFER DIR-ON-FINISH
   1 SYM-ADDR@ $8008 <> IF S" SYM-SMOKE fail1" TYPE CR ABORT THEN
   2 SYM-ADDR@ $0001 <> IF S" SYM-SMOKE fail2" TYPE CR ABORT THEN
   S"  slot0=[" TYPE 0 SYM-GET-NAME TYPE S" ]" TYPE CR
+  S" [64DIR] SYM-SMOKE find..." TYPE CR
   S" aaa" SYM-FIND-IX DROP
   S" AaA" SYM-FIND-IX DROP
   S" LATER" SYM-FORWARD SYM-NO-CHAIN SYM-ADD DROP
@@ -425,6 +455,7 @@ DEFER DIR-ON-FINISH
   ;
 
 FORTH DEFINITIONS
+S" [64DIR] run SYM-SMOKE" TYPE CR
 SYM-CLEAR
 SYM-SMOKE
 S" 64DIR loaded (Phase 1.3 director + forwards)." TYPE CR

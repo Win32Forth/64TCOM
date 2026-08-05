@@ -27,20 +27,20 @@ DECIMAL
 
 \ Quiet counterpart to 64Forth ANEW — same FORGET/CREATE reload semantics,
 \ without printing "Loading module:" (nested INCLUDE of pack files stays tidy).
-\ Prefer ANS locals over >R/R> (return stack collides with DO LOOP / I).
+\ No locals here (load-path reliability). No >R inside DO.
 [UNDEFINED] TCOM-ANEW [IF]
 : TCOM-ANEW  ( "<spaces>name" -- )
-  {: | pos :}
-  >IN @ TO pos
+  >IN @
   BL WORD FIND IF
-    DROP  pos >IN !  FORGET
+    DROP OVER >IN ! FORGET
   ELSE
     DROP
   THEN
-  pos >IN !  CREATE
+  >IN !  CREATE
   ;
 [THEN]
 
+S" [64HOST] start" TYPE CR
 TCOM-ANEW 64HOST
 
 FORTH DEFINITIONS
@@ -723,4 +723,4 @@ S" BIN" IMAGE.EXT PLACE
 TCOM-INIT-MEM-DEFAULT
 
 FORTH DEFINITIONS
-." 64HOST loaded.  (.64HOST  64HOST-SMOKE)" CR
+S" [64HOST] loaded (.64HOST  64HOST-SMOKE)" TYPE CR
