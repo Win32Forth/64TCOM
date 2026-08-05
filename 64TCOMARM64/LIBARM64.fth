@@ -9,6 +9,9 @@ TCOM-ANEW LIBARM64
 FORTH DEFINITIONS
 DECIMAL
 
+\ Stubs are real bytes in the target image — need a buffer before prims.
+T-CODE-BASE 0= IF  TCOM-INIT-MEM-DEFAULT  THEN
+
 VARIABLE LIB-PRIM-COUNT
 0 LIB-PRIM-COUNT !
 
