@@ -111,17 +111,22 @@ VARIABLE SYM-N
   DROP ." ?"
   ;
 
+\ Print u in hex without using >R inside a DO LOOP (that corrupts I!)
+: SYM-HEX.  ( u -- )
+  BASE @ SWAP HEX 0 <# #S #> TYPE SPACE BASE !
+  ;
+
 : .SYMBOLS  ( -- )
-  ." Symbols: " SYM-COUNT . ." / " SYM-MAX . CR
-  SYM-COUNT 0= IF ."   (none)" CR EXIT THEN
+  S" Symbols: " TYPE SYM-COUNT 0 .R S"  / " TYPE SYM-MAX 0 .R CR
+  SYM-COUNT 0= IF S"   (none)" TYPE CR EXIT THEN
   SYM-COUNT 0 DO
     I 3 .R SPACE
     I SYM-GET-NAME TYPE
     16 I SYM-NBUF C@ - 0 MAX SPACES
     I SYM-TYPE@ .SYM-TYPE
-    ."  @ "
-    BASE @ >R HEX I SYM-ADDR@ 0 <# #S #> TYPE R> BASE !
-    SPACE ." uses=" I SYM-USES@ 0 .R CR
+    S"  @ " TYPE
+    I SYM-ADDR@ SYM-HEX.
+    S" uses=" TYPE I SYM-USES@ 0 .R CR
   LOOP
   ;
 
@@ -220,9 +225,8 @@ DEFER DIR-ON-TARGET-INIT
   S" SYMA raw (first 16):" TYPE CR
   SYM-N @ 0 MAX 16 MIN 0 ?DO
     I 3 .R S" : " TYPE
-    BASE @ >R HEX
-    I CELLS SYMA + @ 0 <# #S #> TYPE
-    R> BASE ! CR
+    I CELLS SYMA + @ SYM-HEX.
+    CR
   LOOP
   ;
 
