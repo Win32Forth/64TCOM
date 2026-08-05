@@ -258,7 +258,7 @@ FALSE VALUE ?INTERPRETIVE \ interpretive compile path
 FALSE VALUE ?NOSAVE       \ do not write image file
 FALSE VALUE ?UNRES        \ unresolved forward refs remain
 FALSE VALUE ?QUIET        \ quiet messages
-FALSE VALUE ?FWDABORT     \ if true, unresolved FWD at finish aborts (default true)
+TRUE VALUE ?FWDABORT      \ unresolved FWD at finish aborts (use /NOFWDABORT to warn only)
 
 : NOSAVE    ( -- )  TRUE  TO ?NOSAVE ;
 : /SAVE     ( -- )  FALSE TO ?NOSAVE ;
@@ -271,11 +271,17 @@ FALSE VALUE ?FWDABORT     \ if true, unresolved FWD at finish aborts (default tr
 : /FWDABORT ( -- )  TRUE  TO ?FWDABORT ;
 : /NOFWDABORT ( -- ) FALSE TO ?FWDABORT ;
 
+: (OPT.)  ( flag -- )  IF ." yes" ELSE ." no" THEN ;
 : .OPTIONS  ( -- )
   ." 64TCOM options:" CR
-  ."   ?SHOW=" ?SHOW . ."  ?QUIET=" ?QUIET . ."  ?OPT=" ?OPT . CR
-  ."   ?NOSAVE=" ?NOSAVE . ."  ?LIB=" ?LIB . ."  ?UNRES=" ?UNRES . CR
-  ."   ?FWDABORT=" ?FWDABORT . ."  ?INTERPRETIVE=" ?INTERPRETIVE . CR
+  ."   ?SHOW=" ?SHOW (OPT.)
+  ."  ?QUIET=" ?QUIET (OPT.)
+  ."  ?OPT=" ?OPT (OPT.) CR
+  ."   ?NOSAVE=" ?NOSAVE (OPT.)
+  ."  ?LIB=" ?LIB (OPT.)
+  ."  ?UNRES=" ?UNRES (OPT.) CR
+  ."   ?FWDABORT=" ?FWDABORT (OPT.)
+  ."  ?INTERPRETIVE=" ?INTERPRETIVE (OPT.) CR
   ."   /SHOW /NOSHOW /QUIET /NOQUIET /OPT /NOOPT" CR
   ."   NOSAVE /SAVE /FWDABORT /NOFWDABORT" CR
   ;

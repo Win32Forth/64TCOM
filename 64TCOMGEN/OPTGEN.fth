@@ -273,45 +273,14 @@ DEFER SAVE-IMAGE
   [DEFINED] .DIR [IF] .DIR [THEN]
   ;
 
-: GEN-DEMO-DUMP  ( -- )
-  {: | n i :}
-  ." GEN-DEMO done. HERE-T=" HERE-T . CR
-  ." First bytes: "
-  HERE-T 0 MAX  32 MIN TO n
-  0 TO i
-  BEGIN i n < WHILE
-    i C@-T H2.
-    i 1+ TO i
-  REPEAT
-  CR
-  [DEFINED] .SYMBOLS [IF] .SYMBOLS [THEN]
-  ;
-
-\ T: / G' bodies must run at interpret time (EVALUATE), not inside colon.
+\ T: / G' must run at interpret time. 64Forth EVALUATE does not reliably
+\ return into a colon definition, so demos are separate files via INCLUDE.
 : GEN-DEMO  ( -- )
-  S" TARGET-INIT /SHOW T: HI $1234 G, ' DUP# LIB, ;T GEN-FINISH"
-  EVALUATE
-  GEN-DEMO-DUMP
+  S" GENDEMO.fth" INCLUDED
   ;
 
-\ Phase 1.3: MAIN calls HELLO before HELLO is defined; chain is patched at T: HELLO
 : FWD-DEMO  ( -- )
-  S" TARGET-INIT /SHOW T: MAIN G' HELLO ;T T: HELLO $1111 G, ;T GEN-FINISH"
-  EVALUATE
-  ." FWD-DEMO done. HERE-T=" HERE-T . CR
-  [DEFINED] .SYMBOLS [IF] .SYMBOLS [THEN]
-  S" HELLO" SYM-FIND 0= IF
-    ." FWD-DEMO fail: HELLO missing" CR ABORT
-  THEN
-  DROP
-  \ HELLO must be TARGET (resolved), not FWD
-  S" HELLO" SYM-FIND DROP SYM-TYPE@ SYM-FORWARD = IF
-    ." FWD-DEMO fail: HELLO still FWD" CR ABORT
-  THEN
-  S" MAIN" SYM-FIND DROP SYM-TYPE@ SYM-TARGET <> IF
-    ." FWD-DEMO fail: MAIN not TARGET" CR ABORT
-  THEN
-  ." FWD-DEMO: OK (forward HELLO resolved)" CR
+  S" FWDDEMO.fth" INCLUDED
   ;
 
 FORTH DEFINITIONS

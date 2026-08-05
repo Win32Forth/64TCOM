@@ -56,9 +56,13 @@ L: auto-include
 Smoke tests
 -----------
   SYM-SMOKE     — table + case + FWD entry count (at 64DIR load)
-  GEN-DEMO      — lit + LIB, (no forward)
-  FWD-DEMO      — T: MAIN G' HELLO ;T then T: HELLO … ;T
+  GEN-DEMO      — INCLUDE GENDEMO.fth (lit + LIB,); prints GEN-DEMO: OK
+  FWD-DEMO      — INCLUDE FWDDEMO.fth (MAIN→HELLO forward); FWD-DEMO: OK
   .UNRES        — list remaining FWD symbols
+
+  Note: demos are separate .fth files (not EVALUATE inside a colon).
+  On 64Forth, EVALUATE did not return into the rest of GEN-DEMO/FWD-DEMO,
+  so post-checks never ran; INCLUDE at interpret time is reliable.
 
 
 Not in 1.3 (later)
