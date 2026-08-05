@@ -212,74 +212,8 @@ $10 CONSTANT GEN-TAG-HDR
 
 \ -----------------------------------------------------------------------------
 \ Thin director slice — defining words usable before full COMPILE1/2
-\ -----------------------------------------------------------------------------
-\
-\ T: name  creates host word "name" returning target entry cookie; then lay
-\ tags with G, / LIB, until ;T.
-
-: GEN-LOG-LAST  ( -- )
-  ?QUIET IF EXIT THEN
-  LAST NAME>STRING GEN.
-  ;
-
-: (T-COOKIE)  ( taddr -- )   \ CREATE name ; runtime leaves taddr
-  CREATE ,  DOES> @
-  ;
-
-: ?INTERPRET-ONLY  ( c-addr u -- )
-  \ Abort if used while compiling a colon definition (name must be parsed now)
-  STATE @ IF  TCOM-ABORT  ELSE  2DROP  THEN
-  ;
-
-: T:  ( "<spaces>name" -- )
-  S" T: is interpret-only (not inside a colon def)" ?INTERPRET-ONLY
-  ?EXECUTING
-  START-T:
-  HERE-T >R
-  R@ (T-COOKIE)                 \ parses name
-  GEN-LOG-LAST  GEN-CR          \ "Defining-: NAME"
-  LAST NAME>STRING PAD PLACE  PAD COMP-HEADER
-  R> DROP
-  TRUE TO ?INTERPRETIVE
-  ;
-
-: ;T  ( -- )
-  END-T:
-  FALSE TO ?INTERPRETIVE
-  ; IMMEDIATE
-
-: L:  ( "<spaces>name" -- )
-  S" L: is interpret-only (not inside a colon def)" ?INTERPRET-ONLY
-  ?EXECUTING
-  TRUE TO ?LIB
-  START-L:
-  HERE-T >R
-  R@ (T-COOKIE)
-  GEN-LOG-LAST  GEN-CR
-  LAST NAME>STRING PAD PLACE  PAD COMP-HEADER
-  R> DROP
-  ;
-
-: ;L  ( -- )
-  END-L:
-  FALSE TO ?LIB
-  ; IMMEDIATE
-
-: GCODE  ( "<spaces>name" -- )
-  S" GCODE is interpret-only (not inside a colon def)" ?INTERPRET-ONLY
-  ?EXECUTING
-  TCODE-START
-  HERE-T >R
-  R@ (T-COOKIE)
-  GEN-LOG-LAST  GEN-CR
-  LAST NAME>STRING PAD PLACE  PAD COMP-HEADER
-  R> DROP
-  SETASSEM
-  ;
-
-: G,    ( n -- )     COMP-SINGLE ;
-: GCALL ( addr -- )  COMP-CALL ;
-: GJMP  ( addr -- )  COMP-JMP-IMM ;
+\ Director words T: ;T L: ;L GCODE G, GCALL GJMP G' LIB, live in 64DIR.fth
+\ (Phase 1.2). This file only installs GEN backend hooks and image init.
 
 \ -----------------------------------------------------------------------------
 \ Target init / finish / save (GEN)
@@ -308,6 +242,7 @@ DEFER SAVE-IMAGE
   CODE-START DP-T !  DATA-START DP-D !
   TCOM-ORDER
   >TARGET
+  [DEFINED] DIR-ON-TARGET-INIT [IF] DIR-ON-TARGET-INIT [THEN]
   ?QUIET 0= IF ." TARGET-INIT: CODE/DATA origin 0, image cleared" CR THEN
   SET-COLD-ENTRY
   GEN-NOP,
@@ -324,25 +259,24 @@ DEFER SAVE-IMAGE
 \ -----------------------------------------------------------------------------
 
 : .GEN  ( -- )
-  CR TVERSION CR
+  TVERSION CR
   .64HOST
-  CR ." GEN tags: LIT=01 CALL=02 RET=03 NOP=04 JMP=05 0BR=06 HDR=10" CR
-  ." Words: TARGET-INIT  T: ;T  L: ;L  G, GCALL GJMP  GEN-FINISH  GEN-DEMO" CR
+  ." GEN tags: LIT=01 CALL=02 RET=03 NOP=04 JMP=05 0BR=06 HDR=10" CR
+  ." Words: TARGET-INIT T: ;T L: ;L G, G' LIB, GEN-FINISH GEN-DEMO .SYMBOLS" CR
+  [DEFINED] .DIR [IF] .DIR [THEN]
   ;
 
-\ GEN-DEMO must not embed "T: HI" inside a colon definition — the text
-\ interpreter would look up HI while compiling GEN-DEMO (undefined: HI).
-\ Run the sample via EVALUATE so T: parses HI at interpret time.
-
 : GEN-DEMO-DUMP  ( -- )
-  CR ." GEN-DEMO done. HERE-T=" HERE-T . CR
+  ." GEN-DEMO done. HERE-T=" HERE-T . CR
   ." First bytes: "
   HERE-T 0 MAX  32 MIN  0 ?DO
     I C@-T  BASE @ >R HEX  0 <# # # #> TYPE SPACE  R> BASE !
   LOOP
   CR
+  [DEFINED] .SYMBOLS [IF] .SYMBOLS [THEN]
   ;
 
+\ T: HI must run at interpret time (EVALUATE), not inside this colon.
 : GEN-DEMO  ( -- )
   S" TARGET-INIT /SHOW T: HI $1234 G, ' DUP# LIB, ;T GEN-FINISH"
   EVALUATE

@@ -4,10 +4,11 @@
 \ Classic analogue: tcom25/TCOMGEN/TARGGEN.FTH
 \
 \ Load order:
-\   1. ../64TCOMSRC/64HOST.fth   — host layer (vocabularies, image buffers)
-\   2. ASMGEN.fth                — stub assembler
-\   3. OPTGEN.fth                — deferred hooks + thin T:/;T director
-\   4. LIBGEN.fth                — stub library cookies
+\   1. ../64TCOMSRC/64HOST.fth   — host layer
+\   2. ../64TCOMSRC/64DIR.fth    — symbol table + thin director (Phase 1.2)
+\   3. ASMGEN.fth                — stub assembler
+\   4. OPTGEN.fth                — GEN deferred hooks + tag stream
+\   5. LIBGEN.fth                — library cookies (+ SYM registration)
 \
 \ How to load (from 64Forth):
 \   CHDIR to the 64TCOMGEN directory, then:
@@ -42,6 +43,7 @@ DECIMAL
 \ ../64TCOMSRC/64HOST.fth resolves correctly when this file is loaded.
 
 INCLUDE ../64TCOMSRC/64HOST.fth
+INCLUDE ../64TCOMSRC/64DIR.fth
 
 \ --- GEN pack ---------------------------------------------------------------
 
@@ -55,4 +57,4 @@ TCOM-ORDER
 TCOM-WARN-ON
 
 ." 64TCOM GEN ready — " TVERSION CR
-." Try:  .GEN   GEN-DEMO   FLOAD TESTGEN.fth" CR
+." Try:  .GEN  .DIR  .SYMBOLS  GEN-DEMO  FLOAD TESTGEN.fth" CR

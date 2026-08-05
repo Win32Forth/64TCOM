@@ -5,18 +5,22 @@ Not an F-PC translation layer.
 
 Files
 -----
-  64HOST.fth     Host layer: vocabularies, errors, target image buffers,
-                 deferred memory ops and pack hooks (Phase 1)
+  64HOST.fth     Host layer: vocs, image buffers, hooks (Phase 1.1)
+  64DIR.fth      Symbol table + thin director T:/L:/G' (Phase 1.2)
   README.txt     This file
 
-Load 64HOST on 64Forth
-----------------------
-  INCLUDE <path-to>/64TCOMSRC/64HOST.fth
-  .64HOST
-  64HOST-SMOKE
+Usual load
+----------
+  From 64TCOMGEN:  FLOAD TARGETGEN.fth
+  (pulls in 64HOST + 64DIR + GEN pack)
 
-See 64DESIGN/64HOST notes.txt for the word list summary.
+Or piecemeal:
+  INCLUDE …/64TCOMSRC/64HOST.fth
+  INCLUDE …/64TCOMSRC/64DIR.fth
+
+See 64DESIGN/STATUS.txt for project position.
+See 64DESIGN/64HOST notes.txt for host word list.
 
 Coming later
 ------------
-  head2 / compile1 / compile2 / host exports / tcomndx (director pieces)
+  Fuller COMPILE1/2-style director; real target packs
