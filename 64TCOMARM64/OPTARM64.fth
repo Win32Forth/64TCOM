@@ -14,17 +14,22 @@ DECIMAL
 /LOW-HIGH
 ' (DATA-SEG-FIX-NOOP) IS DATA-SEG-FIX
 
+\ Pack-local starts (avoid interpret TO on VALUEs — flaky on some 64Forth builds)
+VARIABLE A64-CODE-START
+VARIABLE A64-COLD
+0 A64-CODE-START !
+0 A64-COLD !
+
 : (%SET-COLD)  ( -- )
-  HERE-T TO COLD-START
-  ?QUIET 0= IF  ." SET-COLD-ENTRY at " COLD-START . CR  THEN
+  HERE-T A64-COLD !
+  ?QUIET 0= IF  ." SET-COLD-ENTRY at " A64-COLD @ . CR  THEN
   ;
 ' (%SET-COLD) IS SET-COLD-ENTRY
 
 S" BIN" IMAGE.EXT PLACE
 
-\ End of library stubs in target image (LIBARM64 sets this after prims).
-\ Must live here (or 64HOST): OPT is compiled *before* LIB is loaded, so
-\ [DEFINED] LIB-CODE-END at OPT compile time is always false.
+\ End of library stubs (LIBARM64 sets after prims). Defined here because
+\ OPT is loaded before LIB.
 VARIABLE LIB-CODE-END
 0 LIB-CODE-END !
 
@@ -164,24 +169,23 @@ DEFER SAVE-IMAGE
 : (SAVE-IMAGE-A64)  ( -- )
   ?QUIET 0= IF
     ." ARM64: image in memory  HERE-T=" HERE-T .
-    ."  COLD-START=" COLD-START . CR
+    ."  COLD=" A64-COLD @ .
+    ."  LIB-END=" LIB-CODE-END @ . CR
   THEN
   ;
 ' (SAVE-IMAGE-A64) IS SAVE-IMAGE
 
 : TARGET-INIT  ( -- )
   ?LIB IF  S" Can't use TARGET-INIT in a library routine" TCOM-ABORT  THEN
-  \ Keep LIBARM64 stubs already in the image; only allocate if needed.
+  \ Keep LIBARM64 stubs; do not wipe image. No TO on host VALUEs.
   T-CODE-BASE 0= IF  TCOM-INIT-MEM-DEFAULT  THEN
-  LIB-CODE-END @ TO CODE-START
-  0 TO DATA-START
-  CODE-START DP-T !
-  DATA-START DP-D !
+  LIB-CODE-END @ DUP A64-CODE-START ! DP-T !
+  0 DP-D !
   TCOM-ORDER
   >TARGET
   [DEFINED] DIR-ON-TARGET-INIT [IF] DIR-ON-TARGET-INIT [THEN]
   ?QUIET 0= IF
-    ." TARGET-INIT: ARM64 app CODE at " CODE-START . CR
+    ." TARGET-INIT: ARM64 app CODE at " A64-CODE-START @ . CR
   THEN
   SET-COLD-ENTRY
   NOP,                             \ cold pad at start of app

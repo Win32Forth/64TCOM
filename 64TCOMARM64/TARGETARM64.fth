@@ -5,6 +5,8 @@
 \   FLOAD TARGETARM64.fth
 \
 \ Then:  .ARM64  ARM64-DEMO  FWD-ARM64
+\
+\ Optional: FILE-ECHO ON  before FLOAD for a full line trace.
 
 FORTH DEFINITIONS DECIMAL
 
@@ -25,7 +27,6 @@ TCOM-ANEW TARGETARM64
 FORTH DEFINITIONS
 DECIMAL
 
-\ Quiet load by default (FILE-ECHO ON if you need a line trace)
 FILE-ECHO OFF
 
 S" [TARGETARM64] loading..." TYPE CR
@@ -38,8 +39,11 @@ INCLUDE LIBARM64.fth
 TCOM-ORDER
 TCOM-WARN-ON
 
-\ Drop any load-time stack noise
-DEPTH 0 DO DROP LOOP
+\ Interpret-time DO/LOOP is compile-only (THROW 14) — clear stack in a colon.
+: (A64-CLEAR-STACK)  ( -- )
+  BEGIN DEPTH WHILE DROP REPEAT
+  ;
+(A64-CLEAR-STACK)
 
 S" 64TCOM ARM64 ready — " TYPE TVERSION CR
 S" HERE-T=" TYPE HERE-T . S"  LIB-CODE-END=" TYPE LIB-CODE-END @ . CR
