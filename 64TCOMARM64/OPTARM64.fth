@@ -226,7 +226,7 @@ VARIABLE AD-BASE
     1 AD-I +!
   REPEAT
   CR
-  S" Lib stubs 0.." TYPE LIB-CODE-END @ SYM-HEX. S" (RET each)" TYPE CR
+  S" Lib region 0.." TYPE LIB-CODE-END @ SYM-HEX. S" (real prims + RET)" TYPE CR
   [DEFINED] .SYMBOLS [IF] .SYMBOLS [THEN]
   ;
 
