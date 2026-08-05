@@ -38,10 +38,17 @@ What v0.2 / 3.0c emits
 
   Forward G': RESOLVE-1 stores host address of final in .quad.
 
+Assembler 3.1
+-------------
+  Registers X0–X30, AND/ORR/EOR, ADDS/SUBS/CMP, ADD/SUB #imm
+  LDR/STR scaled, B/BL/B.cond, CBZ/CBNZ
+  Labels: L:  BR>L  (0..15)
+  Control: AHEAD THEN, AIF, AELSE, ATHEN,
+  Demo: ASM-DEMO  (leaf 7 and count-to-3 loop via sim)
+
 Not yet
 -------
-  Host-side native call into the buffer, BRANCH/0BRANCH, Mach-O save,
-  full assembler, macOS ABI.
+  Native BLR into buffer (kernel VM save), Mach-O save, full ISA/NEON.
 
 Files
 -----
