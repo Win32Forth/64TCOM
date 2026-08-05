@@ -22,19 +22,26 @@ Load
     ARM64-DEMO
     FWD-ARM64
 
-What v0.1 emits
----------------
-  COMP-SINGLE n   → MOVZ/MOVK X0, #n  (4 insns)
-  COMP-CALL addr  → LDR X16, [PC+8]; BLR X16; .quad addr
-  END-T: / ;T     → RET
-  LIB-PRIM        → ALIGN; RET  (callable stub; address = cookie)
+ABI (3.0c)
+----------
+  X0  = TOS
+  X19 = DSP (push STR X0,[X19,#-8]!)
+  Cell = 8 bytes. Cold sets X19 to top of data image, X0 = 0.
 
-  Forward G' uses same fixup chain as GEN: RESOLVE-1 patches the .quad.
+What v0.2 / 3.0c emits
+----------------------
+  COMP-SINGLE n   → push TOS; MOV X0,#n
+  COMP-CALL taddr → LDR X16,[PC+8]; BLR X16; .quad THERE(taddr)
+  ;T              → RET
+  DUP# DROP# SWAP# OVER# PLUS# MINUS# FETCH# STORE# EXIT#  real bodies
+  BRANCH# ZBRANCH# EXEC# LIT# still stubs (RET only)
+
+  Forward G': RESOLVE-1 stores host address of final in .quad.
 
 Not yet
 -------
-  Full ITC outer interpreter, real DUP/DROP bodies, Mach-O save,
-  complete A64 assembler, macOS ABI.
+  Host-side native call into the buffer, BRANCH/0BRANCH, Mach-O save,
+  full assembler, macOS ABI.
 
 Files
 -----

@@ -1,10 +1,14 @@
 \ ASMARM64.fth — Minimal AArch64 assembler for 64TCOMARM64
 \
 \ Public domain. Requires 64HOST.fth.
-\ Little-endian A64 fixed-length 32-bit instructions into T-CODE via C,-T.
+\ Little-endian A64 32-bit instructions into target CODE via C,-T / W,.
 \
-\ First milestone: enough to emit RET, NOP, BLR Xn, LDR literal+quad,
-\ and MOVZ/MOVK materialization of 64-bit immediates.
+\ ABI (Phase 3.0c subroutine-threaded):
+\   X0  = TOS (top of data stack)
+\   X19 = DSP (points at next free cell toward lower addresses; push pre-dec)
+\   X1  = scratch in primitives
+\   X16 = call scratch (LDR/BLR absolute)
+\   X30 = link (BLR / RET)
 
 TCOM-ANEW ASMARM64
 
@@ -32,10 +36,6 @@ FALSE VALUE ?ASM-ACTIVE
 
 : C;  ( -- )  END-CODE ; IMMEDIATE
 
-\ -----------------------------------------------------------------------------
-\ Emit 32-bit LE instruction word
-\ -----------------------------------------------------------------------------
-
 : W,  ( u32 -- )
   DUP $FF AND C,-T
   8 RSHIFT DUP $FF AND C,-T
@@ -47,93 +47,155 @@ FALSE VALUE ?ASM-ACTIVE
   BEGIN HERE-T 3 AND WHILE  0 C,-T  REPEAT
   ;
 
-\ -----------------------------------------------------------------------------
-\ Core instructions (Xn = 0..30; 31 = XZR/SP as appropriate)
-\ -----------------------------------------------------------------------------
+: X0   0 ;  : X1   1 ;  : X16 16 ;  : X19 19 ;  : X30 30 ;
 
 : NOP,   ( -- )  $D503201F W, ;
-: RET,   ( -- )  $D65F03C0 W, ;          \ RET X30
-: RET-X, ( xn -- )  $D65F0000 OR  5 LSHIFT OR  W, ;
-: BLR-X, ( xn -- )  $D63F0000 SWAP 5 LSHIFT OR W, ;
-: BR-X,  ( xn -- )  $D61F0000 SWAP 5 LSHIFT OR W, ;
+: RET,   ( -- )  $D65F03C0 W, ;
+: RET-X, ( xn -- )  $1F AND 5 LSHIFT $D65F0000 OR W, ;
+: BLR-X, ( xn -- )  $1F AND 5 LSHIFT $D63F0000 OR W, ;
+: BR-X,  ( xn -- )  $1F AND 5 LSHIFT $D61F0000 OR W, ;
 
 VARIABLE A64-I
 VARIABLE A64-D
 VARIABLE A64-H
+VARIABLE A64-N
+VARIABLE A64-M
 
-\ MOVZ Xd, #imm16, LSL #(hw*16)   hw = 0..3
-\ Encoding: sf=1 opc=10 100101 hw:2 imm16:16 Rd:5 → base $D2800000
 : MOVZ-X,  ( imm16 xd hw -- )
-  A64-H !
-  A64-D !
-  A64-I !
-  A64-H @ 3 U> IF  S" MOVZ hw must be 0..3" TCOM-ABORT  THEN
+  A64-H !  A64-D !  A64-I !
+  A64-H @ 3 U> IF  S" MOVZ hw 0..3" TCOM-ABORT  THEN
   $D2800000
   A64-H @ 21 LSHIFT OR
   A64-I @ $FFFF AND 5 LSHIFT OR
-  A64-D @ $1F AND OR
-  W,
+  A64-D @ $1F AND OR  W,
   ;
 
-\ MOVK Xd, #imm16, LSL #(hw*16)
 : MOVK-X,  ( imm16 xd hw -- )
-  A64-H !
-  A64-D !
-  A64-I !
-  A64-H @ 3 U> IF  S" MOVK hw must be 0..3" TCOM-ABORT  THEN
+  A64-H !  A64-D !  A64-I !
+  A64-H @ 3 U> IF  S" MOVK hw 0..3" TCOM-ABORT  THEN
   $F2800000
   A64-H @ 21 LSHIFT OR
   A64-I @ $FFFF AND 5 LSHIFT OR
-  A64-D @ $1F AND OR
-  W,
+  A64-D @ $1F AND OR  W,
   ;
 
-\ Materialize full 64-bit imm into Xd (4 instructions)
 : MOV-X-IMM64,  ( imm64 xd -- )
   $1F AND A64-D !
-  DUP $FFFF AND               A64-D @ 0 MOVZ-X,
-  DUP 16 RSHIFT $FFFF AND     A64-D @ 1 MOVK-X,
-  DUP 32 RSHIFT $FFFF AND     A64-D @ 2 MOVK-X,
-      48 RSHIFT $FFFF AND     A64-D @ 3 MOVK-X,
+  DUP $FFFF AND            A64-D @ 0 MOVZ-X,
+  DUP 16 RSHIFT $FFFF AND  A64-D @ 1 MOVK-X,
+  DUP 32 RSHIFT $FFFF AND  A64-D @ 2 MOVK-X,
+      48 RSHIFT $FFFF AND  A64-D @ 3 MOVK-X,
   ;
 
-\ LDR Xt, label — 64-bit literal load, imm19 = byte_offset/4 from this insn
-\ We use a fixed pattern: LDR Xn, +8 ; BLR Xn ; .quad target
-\ imm19 = 2 for +8 bytes
+\ MOV Xd, Xm  (ORR Xd, XZR, Xm)  64-bit
+: MOV-X-X,  ( xm xd -- )
+  A64-D !  A64-M !
+  $AA0003E0
+  A64-M @ $1F AND 16 LSHIFT OR
+  A64-D @ $1F AND OR  W,
+  ;
+
+\ ADD Xd, Xn, Xm
+: ADD-X-X,  ( xm xn xd -- )
+  A64-D !  A64-N !  A64-M !
+  $8B000000
+  A64-M @ $1F AND 16 LSHIFT OR
+  A64-N @ $1F AND 5 LSHIFT OR
+  A64-D @ $1F AND OR  W,
+  ;
+
+\ SUB Xd, Xn, Xm
+: SUB-X-X,  ( xm xn xd -- )
+  A64-D !  A64-N !  A64-M !
+  $CB000000
+  A64-M @ $1F AND 16 LSHIFT OR
+  A64-N @ $1F AND 5 LSHIFT OR
+  A64-D @ $1F AND OR  W,
+  ;
+
+\ 9-bit signed imm helper → imm9 field
+: (IMM9)  ( n -- imm9 )
+  DUP 0< IF  $200 +  THEN  $1FF AND
+  ;
+
+\ STR Xt, [Xn, #simm]!   pre-index writeback  (64-bit)
+: STR-PRE,  ( xt xn simm -- )
+  (IMM9) A64-I !
+  A64-N !
+  A64-D !
+  $F8000C00
+  A64-I @ 12 LSHIFT OR
+  A64-N @ $1F AND 5 LSHIFT OR
+  A64-D @ $1F AND OR  W,
+  ;
+
+\ LDR Xt, [Xn], #simm   post-index writeback  (64-bit)
+: LDR-POST,  ( xt xn simm -- )
+  (IMM9) A64-I !
+  A64-N !
+  A64-D !
+  $F8400400
+  A64-I @ 12 LSHIFT OR
+  A64-N @ $1F AND 5 LSHIFT OR
+  A64-D @ $1F AND OR  W,
+  ;
+
+\ LDR Xt, [Xn]   unsigned offset 0
+: LDR-X0,  ( xt xn -- )
+  A64-N !  A64-D !
+  $F9400000
+  A64-N @ $1F AND 5 LSHIFT OR
+  A64-D @ $1F AND OR  W,
+  ;
+
+\ STR Xt, [Xn]   unsigned offset 0
+: STR-X0,  ( xt xn -- )
+  A64-N !  A64-D !
+  $F9000000
+  A64-N @ $1F AND 5 LSHIFT OR
+  A64-D @ $1F AND OR  W,
+  ;
+
+\ LDR Xt, PC+8 literal (imm19=2)
 : LDR64-PC+8,  ( xn -- )
-  $1F AND
-  $58000000 OR
-  2 5 LSHIFT OR                    \ imm19 = 2
-  W,
+  $1F AND  $58000000 OR  2 5 LSHIFT OR  W,
   ;
-
-\ Call sequence with patchable 8-byte absolute address at HERE-T after emit:
-\   LDR X16, [PC+8]
-\   BLR X16
-\   .quad addr          ← COMP-CALL leaves this cell; RESOLVE-1 patches it
-\
-\ After CALL-ABS, HERE-T points past the quad if we ,-T inside.
-: X16  ( -- n )  16 ;
 
 : CALL-ABS-PREP,  ( -- )
-  \ emit LDR+BLR; next 8 bytes are address cell
   ALIGN4-T
   X16 LDR64-PC+8,
   X16 BLR-X,
   ;
 
-: CALL-ABS,  ( addr -- )
+\ taddr → host address in .quad so BLR works if code runs from T-CODE-BASE mapping
+: CALL-ABS,  ( taddr -- )
   CALL-ABS-PREP,
-  ,-T                              \ 8-byte absolute target
+  THERE ,-T
   ;
 
-\ Literal into X0 (demo / COMP-SINGLE): MOV sequence only
-: LIT-X0,  ( n -- )
-  0 MOV-X-IMM64,                   \ xd = 0
+: JMP-ABS,  ( taddr -- )
+  ALIGN4-T
+  X16 LDR64-PC+8,
+  X16 BR-X,
+  THERE ,-T
+  ;
+
+\ Push old TOS (X0) then load literal into X0
+: LIT-PUSH-X0,  ( n -- )
+  X0 X19 -8 STR-PRE,              \ str x0, [x19, #-8]!
+  X0 MOV-X-IMM64,                 \ mov x0, #n
+  ;
+
+: LIT-X0,  ( n -- )  X0 MOV-X-IMM64, ;   \ replace TOS only (no push)
+
+\ DSP init: X19 = host address of data-stack top (grows down)
+: DSP-INIT,  ( host-dsp-top -- )
+  X19 MOV-X-IMM64,
+  0 X0 MOV-X-IMM64,               \ empty TOS
   ;
 
 : .ASMARM64  ( -- )
-  S" ASMARM64: AArch64 emitters W, NOP, RET, BLR-X, MOV-X-IMM64, CALL-ABS" TYPE CR
+  S" ASMARM64: ABI X0=TOS X19=DSP; W, RET, STR-PRE, LDR-POST, ADD/SUB, CALL-ABS" TYPE CR
   ;
 
 FORTH DEFINITIONS

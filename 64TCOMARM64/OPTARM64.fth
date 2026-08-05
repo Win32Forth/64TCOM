@@ -38,23 +38,20 @@ VARIABLE LIB-CODE-END
 \ -----------------------------------------------------------------------------
 
 : (%COMP-SINGLE)  ( n -- )
-  ?QUIET 0= IF  ." (LIT-X0) " DUP H. CR  THEN
-  LIT-X0,
+  ?QUIET 0= IF  ." (LIT) " DUP H. CR  THEN
+  LIT-PUSH-X0,                     \ push old TOS; X0 = n
   ;
 ' (%COMP-SINGLE) IS COMP-SINGLE
 
-: (%COMP-CALL)  ( addr -- )
-  ?QUIET 0= IF  ." CALL-ABS " DUP H. CR  THEN
-  CALL-ABS,
+: (%COMP-CALL)  ( taddr -- )
+  ?QUIET 0= IF  ." CALL " DUP H. CR  THEN
+  CALL-ABS,                        \ .quad = THERE (host) for BLR
   ;
 ' (%COMP-CALL) IS COMP-CALL
 
-: (%COMP-JMP-IMM)  ( addr -- )
-  ?QUIET 0= IF  ." JMP-ABS " DUP H. CR  THEN
-  ALIGN4-T
-  X16 LDR64-PC+8,
-  X16 BR-X,
-  ,-T
+: (%COMP-JMP-IMM)  ( taddr -- )
+  ?QUIET 0= IF  ." JMP " DUP H. CR  THEN
+  JMP-ABS,
   ;
 ' (%COMP-JMP-IMM) IS COMP-JMP-IMM
 
@@ -139,11 +136,12 @@ VARIABLE LIB-CODE-END
   ;
 ' (%COMP-HEADER) IS COMP-HEADER
 
-: (%RESOLVE-1)  ( site final-addr -- )
+: (%RESOLVE-1)  ( site final-taddr -- )
+  \ Patch .quad with host address of final (same as CALL-ABS,)
   ?QUIET 0= IF
-    ." Resolving @" SPACE OVER H. ." -> " DUP H. CR
+    ." Resolving @" SPACE OVER H. ." -> t" DUP H. CR
   THEN
-  SWAP !-T
+  THERE SWAP !-T
   ;
 ' (%RESOLVE-1) IS RESOLVE-1
 
@@ -177,7 +175,6 @@ DEFER SAVE-IMAGE
 
 : TARGET-INIT  ( -- )
   ?LIB IF  S" Can't use TARGET-INIT in a library routine" TCOM-ABORT  THEN
-  \ Keep LIBARM64 stubs; do not wipe image. No TO on host VALUEs.
   T-CODE-BASE 0= IF  TCOM-INIT-MEM-DEFAULT  THEN
   LIB-CODE-END @ DUP A64-CODE-START ! DP-T !
   0 DP-D !
@@ -188,7 +185,9 @@ DEFER SAVE-IMAGE
     ." TARGET-INIT: ARM64 app CODE at " A64-CODE-START @ . CR
   THEN
   SET-COLD-ENTRY
-  NOP,                             \ cold pad at start of app
+  \ Cold prologue: X19 = data stack top (host), X0 = 0
+  T-DATA-BASE T-DATA-MAX + 64 -   \ room under end of data image
+  DSP-INIT,
   ;
 
 : ARM64-FINISH  ( -- )

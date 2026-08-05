@@ -1,16 +1,14 @@
 64TCOM — Project status (living document)
 ==========================================
 Update this file when phase boundaries move.
-Last updated: 2026-08-05 (Phase 3.0 ARM64 pack v0.1)
+Last updated: 2026-08-05 (Phase 3.0c real prims)
 
 YOU ARE HERE
 ------------
-  Phase 0          DONE   — design, naming, layout, GitHub
-  Phase 1 host     DONE   — 64HOST.fth
-  Phase 1.2–1.3    DONE   — 64DIR symbols, forwards
-  Phase 2 GEN      DONE   — GEN-DEMO / FWD-DEMO green
-  Phase 3.0 ARM64  v0.1   — 64TCOMARM64 loadable; real A64 bytes; demos
-  Phase 3.1+              — richer assembler, real prim bodies, image files
+  Phase 0–2        DONE
+  Phase 3.0b       DONE   — ARM64 pack emit + demos
+  Phase 3.0c       DONE   — ABI X0/X19; real DUP/DROP/+/…; LIT push
+  Phase 3.1+              — BRANCH/0BRANCH, run harness, richer ASM
 
 Coding style (host/director/GEN)
 --------------------------------
@@ -47,7 +45,8 @@ Phase checklist
 [x] 2.2  Forward references + richer resolve (same as 1.3 on GEN)
 [x] 3.0a Pack name + tree: 64TCOMARM64/
 [x] 3.0b TARGETARM64 + ASMARM64 + OPTARM64 + LIBARM64 + demos (v0.1)
-[ ] 3.0c Real primitive bodies (DUP# etc.), runnable snippet / more ITC
+[x] 3.0c Real prim bodies (DUP DROP SWAP OVER + - @ !); LIT push; host CALL quads
+[ ] 3.0d Host run harness / BRANCH# ZBRANCH# / clear app symbols on INIT
 [ ] 3.1  Grow Forth-style AArch64 assembler
 [ ] 4.0  Utilities (listing, xref, debugger) in 64TCOMUTILS
 
@@ -88,5 +87,5 @@ Design docs (background)
 
 Next step
 ---------
-  Exercise: FLOAD TARGETARM64.fth / ARM64-DEMO / FWD-ARM64
-  Then: real lib prim bodies, richer ASM, image save.
+  FLOAD TARGETARM64.fth / ARM64-DEMO / FWD-ARM64
+  Then 3.0d: execute image from host, BRANCH/0BRANCH, image save.

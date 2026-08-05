@@ -1,19 +1,16 @@
-\ LIBARM64.fth — Minimal ARM64 target library (real code addresses)
+\ LIBARM64.fth — ARM64 target library with real primitive bodies
 \
 \ Public domain. Requires 64HOST, 64DIR, ASMARM64, OPTARM64.
-\ Each LIB-PRIM emits a small A64 stub at HERE-T and registers that
-\ address as the library cookie (not a fake $8000 range).
+\
+\ ABI: X0 = TOS, X19 = DSP (push: STR X0,[X19,#-8]!). Cells = 8 bytes.
+\ Each prim ends with RET (subroutine-threaded).
 
 TCOM-ANEW LIBARM64
 
 FORTH DEFINITIONS
 DECIMAL
 
-\ Stubs are real bytes in the target image — need a buffer before prims.
 T-CODE-BASE 0= IF  TCOM-INIT-MEM-DEFAULT  THEN
-
-\ Do NOT redefine LIB-CODE-END here — OPTARM64 owns it. A second VARIABLE
-\ would shadow OPT's; TARGET-INIT is compiled against OPT's (would stay 0).
 
 VARIABLE LIB-PRIM-COUNT
 0 LIB-PRIM-COUNT !
@@ -26,19 +23,16 @@ VARIABLE LIB-I
 VARIABLE LIB-CA
 VARIABLE LIB-U
 VARIABLE LIB-CK
+VARIABLE LIB-BODY-XT
 
-\ Default stub body: RET (safe no-op callable)
-: LIB-STUB-BODY  ( -- )
-  ALIGN4-T
-  RET,
-  ;
-
-\ Optional: slightly different stubs later (DUP# etc.)
-: LIB-PRIM  ( "<spaces>name" -- )
+\ body-xt ( -- ) emits machine code for the primitive (no RET; we add it)
+: LIB-PRIM-XT  ( body-xt "<spaces>name" -- )
+  LIB-BODY-XT !
   HOST-DEFS
   ALIGN4-T
   HERE-T LIB-CK !
-  LIB-STUB-BODY
+  LIB-BODY-XT @ EXECUTE
+  RET,
   LIB-CK @ CONSTANT
   SYM-N @ LIB-I !
   LAST NAME>STRING LIB-U ! LIB-CA !
@@ -54,24 +48,71 @@ VARIABLE LIB-CK
   FORTH-DEFS
   ;
 
-\ Same names as GEN so demos can share source style
-LIB-PRIM LIT#
-LIB-PRIM EXIT#
-LIB-PRIM UNNEST#
-LIB-PRIM BRANCH#
-LIB-PRIM ZBRANCH#
-LIB-PRIM FETCH#
-LIB-PRIM STORE#
-LIB-PRIM DUP#
-LIB-PRIM DROP#
-LIB-PRIM SWAP#
-LIB-PRIM OVER#
-LIB-PRIM PLUS#
-LIB-PRIM MINUS#
-LIB-PRIM EXEC#
-LIB-PRIM NOOP#
+\ --- primitive bodies (no RET) ---
 
-\ Preserve stubs across TARGET-INIT (VARIABLE is in OPTARM64)
+: (BODY-NOOP)   ( -- )  ;                          \ fall into RET,
+
+: (BODY-DUP)    ( -- )  \ ( x -- x x )
+  X0 X19 -8 STR-PRE,
+  ;
+
+: (BODY-DROP)   ( -- )  \ ( x -- )
+  X0 X19 8 LDR-POST,
+  ;
+
+: (BODY-SWAP)   ( -- )  \ ( a b -- b a )  TOS=b, [DSP]=a
+  X1 X19 0 LDR-X0,                                 \ x1 = a
+  X0 X19 0 STR-X0,                                 \ [DSP] = b
+  X1 X0 MOV-X-X,                                   \ TOS = a
+  ;
+
+: (BODY-OVER)   ( -- )  \ ( a b -- a b a )  TOS=b, [DSP]=a
+  X1 X19 0 LDR-X0,                                 \ x1 = a
+  X0 X19 -8 STR-PRE,                               \ push b
+  X1 X0 MOV-X-X,                                   \ TOS = a
+  ;
+
+: (BODY-PLUS)   ( -- )  \ ( a b -- a+b )
+  X1 X19 8 LDR-POST,                               \ x1 = a, pop
+  X0 X1 X0 ADD-X-X,                                \ x0 = a + b  (xm xn xd)
+  ;
+
+: (BODY-MINUS)  ( -- )  \ ( a b -- a-b )
+  X1 X19 8 LDR-POST,
+  X0 X1 X0 SUB-X-X,                                \ x0 = a - b
+  ;
+
+: (BODY-FETCH)  ( -- )  \ ( a -- n )
+  X0 X0 LDR-X0,
+  ;
+
+: (BODY-STORE)  ( -- )  \ ( n a -- )
+  X1 X19 8 LDR-POST,                               \ x1 = n
+  X1 X0 STR-X0,                                    \ [a] = n
+  X0 X19 8 LDR-POST,                               \ new TOS
+  ;
+
+: (BODY-EXIT)   ( -- )  ;                          \ RET only
+
+\ BRANCH/ZBRANCH/EXEC/LIT# left as NOOP/RET for now (need full control model)
+: (BODY-STUB)   ( -- )  ;
+
+' (BODY-STUB)  LIB-PRIM-XT LIT#
+' (BODY-EXIT)  LIB-PRIM-XT EXIT#
+' (BODY-EXIT)  LIB-PRIM-XT UNNEST#
+' (BODY-STUB)  LIB-PRIM-XT BRANCH#
+' (BODY-STUB)  LIB-PRIM-XT ZBRANCH#
+' (BODY-FETCH) LIB-PRIM-XT FETCH#
+' (BODY-STORE) LIB-PRIM-XT STORE#
+' (BODY-DUP)   LIB-PRIM-XT DUP#
+' (BODY-DROP)  LIB-PRIM-XT DROP#
+' (BODY-SWAP)  LIB-PRIM-XT SWAP#
+' (BODY-OVER)  LIB-PRIM-XT OVER#
+' (BODY-PLUS)  LIB-PRIM-XT PLUS#
+' (BODY-MINUS) LIB-PRIM-XT MINUS#
+' (BODY-STUB)  LIB-PRIM-XT EXEC#
+' (BODY-NOOP)  LIB-PRIM-XT NOOP#
+
 HERE-T LIB-CODE-END !
 ?QUIET 0= IF
   S" LIB-CODE-END=" TYPE LIB-CODE-END @ SYM-HEX. CR
@@ -79,9 +120,9 @@ THEN
 
 : .LIBARM64  ( -- )
   S" LIBARM64: " TYPE LIB-PRIM-COUNT @ 0 .R
-  S"  stubs (RET each). LIB-CODE-END=" TYPE LIB-CODE-END @ SYM-HEX. CR
+  S"  prims (X0=TOS X19=DSP). LIB-CODE-END=" TYPE LIB-CODE-END @ SYM-HEX. CR
   ;
 
 FORTH DEFINITIONS
 >FORTH
-S" LIBARM64: " TYPE LIB-PRIM-COUNT @ 0 .R S"  library stubs ready." TYPE CR
+S" LIBARM64: " TYPE LIB-PRIM-COUNT @ 0 .R S"  real prims ready." TYPE CR
