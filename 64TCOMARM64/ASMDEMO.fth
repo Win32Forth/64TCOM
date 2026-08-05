@@ -1,19 +1,20 @@
 \ ASMDEMO.fth — Phase 3.1 assembler smoke
 \ Public domain. Loaded by ASM-DEMO.
 \
-\ Host VARIABLEs must live in FORTH (TARGET-INIT sets DEFINITIONS TARGET;
-\ ARM64-FINISH >FORTH removes TARGET from the search order).
+\ Host VARIABLEs in FORTH (not TARGET). Checks inside a colon
+\ (interpret-time IF is unreliable on 64Forth).
 
 FORTH DEFINITIONS
 VARIABLE TA
 VARIABLE TB
 VARIABLE TC
 VARIABLE IMM
+VARIABLE RX
 
 TARGET-INIT
 /SHOW
 LL-INIT
-FORTH DEFINITIONS                \ keep assembling helpers visible; emit still uses HERE-T
+FORTH DEFINITIONS
 
 \ ----- A: 6+1 = 7 -----
 ALIGN4-T
@@ -32,7 +33,7 @@ THEN,
 3 X0 MOV-X-IMM64,
 RET,
 
-\ ----- C: countdown x0=3; cbnz x0,L0; mov #3 -----
+\ ----- C: x0=3; L0: x0--; cbnz x0,L0; mov #3 -----
 ALIGN4-T
 HERE-T TC !
 3 X0 MOV-X-IMM64,
@@ -49,23 +50,30 @@ RET,
 ARM64-FINISH
 FORTH DEFINITIONS
 
-S" ASM-DEMO A @" TYPE TA @ SYM-HEX. CR
-S" ASM-DEMO B @" TYPE TB @ SYM-HEX. CR
-S" ASM-DEMO C @" TYPE TC @ SYM-HEX. CR
+: ASM-DEMO-CHECK  ( -- )
+  S" ASM-DEMO A @" TYPE TA @ SYM-HEX. CR
+  S" ASM-DEMO B @" TYPE TB @ SYM-HEX. CR
+  S" ASM-DEMO C @" TYPE TC @ SYM-HEX. CR
 
-TC @ RUN-T
-S" leafC => " TYPE DUP . CR
-3 <> IF S" ASM-DEMO fail leafC (want 3)" TYPE CR ABORT THEN
-DROP
+  TC @ RUN-T RX !
+  S" leafC => " TYPE RX @ . CR
+  RX @ 3 <> IF
+    S" ASM-DEMO fail leafC (want 3)" TYPE CR ABORT
+  THEN
 
-TB @ RUN-T
-S" leafB => " TYPE DUP . CR
-3 <> IF S" ASM-DEMO fail leafB (want 3)" TYPE CR ABORT THEN
-DROP
+  TB @ RUN-T RX !
+  S" leafB => " TYPE RX @ . CR
+  RX @ 3 <> IF
+    S" ASM-DEMO fail leafB (want 3)" TYPE CR ABORT
+  THEN
 
-TA @ RUN-T
-S" leafA => " TYPE DUP . CR
-7 <> IF S" ASM-DEMO fail leafA (want 7)" TYPE CR ABORT THEN
-DROP
+  TA @ RUN-T RX !
+  S" leafA => " TYPE RX @ . CR
+  RX @ 7 <> IF
+    S" ASM-DEMO fail leafA (want 7)" TYPE CR ABORT
+  THEN
 
-S" ASM-DEMO: OK" TYPE CR
+  S" ASM-DEMO: OK" TYPE CR
+  ;
+
+ASM-DEMO-CHECK
