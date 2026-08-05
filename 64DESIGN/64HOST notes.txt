@@ -1,0 +1,55 @@
+64HOST.fth — Phase 1 host layer notes
+======================================
+Location: 64TCOMSRC/64HOST.fth
+Host:     64Forth (native 8-byte cells)
+Status:   Implemented scaffold (2026-08-05)
+
+What 64Forth already provides (not reimplemented)
+-------------------------------------------------
+  VOCABULARY ALSO ONLY PREVIOUS ORDER DEFINITIONS
+  GET-CURRENT SET-CURRENT GET-ORDER SET-ORDER
+  DEFER IS DEFER@ DEFER! ACTION-OF
+  ALIAS VALUE TO
+  ALLOCATE FREE RESIZE
+  CELL CELLS ANEW MARKER
+  THROW CATCH, File words, etc.
+
+What 64HOST adds
+----------------
+1. Vocabularies
+   HOST  COMPILER  TARGET  HTARGET
+   Immediate: [HOST] [FORTH] [COMPILER] [TARGET] [HTARGET] [ASSEMBLER]
+   Helpers:   HOST-DEFS COMPILER-DEFS TARGET-DEFS HTARGET-DEFS FORTH-DEFS
+              TCOM-ORDER  H:  C:
+
+2. Mode (classic TCOM)
+   >FORTH  >LIBRARY  >TARGET   and TCOM-MODE value
+   Flags: ?LIB ?OPT ?SHOW ?CODE ?NOSAVE ?QUIET …  /OPT /NOOPT /SHOW NOSAVE
+
+3. Errors / CSP
+   CSP !CSP ?CSP ?TCOMCSP ?COMPILING ?EXECUTING
+   "ERRMSG  TCOM-ABORT  TCOM-ERROR
+
+4. Target image memory (flat buffers, no segments)
+   TCOM-INIT-MEM  TCOM-INIT-MEM-DEFAULT  TCOM-FREE-MEM
+   T-CODE-BASE T-DATA-BASE DP-T DP-D HERE-T HERE-D THERE DTHERE
+   T-CELL (default 8)  /LOW-HIGH  /HIGH-LOW
+   Deferred: C@-T @-T C!-T !-T C,-T ,-T ALLOT-T S,-T O!
+             ALLOT-D C!-D !-D C,-D ,-D S,-D
+   DATA-SEG-FIX TVERSION SET-COLD-ENTRY (defaults)
+
+5. Deferred director hooks (stubs until OPTGEN/COMPILE)
+   COMP-CALL COMP-SINGLE END-T: START-L: … (see source)
+
+6. Status
+   .64HOST   64HOST-SMOKE
+
+Load
+----
+  CHDIR to 64TCOMSRC (or use full path), then:
+    INCLUDE 64HOST.fth
+  Or from 64Forth with path to the file.
+
+Next
+----
+  Thin director slice + wire 64TCOMGEN/TARGETGEN.fth load order.
