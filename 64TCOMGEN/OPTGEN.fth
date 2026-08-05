@@ -24,21 +24,18 @@ FORTH DEFINITIONS
 DECIMAL
 
 \ -----------------------------------------------------------------------------
-\ Logging helpers
+\ Logging helpers  (newline at end of each message — no leading blank lines)
 \ -----------------------------------------------------------------------------
 
-: GEN-CR?  ( -- )  ?QUIET 0= IF CR THEN ;
 : GEN.     ( c-addr u -- )  ?QUIET IF 2DROP EXIT THEN  TYPE ;
 : GEN."    ( -- )  POSTPONE S"  POSTPONE GEN. ; IMMEDIATE
-
-: ?1CR  ( -- )  ?QUIET 0= IF CR THEN ;
-: ?2CR  ( -- )  ?1CR ;   \ was CR CR; keep single blank for quieter logs
+: GEN-CR   ( -- )  ?QUIET 0= IF CR THEN ;   \ end of a log line only
 
 \ -----------------------------------------------------------------------------
 \ Version / endian / cold entry
 \ -----------------------------------------------------------------------------
 
-: (TVER-GEN)  ( -- )  ."  64TCOM GEN Version 0.1 " ;
+: (TVER-GEN)  ( -- )  ." 64TCOM GEN Version 0.1" ;
 ' (TVER-GEN) IS TVERSION
 
 /LOW-HIGH
@@ -46,7 +43,7 @@ DECIMAL
 
 : (%SET-COLD)  ( -- )
   HERE-T TO COLD-START
-  ?QUIET 0= IF  CR ." SET-COLD-ENTRY at " COLD-START .  THEN
+  ?QUIET 0= IF  ." SET-COLD-ENTRY at " COLD-START . CR  THEN
   ;
 ' (%SET-COLD) IS SET-COLD-ENTRY
 
@@ -91,35 +88,35 @@ $10 CONSTANT GEN-TAG-HDR
 \ -----------------------------------------------------------------------------
 
 : (%COMP-SINGLE)  ( n -- )
-  ?1CR  ?QUIET 0= IF  ." (LIT) " DUP .  THEN
+  ?QUIET 0= IF  ." (LIT) " DUP . CR  THEN
   GEN-LIT,
   ;
 ' (%COMP-SINGLE) IS COMP-SINGLE
 
 : (%COMP-CALL)  ( addr|sym -- )
-  ?1CR  ?QUIET 0= IF  ." CALL " DUP H.  THEN
+  ?QUIET 0= IF  ." CALL " DUP H. CR  THEN
   GEN-CALL,
   ;
 ' (%COMP-CALL) IS COMP-CALL
 
 : (%COMP-JMP-IMM)  ( addr -- )
-  ?1CR  ?QUIET 0= IF  ." JMP " DUP H.  THEN
+  ?QUIET 0= IF  ." JMP " DUP H. CR  THEN
   GEN-JMP,
   ;
 ' (%COMP-JMP-IMM) IS COMP-JMP-IMM
 
-: (%COMP-FETCH)   ( -- )  ?1CR  GEN." @ "      GEN-NOP, ;
-: (%COMP-STORE)   ( -- )  ?1CR  GEN." ! "      GEN-NOP, ;
-: (%COMP-PERFORM) ( -- )  ?1CR  GEN." PERFORM " GEN-NOP, ;
-: (%COMP-ON)      ( -- )  ?1CR  GEN." ON "      GEN-NOP, ;
-: (%COMP-OFF)     ( -- )  ?1CR  GEN." OFF "     GEN-NOP, ;
-: (%COMP-INCR)    ( -- )  ?1CR  GEN." INCR "    GEN-NOP, ;
-: (%COMP-DECR)    ( -- )  ?1CR  GEN." DECR "    GEN-NOP, ;
-: (%COMP-PSTORE)  ( -- )  ?1CR  GEN." +! "      GEN-NOP, ;
-: (%COMP-SAVE)    ( -- )  ?1CR  GEN." SAVE> "   GEN-NOP, ;
-: (%COMP-SAVEST)  ( -- )  ?1CR  GEN." SAVE!> "  GEN-NOP, ;
-: (%COMP-REST)    ( -- )  ?1CR  GEN." REST> "   GEN-NOP, ;
-: (%COMP-FPUSH)   ( -- )  ?1CR  GEN." FPUSH "   GEN-NOP, ;
+: (%COMP-FETCH)   ( -- )  ?QUIET 0= IF ." @" CR THEN  GEN-NOP, ;
+: (%COMP-STORE)   ( -- )  ?QUIET 0= IF ." !" CR THEN  GEN-NOP, ;
+: (%COMP-PERFORM) ( -- )  ?QUIET 0= IF ." PERFORM" CR THEN  GEN-NOP, ;
+: (%COMP-ON)      ( -- )  ?QUIET 0= IF ." ON" CR THEN  GEN-NOP, ;
+: (%COMP-OFF)     ( -- )  ?QUIET 0= IF ." OFF" CR THEN  GEN-NOP, ;
+: (%COMP-INCR)    ( -- )  ?QUIET 0= IF ." INCR" CR THEN  GEN-NOP, ;
+: (%COMP-DECR)    ( -- )  ?QUIET 0= IF ." DECR" CR THEN  GEN-NOP, ;
+: (%COMP-PSTORE)  ( -- )  ?QUIET 0= IF ." +!" CR THEN  GEN-NOP, ;
+: (%COMP-SAVE)    ( -- )  ?QUIET 0= IF ." SAVE>" CR THEN  GEN-NOP, ;
+: (%COMP-SAVEST)  ( -- )  ?QUIET 0= IF ." SAVE!>" CR THEN  GEN-NOP, ;
+: (%COMP-REST)    ( -- )  ?QUIET 0= IF ." REST>" CR THEN  GEN-NOP, ;
+: (%COMP-FPUSH)   ( -- )  ?QUIET 0= IF ." FPUSH" CR THEN  GEN-NOP, ;
 
 ' (%COMP-FETCH)   IS COMP-FETCH
 ' (%COMP-STORE)   IS COMP-STORE
@@ -135,64 +132,64 @@ $10 CONSTANT GEN-TAG-HDR
 ' (%COMP-FPUSH)   IS COMP-FPUSH
 
 : (%END-T:)  ( -- )
-  ?1CR  GEN." ;T / END-T: "  GEN-RET,
+  ?QUIET 0= IF ." ;T" CR THEN  GEN-RET,
   ;
 ' (%END-T:) IS END-T:
 
 : (%END-L:)  ( -- )
-  ?1CR  GEN." ;L / END-L: "  GEN-RET,
+  ?QUIET 0= IF ." ;L" CR THEN  GEN-RET,
   ;
 ' (%END-L:) IS END-L:
 
 : (%END-LM:)  ( -- )
-  ?1CR  GEN." END-LM: "
+  ?QUIET 0= IF ." END-LM:" CR THEN
   ;
 ' (%END-LM:) IS END-LM:
 
 : (%END-MACRO)  ( -- )
-  ?1CR  GEN." END-MACRO "  END-CODE
+  ?QUIET 0= IF ." END-MACRO" CR THEN  END-CODE
   ;
 ' (%END-MACRO) IS END-MACRO
 ' (%END-MACRO) IS END-LMACRO
 
 : (%END-LCODE)  ( -- )
-  ?1CR  GEN." END-LCODE "  END-CODE
+  ?QUIET 0= IF ." END-LCODE" CR THEN  END-CODE
   ;
 ' (%END-LCODE) IS END-LCODE
 
 : (%START-T:)  ( -- )
-  ?2CR  GEN." Defining-: "
+  ?QUIET 0= IF ." Defining-: " THEN
   ;
 ' (%START-T:) IS START-T:
 
 : (%START-L:)  ( -- )
-  ?2CR  GEN." Including-: "
+  ?QUIET 0= IF ." Including-: " THEN
   ;
 ' (%START-L:) IS START-L:
 ' (%START-L:) IS START-LM:
 
 : (%MACRO-START)  ( -- )
-  ?1CR  GEN." Performing-MACRO "
+  ?QUIET 0= IF ." Performing-MACRO " THEN
   SETASSEM
   ;
 ' (%MACRO-START) IS MACRO-START
 
 : (%LCODE-START)  ( -- )
-  ?2CR  GEN." Including-CODE "
+  ?QUIET 0= IF ." Including-CODE " THEN
   SETASSEM
   ;
 ' (%LCODE-START) IS LCODE-START
 
 : (%TCODE-START)  ( -- )
-  ?2CR  GEN." Defining-CODE "
+  ?QUIET 0= IF ." Defining-CODE " THEN
   SETASSEM
   ;
 ' (%TCODE-START) IS TCODE-START
 
 : (%COMP-HEADER)  ( c-addr -- )
   \ c-addr = counted string
-  ?2CR  GEN." Compiling a header for: "
-  COUNT  2DUP GEN.
+  COUNT
+  ?QUIET 0= IF  ." Compiling a header for: " 2DUP TYPE CR  THEN
   GEN-TAG-HDR GEN-TAG,
   DUP C,-T                    \ length byte
   BOUNDS ?DO  I C@ C,-T  LOOP
@@ -200,14 +197,13 @@ $10 CONSTANT GEN-TAG-HDR
 ' (%COMP-HEADER) IS COMP-HEADER
 
 : (%RESOLVE-1)  ( addr -- )
-  ?1CR  GEN." Resolving forward ref at "  DUP H.  GEN." -> HERE-T "
+  ?QUIET 0= IF  ." Resolving forward ref at " DUP H. ." -> HERE-T" CR  THEN
   DROP
   ;
 ' (%RESOLVE-1) IS RESOLVE-1
 
 : (%SUB-RET)  ( -- )
-  ?1CR  GEN." (tail) remove prior RET "
-  \ GEN: if last tag was RET, back up one byte
+  ?QUIET 0= IF ." (tail) remove prior RET" CR THEN
   HERE-T 1 U>= IF
     HERE-T 1- C@-T GEN-TAG-RET = IF  -1 ALLOT-T  THEN
   THEN
@@ -241,7 +237,7 @@ $10 CONSTANT GEN-TAG-HDR
   START-T:
   HERE-T >R
   R@ (T-COOKIE)                 \ parses name
-  GEN-LOG-LAST SPACE
+  GEN-LOG-LAST  GEN-CR          \ "Defining-: NAME"
   LAST NAME>STRING PAD PLACE  PAD COMP-HEADER
   R> DROP
   TRUE TO ?INTERPRETIVE
@@ -259,7 +255,7 @@ $10 CONSTANT GEN-TAG-HDR
   START-L:
   HERE-T >R
   R@ (T-COOKIE)
-  GEN-LOG-LAST SPACE
+  GEN-LOG-LAST  GEN-CR
   LAST NAME>STRING PAD PLACE  PAD COMP-HEADER
   R> DROP
   ;
@@ -275,7 +271,7 @@ $10 CONSTANT GEN-TAG-HDR
   TCODE-START
   HERE-T >R
   R@ (T-COOKIE)
-  GEN-LOG-LAST SPACE
+  GEN-LOG-LAST  GEN-CR
   LAST NAME>STRING PAD PLACE  PAD COMP-HEADER
   R> DROP
   SETASSEM
@@ -293,14 +289,15 @@ DEFER TARGET-FINISH
 DEFER SAVE-IMAGE
 
 : (TARGET-FINISH-GEN)  ( -- )
-  GEN-CR?  GEN." Performing cleanup after compile completion"
+  ?QUIET 0= IF ." Performing cleanup after compile completion" CR THEN
   DATA-SEG-FIX
   ;
 ' (TARGET-FINISH-GEN) IS TARGET-FINISH
 
 : (SAVE-IMAGE-GEN)  ( -- )
-  GEN-CR?  GEN." GEN: no binary save yet (image stays in T-CODE-BASE / T-DATA-BASE)"
-  GEN-CR?  GEN." HERE-T="  HERE-T 0 <# #S #> GEN.
+  ?QUIET 0= IF
+    ." GEN: image in memory only (no file save yet)  HERE-T=" HERE-T . CR
+  THEN
   ;
 ' (SAVE-IMAGE-GEN) IS SAVE-IMAGE
 
@@ -311,10 +308,8 @@ DEFER SAVE-IMAGE
   CODE-START DP-T !  DATA-START DP-D !
   TCOM-ORDER
   >TARGET
-  GEN-CR?
-  GEN." TARGET-INIT: CODE origin 0, DATA origin 0, image cleared"
+  ?QUIET 0= IF ." TARGET-INIT: CODE/DATA origin 0, image cleared" CR THEN
   SET-COLD-ENTRY
-  \ entry tag
   GEN-NOP,
   ;
 
@@ -355,4 +350,4 @@ DEFER SAVE-IMAGE
   ;
 
 FORTH DEFINITIONS
-CR ." OPTGEN loaded (GEN hooks + thin T:/;T director)." CR
+." OPTGEN loaded." CR

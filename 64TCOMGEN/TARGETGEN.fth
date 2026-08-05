@@ -25,7 +25,7 @@ ANEW TARGETGEN
 FORTH DEFINITIONS
 DECIMAL
 
-CR ." === 64TCOM GEN: loading ===" CR
+." === 64TCOM GEN: loading ===" CR
 
 \ --- Host layer (parent directory) ------------------------------------------
 \ 64Forth nested INCLUDE sets logical cwd to this file's directory, so
@@ -44,10 +44,5 @@ INCLUDE LIBGEN.fth
 TCOM-ORDER
 TCOM-WARN-ON
 
-CR ." === 64TCOM GEN ready ===" CR
-TVERSION CR
-CR ." Try:" CR
-."   .GEN" CR
-."   GEN-DEMO" CR
-."   FLOAD TESTGEN.fth" CR
-CR
+." === 64TCOM GEN ready === " TVERSION CR
+." Try:  .GEN   GEN-DEMO   FLOAD TESTGEN.fth" CR

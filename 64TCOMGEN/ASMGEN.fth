@@ -61,4 +61,4 @@ DEFER END-CODE
   ;
 
 FORTH DEFINITIONS
-CR ." ASMGEN loaded (stub assembler)." CR
+." ASMGEN loaded." CR
