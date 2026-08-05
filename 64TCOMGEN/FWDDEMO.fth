@@ -1,8 +1,8 @@
 \ FWDDEMO.fth — interpret-time forward-ref smoke (loaded by FWD-DEMO)
 \ Public domain. Requires TARGETGEN already loaded.
 \
-\ Do not name words with leading "(" — at interpret time "(" is the
-\ comment word, so (FD-IX) never fetches a VALUE.
+\ Use VARIABLE + ! / @ only — not VALUE/TO (interpret TO has been flaky
+\ on some 64Forth builds). No names starting with "(".
 
 TARGET-INIT
 /SHOW
@@ -21,25 +21,25 @@ CR
 S" FWD-DEMO done. HERE-T=" TYPE HERE-T . CR
 .SYMBOLS
 
-0 VALUE FD-IX
-0 VALUE FD-TY
+VARIABLE FD-IX
+VARIABLE FD-TY
 
-S" HELLO" SYM-FIND-IX TO FD-IX
-FD-IX SYM-TYPE@ TO FD-TY
+S" HELLO" SYM-FIND-IX FD-IX !
+FD-IX @ SYM-TYPE@ FD-TY !
 
-FD-TY SYM-TARGET <> IF
-  S" FWD-DEMO fail: HELLO type=" TYPE FD-TY .
-  S" ix=" TYPE FD-IX .
+FD-TY @ SYM-TARGET <> IF
+  S" FWD-DEMO fail: HELLO type=" TYPE FD-TY @ .
+  S" ix=" TYPE FD-IX @ .
   S" want TARGET=" TYPE SYM-TARGET . CR
   ABORT
 THEN
 
-FD-IX SYM-USES@ 1 < IF
+FD-IX @ SYM-USES@ 1 < IF
   S" FWD-DEMO fail: HELLO uses < 1" TYPE CR ABORT
 THEN
 
-S" MAIN" SYM-FIND-IX TO FD-IX
-FD-IX SYM-TYPE@ SYM-TARGET <> IF
+S" MAIN" SYM-FIND-IX FD-IX !
+FD-IX @ SYM-TYPE@ SYM-TARGET <> IF
   S" FWD-DEMO fail: MAIN not TARGET" TYPE CR ABORT
 THEN
 
