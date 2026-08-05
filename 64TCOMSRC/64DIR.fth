@@ -44,31 +44,35 @@ VARIABLE SYM-N
 
 : SYM-NBUF  ( i -- c-addr )  /SNAME * SYMN + ;
 
+\ Uppercase a..z (use >= <=, not WITHIN)
 : SYM-UPC  ( c -- c' )
-  \ a..z inclusive → A..Z  (WITHIN is [lo,hi) so use z+1)
-  DUP [CHAR] a [CHAR] z 1+ WITHIN IF  32 -  THEN
+  DUP [CHAR] a >= OVER [CHAR] z <= AND IF  32 -  THEN
   ;
 
-\ Store counted name UPPERCASE into slot i
+VARIABLE SYM-SI
+
+\ Store counted name UPPERCASE — index in SYM-SI, never >R with DO
 : SYM-PUT-NAME  ( c-addr u i -- )
-  >R
+  SYM-SI !
   31 MIN
-  DUP R@ SYM-NBUF C!
+  DUP SYM-SI @ SYM-NBUF C!
   0 ?DO
     DUP I + C@ SYM-UPC
-    R@ SYM-NBUF 1+ I + C!
+    SYM-SI @ SYM-NBUF 1+ I + C!
   LOOP
-  DROP R> DROP
+  DROP
   ;
 
 : SYM-GET-NAME  ( i -- c-addr u )  SYM-NBUF COUNT ;
 
-\ Case-insensitive string equality — use locals (clear & reliable)
-: SYM-STR=  {: a1 u1 a2 u2 -- flag :}
-  u1 u2 <> IF FALSE EXIT THEN
-  u1 0 DO
-    a1 I + C@ SYM-UPC
-    a2 I + C@ SYM-UPC
+VARIABLE S1A  VARIABLE S1U  VARIABLE S2A  VARIABLE S2U
+
+: SYM-STR=  ( ca1 u1 ca2 u2 -- flag )
+  S2U !  S2A !  S1U !  S1A !
+  S1U @ S2U @ <> IF FALSE EXIT THEN
+  S1U @ 0 DO
+    S1A @ I + C@ SYM-UPC
+    S2A @ I + C@ SYM-UPC
     <> IF UNLOOP FALSE EXIT THEN
   LOOP
   TRUE
@@ -89,9 +93,9 @@ VARIABLE SYM-N
 
 \ ( c-addr u type addr -- i )
 : SYM-ADD
-  PAD CELL+ !                      \ addr
-  PAD !                            \ type
-  2DUP SYM-FIND IF                 \ ca u i
+  PAD CELL+ !
+  PAD !
+  2DUP SYM-FIND IF
     NIP NIP
     PAD @ OVER SYM-TYPE!
     PAD CELL+ @ OVER SYM-ADDR!
@@ -227,7 +231,7 @@ VARIABLE SYM-N
   ;
 
 : LIB,  ( xt -- )
-  EXECUTE                             ( cookie )
+  EXECUTE
   DUP >R
   SYM-N @ 0 DO
     I SYM-ADDR@ R@ = IF  I SYM-USE+  LEAVE  THEN
@@ -253,8 +257,9 @@ DEFER DIR-ON-TARGET-INIT
   0 SYM-ADDR@ $8000 <> IF S" SYM-SMOKE fail0" TYPE CR ABORT THEN
   1 SYM-ADDR@ $8008 <> IF S" SYM-SMOKE fail1" TYPE CR ABORT THEN
   2 SYM-ADDR@ $0001 <> IF S" SYM-SMOKE fail2" TYPE CR ABORT THEN
-  \ case-insensitive find
+  S"  slot0=[" TYPE 0 SYM-GET-NAME TYPE S" ]" TYPE CR
   S" aaa" SYM-FIND 0= IF S" SYM-SMOKE casefail" TYPE CR ABORT THEN DROP
+  S" AaA" SYM-FIND 0= IF S" SYM-SMOKE casefail2" TYPE CR ABORT THEN DROP
   S" SYM-SMOKE: OK" TYPE CR
   SYM-CLEAR
   ;
