@@ -12,8 +12,8 @@ DECIMAL
 \ Stubs are real bytes in the target image — need a buffer before prims.
 T-CODE-BASE 0= IF  TCOM-INIT-MEM-DEFAULT  THEN
 
-VARIABLE LIB-CODE-END
-0 LIB-CODE-END !
+\ Do NOT redefine LIB-CODE-END here — OPTARM64 owns it. A second VARIABLE
+\ would shadow OPT's; TARGET-INIT is compiled against OPT's (would stay 0).
 
 VARIABLE LIB-PRIM-COUNT
 0 LIB-PRIM-COUNT !
