@@ -588,6 +588,12 @@ DEFER COMP-HEADER
 DEFER RESOLVE-1
 DEFER SUB-RET
 
+\ Assembler lifecycle — declared here so 64DIR can compile GCODE before ASMGEN
+\ loads. ASMGEN (or a real assembler pack) re-IS these.
+DEFER SETASSEM
+DEFER A;
+DEFER END-CODE
+
 : (STUB-DROP)   ( x -- )  DROP ;
 : (STUB-2DROP)  ( x y -- )  2DROP ;
 : (STUB-NOOP)   ( -- )  ;
@@ -617,6 +623,9 @@ DEFER SUB-RET
 ' (STUB-NOOP)  IS END-LMACRO
 ' (STUB-NOOP)  IS END-LCODE
 ' (STUB-NOOP)  IS START-T:
+' (STUB-NOOP)  IS SETASSEM
+' (STUB-NOOP)  IS A;
+' (STUB-NOOP)  IS END-CODE
 ' (STUB-NOOP)  IS START-L:
 ' (STUB-NOOP)  IS START-LM:
 ' (STUB-NOOP)  IS MACRO-START

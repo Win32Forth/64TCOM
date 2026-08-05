@@ -17,12 +17,8 @@ DECIMAL
 VOCABULARY ASMGEN
 : [ASMGEN]  ( -- )  ASMGEN ; IMMEDIATE
 
-\ Assembler lifecycle (stubs)
+\ Assembler lifecycle — SETASSEM / A; / END-CODE are DEFERs from 64HOST
 FALSE VALUE ?ASM-ACTIVE
-
-DEFER SETASSEM
-DEFER A;
-DEFER END-CODE
 
 : (SETASSEM)  ( -- )
   TRUE TO ?ASM-ACTIVE
