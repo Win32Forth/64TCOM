@@ -216,15 +216,18 @@ VARIABLE AD-BASE
   ;
 
 : ARM64-DUMP  ( -- )
-  S" First bytes: " TYPE
-  HERE-T 64 UMIN AD-N !
-  0 AD-I !
+  \ Dump from cold/app start (skip pure lib region in the listing)
+  S" App bytes @ " TYPE A64-COLD @ SYM-HEX.
+  S" ..HERE-T=" TYPE HERE-T . CR
+  A64-COLD @ AD-I !
+  HERE-T AD-I @ - 96 UMIN AD-I @ + AD-N !   \ up to 96 app bytes
   BEGIN AD-I @ AD-N @ < WHILE
     AD-I @ C@-T ARM64-H2.
-    AD-I @ 15 AND 15 = IF CR S"              " TYPE THEN
+    AD-I @ A64-COLD @ - 15 AND 15 = IF CR S"   " TYPE THEN
     1 AD-I +!
   REPEAT
   CR
+  S" Lib stubs 0.." TYPE LIB-CODE-END @ SYM-HEX. S" (RET each)" TYPE CR
   [DEFINED] .SYMBOLS [IF] .SYMBOLS [THEN]
   ;
 
