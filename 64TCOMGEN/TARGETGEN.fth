@@ -36,7 +36,7 @@ TCOM-ANEW TARGETGEN
 FORTH DEFINITIONS
 DECIMAL
 
-." 64TCOM GEN: loading…" CR
+." 64TCOM GEN: loading..." CR
 
 \ --- Host layer (parent directory) ------------------------------------------
 \ 64Forth nested INCLUDE sets logical cwd to this file's directory, so

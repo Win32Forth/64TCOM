@@ -11,7 +11,7 @@ TCOM-ANEW TESTGEN
 FORTH DEFINITIONS
 DECIMAL
 
-." TESTGEN: compiling sample under GEN…" CR
+." TESTGEN: compiling sample under GEN..." CR
 
 TARGET-INIT
 /SHOW

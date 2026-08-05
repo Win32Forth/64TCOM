@@ -69,24 +69,24 @@ CREATE SYM-USES   SYM-MAX CELLS ALLOT
 : SYM-USE+  ( i -- )  DUP SYM-USES@ 1+ SWAP SYM-USES! ;
 
 \ SYM-ADD ( c-addr u type addr -- i )
-\ Uses a scratch VALUE pair to avoid return-stack gymnastics.
-0 VALUE (SYM-T)
-0 VALUE (SYM-A)
+\ Scratch VALUEs — do NOT use names like (SYM-T); in Forth "(" starts a comment!
+0 VALUE SYM-TMP-T
+0 VALUE SYM-TMP-A
 
 : SYM-ADD  ( c-addr u type addr -- i )
-  TO (SYM-A)  TO (SYM-T)                ( ca u )
+  TO SYM-TMP-A  TO SYM-TMP-T            ( ca u )
   2DUP SYM-FIND IF                      ( ca u i )
     NIP NIP                             ( i )
-    (SYM-T) OVER SYM-TYPE!
-    (SYM-A) OVER SYM-ADDR!
+    SYM-TMP-T OVER SYM-TYPE!
+    SYM-TMP-A OVER SYM-ADDR!
     EXIT
   THEN                                  ( ca u )
   SYM-COUNT SYM-MAX U>= IF
     2DROP S" Symbol table full" TCOM-ABORT
   THEN
   SYM-COUNT SYM-NAME PLACE              ( ca u dest )
-  (SYM-T) SYM-COUNT SYM-TYPE!
-  (SYM-A) SYM-COUNT SYM-ADDR!
+  SYM-TMP-T SYM-COUNT SYM-TYPE!
+  SYM-TMP-A SYM-COUNT SYM-ADDR!
   0 SYM-COUNT SYM-USES!
   SYM-COUNT
   SYM-COUNT 1+ TO SYM-COUNT
@@ -140,7 +140,8 @@ CREATE SYM-USES   SYM-MAX CELLS ALLOT
   START-T:
   HERE-T >R
   R@ (T-COOKIE)
-  ?QUIET 0= IF ." Defining-: " LAST NAME>STRING TYPE CR THEN
+  \ START-T: (OPTGEN) already prints "Defining-: "; only add the name here
+  ?QUIET 0= IF LAST NAME>STRING TYPE CR THEN
   LAST NAME>STRING PAD PLACE PAD COMP-HEADER
   SYM-TARGET R@ SYM-ADD-LAST DROP
   R> DROP
@@ -159,7 +160,7 @@ CREATE SYM-USES   SYM-MAX CELLS ALLOT
   START-L:
   HERE-T >R
   R@ (T-COOKIE)
-  ?QUIET 0= IF ." Including-: " LAST NAME>STRING TYPE CR THEN
+  ?QUIET 0= IF LAST NAME>STRING TYPE CR THEN
   LAST NAME>STRING PAD PLACE PAD COMP-HEADER
   SYM-LIBRARY R@ SYM-ADD-LAST DROP
   R> DROP
@@ -176,7 +177,7 @@ CREATE SYM-USES   SYM-MAX CELLS ALLOT
   TCODE-START
   HERE-T >R
   R@ (T-COOKIE)
-  ?QUIET 0= IF ." Defining-CODE " LAST NAME>STRING TYPE CR THEN
+  ?QUIET 0= IF LAST NAME>STRING TYPE CR THEN
   LAST NAME>STRING PAD PLACE PAD COMP-HEADER
   SYM-CODE R@ SYM-ADD-LAST DROP
   R> DROP

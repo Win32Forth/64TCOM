@@ -78,4 +78,4 @@ LIB-PRIM NOOP#
 
 FORTH DEFINITIONS
 >FORTH
-." LIBGEN: " LIB-PRIM-COUNT . ." library cookies ready (DUP# EXIT# …)." CR
+." LIBGEN: " LIB-PRIM-COUNT . ." library cookies ready (DUP# EXIT# ...)." CR
