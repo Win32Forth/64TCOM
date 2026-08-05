@@ -165,15 +165,24 @@ DEFER SAVE-IMAGE
 
 : TARGET-INIT  ( -- )
   ?LIB IF  S" Can't use TARGET-INIT in a library routine" TCOM-ABORT  THEN
-  TCOM-INIT-MEM-DEFAULT
-  0 TO CODE-START  0 TO DATA-START
-  CODE-START DP-T !  DATA-START DP-D !
+  \ Keep LIBARM64 stubs already in the image; only allocate if needed.
+  T-CODE-BASE 0= IF  TCOM-INIT-MEM-DEFAULT  THEN
+  [DEFINED] LIB-CODE-END [IF]
+    LIB-CODE-END @ TO CODE-START
+  [ELSE]
+    0 TO CODE-START
+  [THEN]
+  0 TO DATA-START
+  CODE-START DP-T !
+  DATA-START DP-D !
   TCOM-ORDER
   >TARGET
   [DEFINED] DIR-ON-TARGET-INIT [IF] DIR-ON-TARGET-INIT [THEN]
-  ?QUIET 0= IF ." TARGET-INIT: ARM64 CODE/DATA origin 0" CR THEN
+  ?QUIET 0= IF
+    ." TARGET-INIT: ARM64 app CODE at " CODE-START . CR
+  THEN
   SET-COLD-ENTRY
-  NOP,                             \ cold pad
+  NOP,                             \ cold pad at start of app
   ;
 
 : ARM64-FINISH  ( -- )

@@ -12,6 +12,9 @@ DECIMAL
 \ Stubs are real bytes in the target image — need a buffer before prims.
 T-CODE-BASE 0= IF  TCOM-INIT-MEM-DEFAULT  THEN
 
+VARIABLE LIB-CODE-END
+0 LIB-CODE-END !
+
 VARIABLE LIB-PRIM-COUNT
 0 LIB-PRIM-COUNT !
 
@@ -68,9 +71,12 @@ LIB-PRIM MINUS#
 LIB-PRIM EXEC#
 LIB-PRIM NOOP#
 
+\ Preserve stubs across TARGET-INIT (app code starts here)
+HERE-T LIB-CODE-END !
+
 : .LIBARM64  ( -- )
   S" LIBARM64: " TYPE LIB-PRIM-COUNT @ 0 .R
-  S"  stubs (RET each). Next HERE-T=" TYPE HERE-T SYM-HEX. CR
+  S"  stubs (RET each). LIB-CODE-END=" TYPE LIB-CODE-END @ SYM-HEX. CR
   ;
 
 FORTH DEFINITIONS
