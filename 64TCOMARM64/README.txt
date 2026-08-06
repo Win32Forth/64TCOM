@@ -66,25 +66,37 @@ Image save
     llvm-objdump -D -b binary -m aarch64 tcomarm64.bin
     # or:  hexdump -C tcomarm64.bin | head
 
-Native execution (Phase 3.3)
-----------------------------
-  Requires 64Forth 1.0.3+ kernel words:
-    MPROTECT  ICACHE-INVAL  CALL-NATIVE  (ALLOCATE-EXEC optional)
+Native execution (Phase 3.3) — in 64Forth
+-----------------------------------------
+  Requires 64Forth 1.0.4+ (MPROTECT ICACHE-INVAL CALL-NATIVE ALLOCATE-EXEC).
 
-  After ARM64-DEMO (image in T-CODE-BASE):
+  ARM64-DEMO
+  .RUN-ANS      \ simulator => 5
+  .RUN-ANS-N    \ native in-process => 5
+                \ (mmap code+DSP pages; inline CALL sites in the copy)
 
-    CODE-MAKE-EXEC?   \ mprotect RWX + icache; prints status
-    .RUN-ANS-N        \ CALL-NATIVE into ANS  => 5 expected
+Standalone Mach-O (Phase 3.4)
+-----------------------------
+  After compile (e.g. ARM64-DEMO):
 
-  CALL-ABS stores host addresses, so code runs in place (not a copy).
-  Needs 64Forth 1.0.4+ (allow-jit entitlements). T-CODE-BASE should be MAP_JIT
-  (load message: "T-CODE-BASE: MAP_JIT"). malloc + mprotect(EXEC) fails on
-  Apple Silicon even with allow-unsigned-executable-memory.
-  If C! crashes on MAP_JIT: rebuild so kernel_eval forces JIT write mode.
+    S" ANS" MACHO-ENTRY-SET   \ or MACHO-ENTRY-COLD
+    SAVE-MACHO-FILE           \ writes tcomarm64.c + tcomarm64-build.sh
+    \ or:  /MACHO  before finish to auto-emit
+    \ or:  S" myprog" SAVE-MACHO-AS
+
+  Then in Terminal (same cwd):
+
+    sh tcomarm64-build.sh
+    ./tcomarm64 ; echo exit:$?     \ expect 5 for ANS
+
+  The .c embeds the A64 image (CALL sites inlined, same as .RUN-ANS-N) and a
+  small driver that mmap/mprotect/calls entry, returning X0 as exit status.
+  Apple's cc produces a normal arm64 Mach-O (hand-rolled headers rejected by
+  modern codesign strict validation).
 
 Not yet
 -------
-  Mach-O image, full ISA/NEON, hardened-runtime JIT entitlement (if needed).
+  Full ISA/NEON; true BL/BLR without inlining (host and/or standalone).
 
 Files
 -----
@@ -93,7 +105,8 @@ Files
   OPTARM64.fth      COMP-* hooks + demos
   LIBARM64.fth      library stubs
   SIMARM64.fth      host simulator RUN-ANS
-  NATARM64.fth      native RUN-ANS-N / CODE-MAKE-EXEC
+  NATARM64.fth      native RUN-ANS-N
+  MACHOARM64.fth    SAVE-MACHO → .c + build.sh → Mach-O
   ARM64DEMO.fth     HI demo
   FWDARM64.fth      forward demo
   TARGETARM64.txt   short notes
