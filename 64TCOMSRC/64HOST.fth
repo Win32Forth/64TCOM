@@ -400,8 +400,26 @@ $40000 CONSTANT T-DATA-DEFAULT-SIZE    \ 256 KiB
   DUP IF  FREE DROP  ELSE  DROP  THEN
   ;
 
+\ True if T-CODE-BASE came from ALLOCATE-EXEC (must FREE-EXEC, not FREE)
+FALSE VALUE ?CODE-EXEC-BUF
+
+: T-FREE-CODE  ( -- )
+  T-CODE-BASE 0= IF  FALSE TO ?CODE-EXEC-BUF  EXIT  THEN
+  ?CODE-EXEC-BUF IF
+    [DEFINED] FREE-EXEC [IF]
+      T-CODE-BASE T-CODE-MAX FREE-EXEC DROP
+    [ELSE]
+      T-CODE-BASE FREE DROP
+    [THEN]
+  ELSE
+    T-CODE-BASE FREE DROP
+  THEN
+  0 TO T-CODE-BASE
+  FALSE TO ?CODE-EXEC-BUF
+  ;
+
 : TCOM-FREE-MEM  ( -- )
-  T-CODE-BASE T-FREE-BUF  0 TO T-CODE-BASE
+  T-FREE-CODE
   T-DATA-BASE T-FREE-BUF  0 TO T-DATA-BASE
   0 TO T-CODE-MAX  0 TO T-DATA-MAX
   0 DP-T !  0 DP-D !
@@ -415,11 +433,42 @@ $40000 CONSTANT T-DATA-DEFAULT-SIZE    \ 256 KiB
   SWAP DROP
   ;
 
+\ CODE image allocation:
+\   Default: plain malloc (always safe for C!/ERASE while compiling).
+\   Native run (NATARM64) copies into a temporary MAP_JIT buffer at call time.
+\   /CODE-EXEC     → allocate code via ALLOCATE-EXEC/MAP_JIT (advanced)
+\   /NO-CODE-EXEC  → malloc (default)
+
+FALSE VALUE ?WANT-CODE-EXEC
+: /CODE-EXEC    ( -- )  TRUE  TO ?WANT-CODE-EXEC ;
+: /NO-CODE-EXEC ( -- )  FALSE TO ?WANT-CODE-EXEC ;
+
+: TCOM-ALLOC-CODE  ( u -- addr )
+  ?WANT-CODE-EXEC IF
+    [DEFINED] ALLOCATE-EXEC [IF]
+      DUP ALLOCATE-EXEC                  \ u addr ior
+      IF                                 \ failed
+        DROP
+        CR ." 64HOST: ALLOCATE-EXEC failed; falling back to malloc" CR
+      ELSE
+        NIP
+        TRUE TO ?CODE-EXEC-BUF
+        [DEFINED] JIT-WPROTECT [IF]
+          FALSE JIT-WPROTECT             \ write mode for this thread
+        [THEN]
+        EXIT
+      THEN
+    [THEN]
+  THEN
+  FALSE TO ?CODE-EXEC-BUF
+  TCOM-ALLOC1
+  ;
+
 : TCOM-INIT-MEM  ( code-bytes data-bytes -- )
   TCOM-FREE-MEM
   DUP TO T-DATA-MAX
   SWAP DUP TO T-CODE-MAX
-  TCOM-ALLOC1 TO T-CODE-BASE
+  TCOM-ALLOC-CODE TO T-CODE-BASE
   TCOM-ALLOC1 TO T-DATA-BASE
   T-CODE-BASE T-CODE-MAX ERASE
   T-DATA-BASE T-DATA-MAX ERASE

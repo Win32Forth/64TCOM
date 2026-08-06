@@ -20,6 +20,8 @@ Load
 
     .ARM64
     ARM64-DEMO
+    .RUN-ANS      \ simulator
+    .RUN-ANS-N    \ native BLR (64Forth 1.0.3+: MPROTECT + CALL-NATIVE)
     FWD-ARM64
 
 ABI (3.0c)
@@ -64,9 +66,25 @@ Image save
     llvm-objdump -D -b binary -m aarch64 tcomarm64.bin
     # or:  hexdump -C tcomarm64.bin | head
 
+Native execution (Phase 3.3)
+----------------------------
+  Requires 64Forth 1.0.3+ kernel words:
+    MPROTECT  ICACHE-INVAL  CALL-NATIVE  (ALLOCATE-EXEC optional)
+
+  After ARM64-DEMO (image in T-CODE-BASE):
+
+    CODE-MAKE-EXEC?   \ mprotect RWX + icache; prints status
+    .RUN-ANS-N        \ CALL-NATIVE into ANS  => 5 expected
+
+  CALL-ABS stores host addresses, so code runs in place (not a copy).
+  Needs 64Forth 1.0.4+ (allow-jit entitlements). T-CODE-BASE should be MAP_JIT
+  (load message: "T-CODE-BASE: MAP_JIT"). malloc + mprotect(EXEC) fails on
+  Apple Silicon even with allow-unsigned-executable-memory.
+  If C! crashes on MAP_JIT: rebuild so kernel_eval forces JIT write mode.
+
 Not yet
 -------
-  Native BLR into buffer (kernel VM save), Mach-O, full ISA/NEON.
+  Mach-O image, full ISA/NEON, hardened-runtime JIT entitlement (if needed).
 
 Files
 -----
@@ -74,6 +92,8 @@ Files
   ASMARM64.fth      emitters
   OPTARM64.fth      COMP-* hooks + demos
   LIBARM64.fth      library stubs
+  SIMARM64.fth      host simulator RUN-ANS
+  NATARM64.fth      native RUN-ANS-N / CODE-MAKE-EXEC
   ARM64DEMO.fth     HI demo
   FWDARM64.fth      forward demo
   TARGETARM64.txt   short notes

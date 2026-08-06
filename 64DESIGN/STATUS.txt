@@ -1,7 +1,7 @@
 64TCOM — Project status (living document)
 ==========================================
 Update this file when phase boundaries move.
-Last updated: 2026-08-05 (Phase 3.1 richer assembler)
+Last updated: 2026-08-05 (Phase 3.3 native call)
 
 YOU ARE HERE
 ------------
@@ -9,7 +9,8 @@ YOU ARE HERE
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
   Phase 3.2        DONE   — SAVE-IMAGE → tcomarm64.bin (+ optional .map/.hdr)
-  Phase 3.3+              — optional kernel native call / Mach-O
+  Phase 3.3        WIP    — NATARM64; needs 64Forth 1.0.4 (JIT + MAP_JIT code)
+  Phase 3.4+              — Mach-O (optional)
 
 Coding style (host/director/GEN)
 --------------------------------
@@ -50,7 +51,8 @@ Phase checklist
 [x] 3.0d SIMARM64 RUN-ANS; BRANCH#/ZBRANCH#; SYM-CLEAR-APP on TARGET-INIT
 [x] 3.1  Richer ASMARM64 (regs, logic, B.cond, labels, AIF); ASM-DEMO
 [x] 3.2  SAVE-IMAGE-FILE / SAVE-IMAGE-AS / optional .map and 32-byte hdr
-[ ] 3.3  Kernel native execute / Mach-O (optional)
+[ ] 3.3  Kernel native execute (NATARM64 .RUN-ANS-N) — verify on 1.0.3
+[ ] 3.4  Mach-O / entitlements if needed (optional)
 [ ] 4.0  Utilities (listing, xref, debugger) in 64TCOMUTILS
 
 
@@ -90,5 +92,6 @@ Design docs (background)
 
 Next step
 ---------
-  ARM64-DEMO then check tcomarm64.bin in cwd (or Application Support).
-  Optional: /MAP before finish; llvm-objdump on the .bin.
+  Rebuild 64Forth after XCSTORE/MAP_JIT fix (kernel_eval forces JIT write).
+  Code image stays malloc (not MAP_JIT) so ARM64-DEMO C! is safe.
+  FLOAD TARGETARM64.fth  ARM64-DEMO  .RUN-ANS  .RUN-ANS-N

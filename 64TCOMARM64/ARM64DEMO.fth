@@ -26,4 +26,4 @@ S" ANS @ " TYPE S" ANS" SYM-FIND-IX SYM-ADDR@ SYM-HEX. CR
 S" HI  @ " TYPE S" HI"  SYM-FIND-IX SYM-ADDR@ SYM-HEX. CR
 ARM64-DUMP
 S" ARM64-DEMO: OK (real prims; ABI X0=TOS X19=DSP)" TYPE CR
-S" Next: .RUN-ANS   (simulates ANS => 5)" TYPE CR
+S" Next: .RUN-ANS   (sim ANS => 5)   .RUN-ANS-N  (native BLR => 5)" TYPE CR
