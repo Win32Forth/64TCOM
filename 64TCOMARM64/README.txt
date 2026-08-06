@@ -33,12 +33,12 @@ ABI (3.0c)
 What v0.2 / 3.0c emits
 ----------------------
   COMP-SINGLE n   → push TOS; MOV X0,#n
-  COMP-CALL taddr → LDR X16,[PC+8]; BLR X16; .quad THERE(taddr)
+  COMP-CALL taddr → LDR X16; BLR; B+3; .quad taddr (offset; native adds base)
   ;T              → RET
   DUP# DROP# SWAP# OVER# PLUS# MINUS# FETCH# STORE# EXIT#  real bodies
   BRANCH# ZBRANCH# EXEC# LIT# still stubs (RET only)
 
-  Forward G': RESOLVE-1 stores host address of final in .quad.
+  Forward G': RESOLVE-1 stores final taddr in .quad at site.
 
 Assembler 3.1
 -------------

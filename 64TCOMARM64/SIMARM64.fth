@@ -88,8 +88,10 @@ VARIABLE SM
   DUP $40000 AND IF  $80000 -  THEN
   ;
 : SIM-IMM26 ( insn -- n )
+  \ Sign-extend 26-bit imm to a full cell (64-bit safe).
+  \ Old "$FC000000 OR" only extended to 32 bits → bad PC on negative BL/B.
   $3FFFFFF AND
-  DUP $2000000 AND IF  $FC000000 OR  THEN
+  DUP $2000000 AND IF  $4000000 -  THEN
   ;
 
 : SIM-STEP  ( -- )
@@ -107,8 +109,18 @@ VARIABLE SM
 
   DUP $D503201F = IF DROP EXIT THEN
 
+  \ BTI / HINT as NOP (D503241F bti, other HINTs in same family)
+  DUP $FFFFF01F AND $D503201F = IF DROP EXIT THEN
+
   \ B imm26
   DUP $FC000000 AND $14000000 = IF
+    SIM-IMM26 4 * SIM-PC @ 4 - + SIM-PC !
+    DROP EXIT
+  THEN
+
+  \ BL imm26  (link = addr after BL = current SIM-PC)
+  DUP $FC000000 AND $94000000 = IF
+    SIM-PC @ SIM-R-PUSH
     SIM-IMM26 4 * SIM-PC @ 4 - + SIM-PC !
     DROP EXIT
   THEN
@@ -132,16 +144,20 @@ VARIABLE SM
     EXIT
   THEN
 
-  \ BR Xn
+  \ BR Xn  — X may be host addr (BRANCH#) or taddr (JMP-ABS .quad)
   DUP $FFFFFC1F AND $D61F0000 = IF
-    SIM-RN SIM-X@ HOST>T SIM-PC !
+    SIM-RN SIM-X@
+    DUP T-CODE-BASE U>= IF HOST>T ELSE THEN
+    SIM-PC !
     DROP EXIT
   THEN
 
-  \ BLR Xn  (return to following insn — should be B that skips .quad)
+  \ BLR Xn  — CALL-ABS loads taddr into Xn from .quad; B skips .quad
   DUP $FFFFFC1F AND $D63F0000 = IF
     SIM-PC @ SIM-R-PUSH
-    SIM-RN SIM-X@ HOST>T SIM-PC !
+    SIM-RN SIM-X@
+    DUP T-CODE-BASE U>= IF HOST>T ELSE THEN
+    SIM-PC !
     DROP EXIT
   THEN
 

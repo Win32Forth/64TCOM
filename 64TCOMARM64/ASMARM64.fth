@@ -68,6 +68,10 @@ VARIABLE A64-T
 
 \ ----- basic -----
 : NOP,   ( -- )  $D503201F W, ;
+\ BTI landing pad (HINT). Required on some Apple exec pages for BL/BR targets;
+\ executes as NOP if BTI is not enforced.
+\ Optional landing pad; default NOP so native BLR/BL is not required for demos.
+: BTI,   ( -- )  NOP, ;
 : RET,   ( -- )  $D65F03C0 W, ;
 : RET-X, ( xn -- )  (REG) 5 LSHIFT $D65F0000 OR W, ;
 : BLR-X, ( xn -- )  (REG) 5 LSHIFT $D63F0000 OR W, ;
@@ -235,20 +239,27 @@ VARIABLE A64-T
   $B4000000 A64-I @ $7FFFF AND 5 LSHIFT OR A64-D @ (REG) OR W,
   ;
 
+\ In-image call: LDR X16,[PC+12]; BLR X16; B +3; .quad taddr
+\ .quad holds TARGET OFFSET (not host address). SIM uses it as PC.
+\ Native: after copy, add image base to each such .quad.
+\ Chain cell for SYM-COMPILE-REF is that same .quad (HERE-T T-CELL -).
+
 : CALL-ABS,  ( taddr -- )
   ALIGN4-T
+  HERE-T 7 AND 0= IF  NOP,  THEN     \ keep .quad 8-aligned when possible
   X16 LDR64-PC+12,
   X16 BLR-X,
   3 B-IMM,
-  THERE ,-T
+  ,-T                                 \ taddr offset (NOT THERE host addr)
   ;
 
 : JMP-ABS,  ( taddr -- )
   ALIGN4-T
+  HERE-T 7 AND 0= IF  NOP,  THEN
   X16 LDR64-PC+12,
   X16 BR-X,
   3 B-IMM,
-  THERE ,-T
+  ,-T                                 \ taddr offset
   ;
 
 \ ----- patch helpers -----

@@ -330,11 +330,17 @@ DEFER LIB-AUTO-INCLUDE
   CREATE , DOES> @
   ;
 
+\ Pack may install ENTRY-LANDING (e.g. BTI,) after the symbol address is fixed.
+DEFER ENTRY-LANDING
+: (ENTRY-LANDING-NOOP)  ( -- )  ;
+' (ENTRY-LANDING-NOOP) IS ENTRY-LANDING
+
 : T:  ( "<spaces>name" -- )
   S" T: is interpret-only (not inside a colon def)" ?INTERPRET-ONLY
   ?EXECUTING
-  START-T:
-  HERE-T M-TMP !
+  START-T:                             \ align / pack prologue (no landing yet)
+  HERE-T M-TMP !                       \ symbol = entry (landing goes here)
+  ENTRY-LANDING                        \ e.g. BTI, for native BL/BLR targets
   M-TMP @ (T-COOKIE)
   LAST NAME>STRING
   ?QUIET 0= IF 2DUP TYPE CR THEN

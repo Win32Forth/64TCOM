@@ -48,45 +48,53 @@ VARIABLE LIB-BODY-XT
   FORTH-DEFS
   ;
 
-: BODY-NOOP   ( -- )  ;
-: BODY-EXIT   ( -- )  ;
-: BODY-STUB   ( -- )  ;
+: BODY-NOOP   ( -- )  BTI, ;
+: BODY-EXIT   ( -- )  BTI, ;
+: BODY-STUB   ( -- )  BTI, ;
 
 : BODY-DUP    ( -- )
+  BTI,
   X0 X19 -8 STR-PRE,
   ;
 
 : BODY-DROP   ( -- )
+  BTI,
   X0 X19 8 LDR-POST,
   ;
 
 : BODY-SWAP   ( -- )
+  BTI,
   X1 X19 0 LDR-X0,
   X0 X19 0 STR-X0,
   X1 X0 MOV-X-X,
   ;
 
 : BODY-OVER   ( -- )
+  BTI,
   X1 X19 0 LDR-X0,
   X0 X19 -8 STR-PRE,
   X1 X0 MOV-X-X,
   ;
 
 : BODY-PLUS   ( -- )
+  BTI,
   X1 X19 8 LDR-POST,
   X0 X1 X0 ADD-X-X,
   ;
 
 : BODY-MINUS  ( -- )
+  BTI,
   X1 X19 8 LDR-POST,
   X0 X1 X0 SUB-X-X,
   ;
 
 : BODY-FETCH  ( -- )
+  BTI,
   X0 X0 LDR-X0,
   ;
 
 : BODY-STORE  ( -- )
+  BTI,
   X1 X19 8 LDR-POST,
   X1 X0 STR-X0,
   X0 X19 8 LDR-POST,
@@ -94,6 +102,7 @@ VARIABLE LIB-BODY-XT
 
 \ BRANCH# ( taddr -- ) tail BR to T-CODE-BASE+taddr
 : BODY-BRANCH  ( -- )
+  BTI,
   T-CODE-BASE X16 MOV-X-IMM64,
   X0 X16 X16 ADD-X-X,
   X16 BR-X,
@@ -101,8 +110,10 @@ VARIABLE LIB-BODY-XT
 
 \ ZBRANCH# ( flag dest -- )
 \ if flag <> 0: drop dest, continue; if flag = 0: BR to dest
-\ CBNZ X1, #7 skips 7 insns: 4*MOV + ADD + BR
+\ CBNZ X1, #7 skips 4*MOV + ADD + BR (same distance with or without BTI
+\ before the LDR/CBNZ pair)
 : BODY-ZBRANCH  ( -- )
+  BTI,
   X1 X19 8 LDR-POST,
   X1 7 CBNZ-X,
   T-CODE-BASE X16 MOV-X-IMM64,

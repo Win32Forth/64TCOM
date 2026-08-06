@@ -145,6 +145,9 @@ CREATE A64-HDR  32 ALLOT
   ;
 ' (%START-T:) IS START-T:
 
+: (A64-ENTRY-LANDING)  ( -- )  ;      \ no pad; entry = first real insn
+' (A64-ENTRY-LANDING) IS ENTRY-LANDING
+
 : (%START-L:)  ( -- )
   ?QUIET 0= IF ." Including-: " THEN
   ALIGN4-T
@@ -173,11 +176,11 @@ CREATE A64-HDR  32 ALLOT
 ' (%COMP-HEADER) IS COMP-HEADER
 
 : (%RESOLVE-1)  ( site final-taddr -- )
-  \ Patch .quad with host address of final (same as CALL-ABS,)
+  \ site = .quad after LDR/BLR/B; store target taddr (offset, not host)
   ?QUIET 0= IF
-    ." Resolving @" SPACE OVER H. ." -> t" DUP H. CR
+    ." Resolving call @" SPACE OVER H. ." -> t" DUP H. CR
   THEN
-  THERE SWAP !-T
+  SWAP !-T
   ;
 ' (%RESOLVE-1) IS RESOLVE-1
 
