@@ -26,7 +26,7 @@ Classic sources used for reference are kept in this repo under **`REFERENCE_FILE
 
 - **Host:** 64Forth, native **64-bit cells**
 - **Tutorial pack:** **GEN** (`64TCOMGEN/`) — tag stream / log; no real CPU code
-- **First real pack:** **ARM64** (`64TCOMARM64/`) — AArch64 / Apple Silicon; ITC hybrid + Forth-style assembler (Phase 3)
+- **First real pack:** **ARM64** (`64TCOMARM64/`) — AArch64 / Apple Silicon; emit, sim, native run, SAVE-IMAGE / SAVE-MACHO (Phases 3.0–3.4)
 - **Assembler syntax** (prefix vs postfix): chosen with the ARM64 pack as it grows
 
 ---
@@ -54,21 +54,30 @@ Classic sources used for reference are kept in this repo under **`REFERENCE_FILE
 | `ASMGEN.fth` / `OPTGEN.fth` / `LIBGEN.fth` | Stub assembler, hooks, cookies |
 | `GENDEMO.fth` / `FWDDEMO.fth` | Demos |
 
-### ARM64 pack (`64TCOMARM64/`) — Phase 3.0 v0.1
+### ARM64 pack (`64TCOMARM64/`) — Phase 3.3–3.4 (working)
 
 | File | Role |
 |------|------|
-| `TARGETARM64.fth` | Load HOST → DIR → ASM → OPT → LIB |
+| `TARGETARM64.fth` | Load HOST → DIR → ASM → OPT → LIB → SIM → NAT → MACHO |
 | `ASMARM64.fth` | AArch64 emitters (`W,` `RET,` `CALL-ABS,` …) |
-| `OPTARM64.fth` | COMP-* → real A64; `ARM64-DEMO` / `FWD-ARM64` |
-| `LIBARM64.fth` | Library stubs (RET each; real addresses) |
-| `ARM64DEMO.fth` / `FWDARM64.fth` | Demos |
+| `OPTARM64.fth` | COMP-* → real A64; `ARM64-DEMO` / `FWD-ARM64`; `SAVE-IMAGE` |
+| `LIBARM64.fth` | Library prims (`DUP#` `DROP#` `+` …) with real A64 bodies |
+| `SIMARM64.fth` | Software simulator; `.RUN-ANS` → 5 |
+| `NATARM64.fth` | In-process native run (mmap + mprotect + `CALL-NATIVE`); `.RUN-ANS-N` → 5 |
+| `MACHOARM64.fth` | `SAVE-MACHO` → `.c` + `*-build.sh` → real arm64 Mach-O via `cc` |
+| `ARM64DEMO.fth` / `FWDARM64.fth` / `ASMDEMO.fth` | Demos |
 
 ```forth
 FLOAD TARGETARM64.fth
 ARM64-DEMO
-FWD-ARM64
+.RUN-ANS          \ software sim => 5
+.RUN-ANS-N        \ native in-process (64Forth 1.0.4+) => 5
+S" ANS" MACHO-ENTRY-SET
+SAVE-MACHO-FILE   \ tcomarm64.c + tcomarm64-build.sh
+\ then: sh tcomarm64-build.sh && ./tcomarm64 ; echo $?  => 5
 ```
+
+Requires **64Forth 1.0.4+** for native helpers (`CALL-NATIVE`, `MPROTECT`, JIT entitlements).
 
 ### Design documents (`64DESIGN/`)
 
@@ -85,16 +94,22 @@ FWD-ARM64
 | Project name & tree | **Done** |
 | Director (`64TCOMSRC`) | **`64HOST` + `64DIR`** (symbols, T:/L:/G', forwards) |
 | GEN pack | **Done for demos** (`GEN-DEMO`, `FWD-DEMO`) |
-| ARM64 pack | **Named `64TCOMARM64`** — implement Phase 3 next |
-| Living status | **`64DESIGN/STATUS.txt`** |
+| ARM64 pack | **Phase 3.0–3.4 done** — sim, native, SAVE-IMAGE, SAVE-MACHO |
+| Living status | **`64DESIGN/STATUS.txt`** (last: 2026-08-05) |
 | Reference F-PC / TCOM | **`REFERENCE_FILES/`** |
 
-### Planned phases (summary)
+### Phases (summary)
 
-1. **Phase 0** — Design & layout (this stage)  
-2. **Phase 1** — Native host support + director loads on 64Forth  
-3. **Phase 2** — GEN “compiles” a sample to a log/listing  
-4. **Phase 3+** — Real target packs (e.g. ARM64 ITC) and utilities  
+| Phase | Status | Notes |
+|-------|--------|-------|
+| **0** Design & layout | **Done** | Name, tree, design docs |
+| **1** Host + director | **Done** | `64HOST`, `64DIR` on 64Forth |
+| **2** GEN tutorial pack | **Done** | Tags / demos / forwards |
+| **3.0–3.2** ARM64 emit + SAVE-IMAGE | **Done** | Prim bodies, SIM, BRANCH, `.bin` |
+| **3.3** Native in-process | **Done** | `.RUN-ANS-N` => 5 (inline callees) |
+| **3.4** Standalone Mach-O | **Done** | `SAVE-MACHO` → C + `cc` → executable |
+| **3.5** True BL/BLR (no inline) | Optional | Not required for green ANS |
+| **4.0** Utilities | Next | Listing, xref, debugger (`64TCOMUTILS`) |
 
 ---
 

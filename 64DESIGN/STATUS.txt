@@ -98,11 +98,12 @@ Design docs (background)
   64HOST notes.txt
   GEN load notes.txt
   Library cookies explained.txt
+  Phase 3 ARM64 notes.txt
+  Phase 3.5 ARM64 notes.txt   ← true BL/BLR (optional; detailed analysis)
 
 
 Next step
 ---------
-  Verify: ARM64-DEMO  S" ANS" MACHO-ENTRY-SET  SAVE-MACHO-FILE
-          sh tcomarm64-build.sh  &&  ./tcomarm64 ; echo $?   \ want 5
-  Optional 3.5: true in-process BL/BLR without inlining.
+  Optional 3.5: true in-process BL/BLR without inlining
+    → see Phase 3.5 ARM64 notes.txt
   Phase 4.0 utilities.

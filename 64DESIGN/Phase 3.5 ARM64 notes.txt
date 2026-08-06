@@ -1,0 +1,200 @@
+64TCOM Phase 3.5 — True BL/BLR without callee inlining (ARM64)
+==============================================================
+Date: 2026-08-05
+Status: OPTIONAL — not required for green ANS
+Related: STATUS.txt (checklist 3.5); NATARM64.fth; MACHOARM64.fth;
+         ASMARM64.fth CALL-ABS,; Phase 3 ARM64 notes.txt
+
+YOU ARE HERE context
+--------------------
+  Phase 3.0–3.2  DONE — emit, prims, SIM, BRANCH, SAVE-IMAGE
+  Phase 3.3      DONE — .RUN-ANS-N => 5 (native; inline callees in copy)
+  Phase 3.4      DONE — SAVE-MACHO → .c + build.sh → cc → Mach-O
+  Phase 3.5      OPEN  — true in-process BL/BLR without callee inlining
+  Phase 4.0      OPEN  — utilities (listing, xref, debugger)
+
+Purpose of this note
+--------------------
+  Capture what Phase 3.5 means, why inlining was chosen, what work is
+  involved, and what success looks like — so it can be picked up later
+  without rediscovering the native bring-up history.
+
+
+Why Phase 3.5 exists
+--------------------
+  Compiled CALL-ABS sites look like real A64 call sequences:
+
+      LDR X16, [PC+12]     ; load target
+      BLR X16              ; call
+      B   +3               ; skip the .quad
+      .quad taddr          ; target OFFSET in the image (not host addr)
+
+  SIM (SIMARM64) interprets LDR/BLR/.quad correctly and returns ANS => 5.
+
+  Native run (.RUN-ANS-N) and standalone Mach-O (SAVE-MACHO) currently
+  do NOT leave that sequence as a live call. After copying the image into
+  an mmap buffer they:
+
+    1) find each CALL-ABS site (LDR + BLR/BR + B+3 + .quad)
+    2) INLINE the callee body (until RET, max ~5 insns) over the 20-byte site
+    3) mprotect code pages RX; keep DSP page RW
+    4) CALL-NATIVE (X0=0, X19=DSP, entry)
+
+  Execution is one straight block of code — no nested BL/RET into other
+  places in the image.
+
+  That was a deliberate workaround after BLR into leaf prims failed during
+  bring-up (landing mid-quad / wrong B skip, ABI/register pressure, or
+  related issues). Inlining made ANS green without solving true call/return.
+
+  Phase 3.5 is optional polish: make real A64 call/return work so the
+  native (and optionally Mach-O) path matches a normal calling model and
+  scales past “leaf ≤ 5 insns, no nested calls.”
+
+
+What “true BL/BLR” means
+------------------------
+  Keep (or emit) real call sequences and actually branch:
+
+  - In-process: image in executable memory; BLR/BL to the real entry of
+    DUP#, +, etc.; RET back to the instruction after the call.
+  - Optionally standalone: same image layout in the .c / Mach-O path —
+    no per-call inlining in the emitter/driver.
+
+  Matches a normal A64 calling model. Required for larger library words
+  and call chains that the current inliner cannot represent.
+
+
+What works today (do not break)
+-------------------------------
+  FLOAD TARGETARM64.fth
+  ARM64-DEMO
+  .RUN-ANS        \ software sim => 5
+  .RUN-ANS-N      \ native, inlined calls => 5  (64Forth 1.0.4+)
+  S" ANS" MACHO-ENTRY-SET  SAVE-MACHO-FILE
+  sh tcomarm64-build.sh && ./tcomarm64 ; echo $?   \ => 5
+
+  Native helpers (64Forth 1.0.4+): ALLOCATE-EXEC, MPROTECT, ICACHE-INVAL,
+  CALL-NATIVE, JIT-WPROTECT / FREE-EXEC, MAP_JIT write default in kernel_eval.
+
+  Key sources:
+    ASMARM64.fth    CALL-ABS,  JMP-ABS,  BLR-X,  ENTRY-LANDING
+    OPTARM64.fth    COMP-CALL; .quad stores taddr offset
+    NATARM64.fth    (NAT-INLINE-CALLS) / (NAT-INLINE-ONE)
+    MACHOARM64.fth  same inline strategy when embedding image
+    SIMARM64.fth    interprets BLR without executing host BLR
+
+
+Work items for Phase 3.5
+------------------------
+  1. Fixup after copy
+     After mmap, patch each .quad (or switch to PC-relative BL) so the
+     address is (host_base + taddr), not a bare target offset.
+     ASM comment already notes: "Native: after copy, add image base to
+     each such .quad."
+
+  2. Landing / layout
+     Callees must start on valid entry points. Use ENTRY-LANDING (BTI-
+     friendly if desired). No mid-instruction land — the old B+2 vs B+3
+     bug (BLR returned into the middle of the .quad) must stay fixed:
+     skip is B+3 (three 4-byte insns past B to after the 8-byte .quad).
+
+  3. ABI under CALL-NATIVE
+     Documented pack ABI: X0 = TOS, X19 = DSP; result in X0.
+     Leaves must not trash host-critical regs without save/restore.
+     Nested calls need correct LR (X30) handling if callees call further
+     (today’s library leaves do not nest).
+
+  4. Drop or gate the inliner
+     Remove or flag-gate (NAT-INLINE-CALLS) and the Mach-O inliner once
+     BLR is green. Prefer a toggle (e.g. /INLINE-CALLS vs default true
+     BLR) during bring-up so regression is easy.
+
+  5. Optional: PC-relative BL
+     For near calls within ±128 MiB, emit BL imm instead of
+     LDR+BLR+.quad — smaller code, no absolute fixups after relocate.
+
+  6. Larger / nested callees
+     Inliner caps at ~5 insns and flattens. True calls allow bigger
+     library words and call graphs.
+
+  7. Test matrix
+     - ANS => 5 via .RUN-ANS-N without inlining
+     - Multi-call graphs (same prim called many times)
+     - Deliberate non-leaf library word (call another leaf, RET)
+     - Optional: SAVE-MACHO without inlining, exit 5
+     - ICACHE / mprotect still clean after fixups
+
+
+Suggested implementation order
+------------------------------
+  A. Smallest useful slice (in-process only)
+     - After (NAT-COPY), walk CALL-ABS sites and rewrite .quad to
+       NAT-EXEC + taddr (absolute host address).
+     - Skip (NAT-INLINE-CALLS).
+     - mprotect RX, ICACHE-INVAL, CALL-NATIVE.
+     - If ANS => 5, Phase 3.5 core is done for the demo path.
+
+  B. Harden
+     - Nested call test prim; LR discipline if needed.
+     - Gate inliner; keep as fallback if /INLINE-CALLS.
+
+  C. Optional full 3.5
+     - PC-relative BL for near targets.
+     - Mach-O path without inlining (fixups at load or link-time
+       absolute addresses in the embedded blob + driver base).
+     - Document any remaining BTI / PAC considerations on Apple Silicon.
+
+
+Risks and past failure modes (remember these)
+---------------------------------------------
+  - B skip wrong (B+2 lands mid-.quad) → garbage insn / crash
+  - .quad left as offset while BLR expects a real address
+  - mprotect / MAP_JIT: write while RX, or call while not RX
+  - ICACHE-INVAL range too large or past mapped region (one-page-safe
+    path is in 64Forth 1.0.4)
+  - DSP not on a RW page separate from RX code
+  - C! into RX or wrong MAP_JIT mode → EXC_BAD_ACCESS
+  - Host ITC X19–X24 smashed if native code does not honor the pack ABI
+    or CALL-NATIVE save/restore is insufficient for deeper callees
+
+
+Non-goals for Phase 3.5
+-----------------------
+  - New GEN work
+  - Director / symbol table redesign
+  - Phase 4 utilities (listing, xref, debugger)
+  - Full A64 ISA / NEON
+  - Hand-rolled Mach-O headers (cc path stays)
+
+
+Exit criteria
+-------------
+  Minimum (3.5 done for practical purposes):
+    FLOAD TARGETARM64.fth
+    ARM64-DEMO
+    .RUN-ANS-N => 5
+    with (NAT-INLINE-CALLS) disabled or removed
+    and real BLR/RET into library leaves
+
+  Stretch:
+    Nested library call green
+    SAVE-MACHO path also without inlining
+    Optional BL-imm for near calls
+
+
+Effort (rough)
+--------------
+  Smallest useful slice: focused session if the old BLR failure was
+  mostly address/landing bugs now understood.
+
+  Full 3.5 (nested, Mach-O no-inline, regression suite): a deliberate
+  mini-phase, not a drive-by.
+
+
+Bottom line
+-----------
+  Phase 3.5 = stop faking calls by pasting leaf bodies into the caller;
+  make real A64 call/return work in the mmap’d image (and optionally in
+  standalone). Useful for a real library and larger programs; skippable
+  while ANS stays green with inlining.
