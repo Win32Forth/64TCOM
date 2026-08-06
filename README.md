@@ -73,11 +73,12 @@ ARM64-DEMO
 .RUN-ANS          \ software sim => 5
 .RUN-ANS-N        \ native in-process (64Forth 1.0.4+) => 5
 S" ANS" MACHO-ENTRY-SET
-SAVE-MACHO-FILE   \ tcomarm64.c + tcomarm64-build.sh
-\ then: sh tcomarm64-build.sh && ./tcomarm64 ; echo $?  => 5
+SAVE-MACHO-FILE   \ .c + -build.sh; auto-cc via SYSTEM (64Forth 1.0.5+)
+S" ./tcomarm64" SYSTEM .   \ => 5
+\ /NOMACHO-BUILD  → emit sources only; manual: sh tcomarm64-build.sh
 ```
 
-Requires **64Forth 1.0.4+** for native helpers (`CALL-NATIVE`, `MPROTECT`, JIT entitlements).
+Requires **64Forth 1.0.4+** for native helpers (`CALL-NATIVE`, `MPROTECT`, JIT entitlements); **1.0.5+** for `SYSTEM` auto-build after `SAVE-MACHO`.
 
 ### Design documents (`64DESIGN/`)
 

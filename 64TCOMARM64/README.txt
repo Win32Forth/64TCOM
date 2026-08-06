@@ -77,17 +77,24 @@ Native execution (Phase 3.3) — in 64Forth
 
 Standalone Mach-O (Phase 3.4)
 -----------------------------
-  After compile (e.g. ARM64-DEMO):
+  After compile (e.g. ARM64-DEMO). CHDIR to 64TCOMARM64 (or write path) first:
 
     S" ANS" MACHO-ENTRY-SET   \ or MACHO-ENTRY-COLD
-    SAVE-MACHO-FILE           \ writes tcomarm64.c + tcomarm64-build.sh
+    SAVE-MACHO-FILE           \ writes .c + -build.sh; auto-cc if SYSTEM
     \ or:  /MACHO  before finish to auto-emit
     \ or:  S" myprog" SAVE-MACHO-AS
+    \ or:  /NOMACHO-BUILD SAVE-MACHO-FILE   \ sources only
 
-  Then in Terminal (same cwd):
+  64Forth 1.0.5+ (SYSTEM): SAVE-MACHO runs  sh NAME-build.sh  for you and
+  reports "MACHO: built ./NAME (cc exit 0)". Then:
+
+    S" ./tcomarm64" SYSTEM .     \ expect 5 for ANS
+    \ or in Terminal:  ./tcomarm64 ; echo exit:$?
+
+  Without SYSTEM (older host) or with /NOMACHO-BUILD:
 
     sh tcomarm64-build.sh
-    ./tcomarm64 ; echo exit:$?     \ expect 5 for ANS
+    ./tcomarm64 ; echo exit:$?
 
   The .c embeds the A64 image (CALL sites inlined, same as .RUN-ANS-N) and a
   small driver that mmap/mprotect/calls entry, returning X0 as exit status.

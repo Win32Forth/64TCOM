@@ -2,16 +2,18 @@
 \ Public domain. Requires OPTARM64, ASMARM64, 64DIR.
 \
 \ Emits a C source file that embeds rewritten A64 and runs it via mmap.
-\ Compile to a real Mach-O with:
-\   cc -arch arm64 -O2 -o NAME NAME.c
-\   ./NAME ; echo $?
+\ Writes NAME-build.sh; with 64Forth 1.0.5+ SYSTEM, SAVE-MACHO also runs
+\ the build (sh NAME-build.sh) so no separate Terminal step is required.
 \
-\ Also writes NAME-build.sh to do that in one step.
-\
-\   /MACHO  /NOMACHO
+\   /MACHO  /NOMACHO          auto-emit on TARGET-FINISH
+\   /MACHO-BUILD /NOMACHO-BUILD   run cc after emit (default: build)
 \   S" ANS" MACHO-ENTRY-SET   |  MACHO-ENTRY-COLD
 \   SAVE-MACHO-FILE
 \   c-addr u SAVE-MACHO-AS
+\
+\ Manual (no SYSTEM / /NOMACHO-BUILD):
+\   sh NAME-build.sh
+\   ./NAME ; echo $?
 
 TCOM-ANEW MACHOARM64
 
@@ -24,6 +26,11 @@ S" tcomarm64" MACHO-FILENAME PLACE
 FALSE VALUE ?SAVE-MACHO
 : /MACHO    ( -- )  TRUE  TO ?SAVE-MACHO ;
 : /NOMACHO  ( -- )  FALSE TO ?SAVE-MACHO ;
+
+\ Auto-run build via SYSTEM after writing .c / -build.sh (64Forth 1.0.5+)
+TRUE VALUE ?MACHO-BUILD
+: /MACHO-BUILD    ( -- )  TRUE  TO ?MACHO-BUILD ;
+: /NOMACHO-BUILD  ( -- )  FALSE TO ?MACHO-BUILD ;
 
 VARIABLE MACHO-ENTRY-T
 0 MACHO-ENTRY-T !
@@ -258,6 +265,65 @@ CREATE MH-NAME  128 ALLOT
   PAD  MH-OFF @ 9 +
   ;
 
+\ Build "sh NAME-build.sh" on PAD for SYSTEM (no embedded S" quotes).
+: MH-MAKE-SYS-CMD  ( -- c-addr u )
+  [CHAR] s PAD C!
+  [CHAR] h PAD 1 + C!
+  BL        PAD 2 + C!
+  3 MH-OFF !
+  0 MH-I !
+  BEGIN MH-I @ MH-NAME C@ < WHILE
+    MH-NAME 1 + MH-I @ + C@  PAD MH-OFF @ + C!
+    1 MH-OFF +!
+    1 MH-I +!
+  REPEAT
+  [CHAR] - PAD MH-OFF @ + C!  1 MH-OFF +!
+  [CHAR] b PAD MH-OFF @ + C!  1 MH-OFF +!
+  [CHAR] u PAD MH-OFF @ + C!  1 MH-OFF +!
+  [CHAR] i PAD MH-OFF @ + C!  1 MH-OFF +!
+  [CHAR] l PAD MH-OFF @ + C!  1 MH-OFF +!
+  [CHAR] d PAD MH-OFF @ + C!  1 MH-OFF +!
+  [CHAR] . PAD MH-OFF @ + C!  1 MH-OFF +!
+  [CHAR] s PAD MH-OFF @ + C!  1 MH-OFF +!
+  [CHAR] h PAD MH-OFF @ + C!  1 MH-OFF +!
+  PAD MH-OFF @
+  ;
+
+VARIABLE MH-SYS-N
+
+: MH-RUN-BUILD  ( -- )
+  [DEFINED] SYSTEM [IF]
+    ?MACHO-BUILD IF
+      MH-MAKE-SYS-CMD
+      ?QUIET 0= IF
+        S" MACHO: SYSTEM " TYPE 2DUP TYPE CR
+      THEN
+      SYSTEM MH-SYS-N !
+      ?QUIET 0= IF
+        MH-SYS-N @ 0= IF
+          S" MACHO: built ./" TYPE MH-NAME COUNT TYPE
+          S"  (cc exit 0)" TYPE CR
+          S"   Run:  ./" TYPE MH-NAME COUNT TYPE
+          S"  ; echo $?" TYPE CR
+        ELSE
+          S" MACHO: build failed (SYSTEM exit " TYPE
+          MH-SYS-N @ 0 .R S" )" TYPE CR
+        THEN
+      THEN
+    ELSE
+      ?QUIET 0= IF
+        S" MACHO: skip build (/NOMACHO-BUILD). Manual:" TYPE CR
+        S"   sh " TYPE MH-NAME COUNT TYPE S" -build.sh" TYPE CR
+      THEN
+    THEN
+  [ELSE]
+    ?QUIET 0= IF
+      S" MACHO: no SYSTEM (need 64Forth 1.0.5+). Manual:" TYPE CR
+      S"   sh " TYPE MH-NAME COUNT TYPE S" -build.sh" TYPE CR
+    THEN
+  [THEN]
+  ;
+
 : SAVE-MACHO-AS  ( c-addr u -- )
   HERE-T 0= IF
     S" MACHO: empty CODE — compile something first" TYPE CR
@@ -289,11 +355,9 @@ CREATE MH-NAME  128 ALLOT
     MH-LEN @ 0 .R S"  code bytes, " TYPE
     MH-N @ 0 .R S"  calls inlined)" TYPE CR
     S"        " TYPE MH-NAME COUNT TYPE S" -build.sh" TYPE CR
-    S"   Build: sh " TYPE MH-NAME COUNT TYPE S" -build.sh" TYPE CR
-    S"   Or:    cc -arch arm64 -O2 -o " TYPE MH-NAME COUNT TYPE
-    S"  " TYPE MH-NAME COUNT TYPE S" .c" TYPE CR
     S"   Entry taddr=" TYPE MACHO-ENTRY-T@ . CR
   THEN
+  MH-RUN-BUILD
   MH-FREE
   ;
 
@@ -303,10 +367,12 @@ CREATE MH-NAME  128 ALLOT
 
 : .MACHOARM64  ( -- )
   S" MACHOARM64: SAVE-MACHO-FILE / SAVE-MACHO-AS  /MACHO" TYPE CR
-  S"   Emits NAME.c + NAME-build.sh → cc → Mach-O executable" TYPE CR
+  S"   Emits NAME.c + NAME-build.sh; auto-cc via SYSTEM if ?MACHO-BUILD" TYPE CR
+  S"   /MACHO-BUILD (default)  /NOMACHO-BUILD  (emit sources only)" TYPE CR
   S"   Entry: use  S" TYPE 34 EMIT S" ANS" TYPE 34 EMIT
   S"  MACHO-ENTRY-SET  or MACHO-ENTRY-COLD" TYPE CR
+  S"   Requires 64Forth 1.0.5+ for SYSTEM auto-build" TYPE CR
   ;
 
 FORTH DEFINITIONS
-S" MACHOARM64 loaded (C→Mach-O standalone)." TYPE CR
+S" MACHOARM64 loaded (C→Mach-O; SYSTEM auto-build if available)." TYPE CR
