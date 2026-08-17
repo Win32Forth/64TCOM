@@ -1,5 +1,22 @@
-\ hello.tfth — Layer 1 sample: compute + print
-\ Expect: stdout "Hello, 64TCOM\n" and MAIN => 42
+\ hello.tfth — sample target program (restricted dialect)
+\
+\ How to build (from 64Forth, working folder = 64TCOMARM64/):
+\   FLOAD TARGETARM64.fth
+\   TCOM samples/hello.tfth
+\
+\ That writes next to this file:
+\   samples/hello          (standalone arm64 executable)
+\   samples/hello.c        (generated C wrapper — not for hand edit)
+\   samples/hello-build.sh
+\   samples/hello.bin
+\
+\ Run:
+\   ./samples/hello        (Terminal)  or  S" ./samples/hello" SYSTEM .
+\ Expect: stdout "Hello, 64TCOM" and process exit status 42
+\
+\ Only the .tfth sources ship in a distribution; rebuild generated files with TCOM.
+\
+\ See samples/README.txt for more detail.
 
 VARIABLE X
 

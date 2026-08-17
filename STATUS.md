@@ -279,8 +279,9 @@ T: BUMP
 | `SYM-COMPILE-REF` → `COMP-DATA-ADDR` for `SYM-DATA` | `64TCOMSRC/64DIR.fth` |
 | Control/data emitters + DATA-RELOC | Pack (`ASMARM64` / `OPTARM64`) |
 | Mach-O `tcom_data[]` + data MOV fixup | `MACHOARM64.fth` |
-| Sample source | `64TCOMARM64/samples/hello.tfth` |
+| Sample sources + howto | `64TCOMARM64/samples/*.tfth`, `samples/README.txt` |
 | Pack demo | `SRC-DEMO` → `SRCDEMO.fth` |
+| Console build | `TCOM samples/hello.tfth` → `samples/hello` (MAIN) |
 | One-shot build helper | `TSRC-BUILD` (ca u — path) in `TARGETARM64.fth` |
 
 **Dialect:** `VARIABLE`, `: … ;`, numbers/`$hex`, `IF ELSE THEN`, `BEGIN UNTIL AGAIN WHILE REPEAT`, `@ ! + - DUP DROP SWAP OVER`, **`S" …"` / `TYPE` / `." …"`** (Layer 2), other names → symbol compile.

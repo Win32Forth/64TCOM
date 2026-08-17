@@ -1,5 +1,22 @@
-\ print.tfth — Layer 2 print (S" + TYPE)
-\ Expect: stdout "Hello, 64TCOM\n" and MAIN => 0
+\ print.tfth — sample target program (S" + TYPE)
+\
+\ How to build (from 64Forth, working folder = 64TCOMARM64/):
+\   FLOAD TARGETARM64.fth
+\   TCOM samples/print.tfth
+\
+\ That writes next to this file:
+\   samples/print          (standalone arm64 executable)
+\   samples/print.c
+\   samples/print-build.sh
+\   samples/print.bin
+\
+\ Run:
+\   ./samples/print        (Terminal)  or  S" ./samples/print" SYSTEM .
+\ Expect: stdout "Hello, 64TCOM" and process exit status 0
+\
+\ Only the .tfth sources ship in a distribution; rebuild generated files with TCOM.
+\
+\ See samples/README.txt for more detail.
 
 : MAIN
   S" Hello, 64TCOM
