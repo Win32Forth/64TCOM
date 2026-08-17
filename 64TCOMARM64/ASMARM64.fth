@@ -338,7 +338,8 @@ $A8C17FFE CONSTANT (A64-LDP-X30-XZR-SP)   \ LDP X30, XZR, [SP], #16
 \ TELSE / TTHEN: resolve like classic structured Forth
 
 : TIF  ( -- orig )
-  X1 X0 MOV-X-X,                 \ flag → X1
+  \ MOV-X-X, is (xm xd): X0 X1 = MOV X1,X0 (flag TOS → X1)
+  X0 X1 MOV-X-X,
   X0 X19 8 LDR-POST,             \ drop flag; new TOS
   ALIGN4-T
   HERE-T                         \ orig = CBZ site
@@ -365,7 +366,7 @@ $A8C17FFE CONSTANT (A64-LDP-X30-XZR-SP)   \ LDP X30, XZR, [SP], #16
 : TBEGIN  ( -- dest )  ALIGN4-T HERE-T ;
 
 : TUNTIL  ( dest -- )
-  X1 X0 MOV-X-X,
+  X0 X1 MOV-X-X,                 \ flag → X1  (xm xd)
   X0 X19 8 LDR-POST,
   ALIGN4-T
   HERE-T - 4 /                   \ imm19 = (dest - HERE) / 4
