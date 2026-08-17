@@ -1,0 +1,34 @@
+\ fwrite.tfth — file write sample (OPEN-W WRITE CLOSE)
+\
+\   FLOAD TARGETARM64.fth
+\   TCOM samples/fwrite.tfth
+\   ./samples/fwrite /tmp/tcom-fwrite.txt
+\   cat /tmp/tcom-fwrite.txt
+\
+\ Exit 0 ok, 1 usage, 2 open fail.
+
+VARIABLE FD
+
+: MAIN
+  ARGCOUNT 1 =
+  IF
+    ARG1 OPEN-W
+    DUP FD !
+    DUP 0 <
+    IF
+      DROP
+      S" fwrite: cannot open
+" ETYPE
+      2
+    ELSE
+      S" hello from fwrite
+" FD @ WRITE DROP
+      FD @ CLOSE DROP
+      0
+    THEN
+  ELSE
+    S" usage: fwrite file
+" ETYPE
+    1
+  THEN
+;

@@ -6,21 +6,21 @@ It is **not** an F-PC 16-bit translation layer. The compiler director is being r
 
 **Public domain.** 64TCOM, like classic **TCOM** and **F-PC** (Tom Zimmer and contributors), is dedicated to the public domain.
 
-**Current pack:** ARM64 **Version 0.2** (see [`STATUS.md`](STATUS.md)).  
+**Current pack:** ARM64 **Version 0.3** (see [`STATUS.md`](STATUS.md)).  
 **Host:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2+** recommended.
 
-### Version 0.2 (ARM64) — highlight
+### Version 0.3 (ARM64) — highlight
 
-- Restricted target sources (`.tfth`) via `TSRC-INCLUDE` / console **`TCOM path.tfth`**
-- `samples/hello.tfth` → `samples/hello` (print + exit 42); `samples/print.tfth` → print + exit 0
-- Sim + in-process native + standalone Mach-O; `VARIABLE`, control flow, nested calls, `TYPE`/write
-- Ship **`.tfth` + docs**; regenerate binaries with `TCOM` (see `64TCOMARM64/samples/README.txt`)
+- CLI I/O: stderr / stdin / files (`ETYPE`, `ACCEPT`, `OPEN-R`/`READ`/`WRITE`, …)
+- Layer 4 MVP: **`WINDOW`** + **`TCOM-GUI`** → blank AppKit window (`window/win.tfth`)
+- Multi-file `.tfth` (`FLOAD`/`INCLUDE`), richer dialect, args/print from 0.2
+- Ship **`.tfth` + docs**; regenerate with `TCOM` / `TCOM-GUI`
 
 ```forth
 \ Working folder: 64TCOMARM64/
 FLOAD TARGETARM64.fth
 TCOM samples/hello.tfth
-S" ./samples/hello" SYSTEM .
+TCOM-GUI window/win.tfth
 ```
 
 ---

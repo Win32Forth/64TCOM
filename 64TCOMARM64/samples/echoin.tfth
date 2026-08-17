@@ -1,0 +1,21 @@
+\ echoin.tfth — stdin sample (ACCEPT + LINE-BUF)
+\
+\   FLOAD TARGETARM64.fth
+\   TCOM samples/echoin.tfth
+\   echo hello | ./samples/echoin
+
+VARIABLE N
+
+: MAIN
+  LINE-BUF 200 ACCEPT
+  N !
+  N @ 0=
+  IF
+    S" (eof)
+" ETYPE
+    1
+  ELSE
+    LINE-BUF N @ TYPE CR
+    0
+  THEN
+;

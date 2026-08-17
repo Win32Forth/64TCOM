@@ -24,6 +24,10 @@ Build a sample (64Forth console)
   TCOM samples/args.tfth
   TCOM samples/add.tfth
   TCOM samples/multi.tfth
+  TCOM samples/err.tfth
+  TCOM samples/echoin.tfth
+  TCOM samples/fcat.tfth
+  TCOM samples/fwrite.tfth
 
 Paths with spaces must be quoted:
 
@@ -69,10 +73,30 @@ What each sample does
     multi does:  FLOAD math.tfth  (relative to samples/)
     ./samples/multi 7 → prints "14 49" (DOUBLE and SQUARE from math.tfth)
 
+  err.tfth
+    Writes a message to stderr via ETYPE; exits 1
+    ./samples/err 2>/tmp/e  → /tmp/e has the message
+
+  echoin.tfth
+    Reads one line from stdin (ACCEPT + LINE-BUF), echoes it
+    echo hello | ./samples/echoin  →  hello
+    empty stdin → "(eof)" on stderr, exit 1
+
+  fcat.tfth
+    ./samples/fcat path  — cat file to stdout (OPEN-R READ CLOSE)
+    exit 0 ok, 1 usage, 2 open fail
+
+  fwrite.tfth
+    ./samples/fwrite path  — write a fixed line (OPEN-W WRITE CLOSE)
+    exit 0 ok, 1 usage, 2 open fail
+
   CLI / dialect words (after pack load):
     ARGCOUNT ARG1 ARG2 ARG#
     0=  =  <  >   + - *   ROT NIP 2DUP
     EMIT CR SPACE .   TYPE   S>N  (string to signed decimal)
+    ETYPE EEMIT ECR                 (stderr)
+    KEY ACCEPT LINE-BUF             (stdin)
+    OPEN-R OPEN-W CLOSE READ WRITE  (files; Darwin errno → fail/-1)
     FLOAD path.tfth  |  INCLUDE path.tfth   (top-level; relative to this file)
 
 Optional demos (after FLOAD TARGETARM64.fth)
@@ -82,5 +106,7 @@ Optional demos (after FLOAD TARGETARM64.fth)
 
 Also available:  c-addr u TSRC-BUILD  (always names the default image
 tcomarm64 in the pack folder — prefer TCOM for samples)
+
+GUI demos live in the sibling folder ../window/ (TCOM-GUI, WINDOW).
 
 Public domain.

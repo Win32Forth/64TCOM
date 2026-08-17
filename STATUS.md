@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-17 — multi-file `.tfth` via FLOAD/INCLUDE; samples/multi + math.tfth
+**Last updated:** 2026-08-17 — **Version 0.3**: Layer 2 I/O + Layer 4 `WINDOW` / `TCOM-GUI`
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
 
@@ -15,14 +15,14 @@
 |-------|------|--------|
 | **Layer 0** | Codegen foundation: calls, control demos, lib leaves, sim / native / Mach-O | **Done** |
 | **Layer 1** | Compile a **Forth source file** into a complete image + entry + standalone | **Done** (restricted dialect; `hello.tfth` MAIN=>42 all paths) |
-| **Layer 2** | Useful **CLI** tools (args, print, exit code) in Terminal | **Mostly done** — print + args + exit; more I/O later |
-| **Later** | Real I/O, files, strings, runtime services | **Layer 3** |
-| **Eventually** | Finder double-clickable apps with their own window(s), like 64Forth | **Layer 4** |
+| **Layer 2** | Useful **CLI** tools (args, print, exit, I/O) in Terminal | **Done** — print + args + stderr/stdin/files |
+| **Later** | More dialect, strings, runtime services (env/sockets deferred) | **Layer 3** |
+| **Layer 4** | Own window(s); Finder `.app` later | **Started** — blank `WINDOW` + AppKit run loop |
 
 ```text
-  Layer 4  Finder double-click + own windows  (64Forth-class app)
-  Layer 3  Real I/O, files, strings, runtime services
-  Layer 2  CLI: print + args DONE; grow tools / multi-file next   ← you are here
+  Layer 4  Window MVP DONE (blank WINDOW); .app / drawing next   ← you are here
+  Layer 3  More dialect / services (env·sockets not planned yet)
+  Layer 2  CLI: print + args + I/O DONE
   Layer 1  Compile a Forth source file into a complete image     DONE
   Layer 0  Codegen foundation (calls, control, lib, sim/native/Mach-O)   DONE
 ```
@@ -68,7 +68,7 @@ Eventually that binary *is* the app (or is linked into one), with a small C/runt
 ## YOU ARE HERE
 
 ```text
-  Pack version     0.2    — 64TCOM ARM64 (TVERSION in OPTARM64)
+  Pack version     0.3    — 64TCOM ARM64 (TVERSION in OPTARM64)
   Phase 0–2        DONE
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
@@ -93,7 +93,14 @@ Eventually that binary *is* the app (or is linked into one), with a small C/runt
   Layer 2 args     DONE   — ARGCOUNT ARG1 ARG2 ARG# (1-based user argv; Mach-O fill)
   Dialect grow     DONE   — 0= = < > * ROT NIP 2DUP EMIT CR SPACE . S>N; samples/add
   Multi-file       DONE   — FLOAD/INCLUDE in .tfth (nested); samples/multi + math.tfth
-  Product path     OPEN   — richer CLI I/O, more dialect on demand, GUI last
+  Layer 2 I/O      DONE   — stderr ETYPE/EEMIT/ECR; stdin KEY/ACCEPT/LINE-BUF;
+                           files OPEN-R/W CLOSE READ WRITE (Darwin SVC + CS)
+                           samples: err, echoin, fcat, fwrite
+  Control hygiene  DONE   — TIF/TELSE + TWHILE/TREPEAT use TCS (host stack safe)
+  Layer 4 window   MVP    — host-call `WINDOW#`; `/MACHO-GUI` → AppKit `.m` + run loop
+                           `TCOM-GUI window/win.tfth` → blank NSWindow until quit
+                           demos in `window/` (sibling of `samples/`)
+  Product path     OPEN   — more dialect on demand; title/draw/.app next
 ```
 **Pack version history**
 
@@ -101,6 +108,7 @@ Eventually that binary *is* the app (or is linked into one), with a small C/runt
 |---------|--------|
 | **0.1** | First ARM64 pack: prims, SIM, native, SAVE-MACHO, true BLR, IF demos |
 | **0.2** | NEST/VAR; Roadmap B complete; `TSRC-INCLUDE` + Mach-O data page; Layer 1 `hello.tfth` MAIN=>42; Layer 2 print (`TYPE#`, `S"`); console **`TCOM path.tfth`** → same-dir executable; `samples/` + README (`.tfth` only in dist) |
+| **0.3** | Layer 2 I/O (stderr/stdin/files); `TWHILE` on TCS; Layer 4 MVP `WINDOW` + `TCOM-GUI` / AppKit; `window/win.tfth`; dialect grow + multi-file carried from late 0.2 |
 
 **Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2** (agent channel shipped; ANS/Hayes + agent green on install).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  

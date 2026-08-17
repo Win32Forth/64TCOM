@@ -13,6 +13,7 @@ T-CODE-BASE 0= IF  TCOM-INIT-MEM-DEFAULT  THEN
 
 VARIABLE LIB-PRIM-COUNT
 0 LIB-PRIM-COUNT !
+[DEFINED] HOST-RELOC-CLEAR [IF] HOST-RELOC-CLEAR [THEN]
 
 \ LIB-SYM-N is defined in OPTARM64 — do not redefine here.
 
@@ -106,26 +107,208 @@ VARIABLE LIB-BODY-XT
   X0 X19 8 LDR-POST,
   ;
 
-\ TYPE# ( c-addr u -- )  write(1, c-addr, u) via Darwin write syscall
-\ Entry: X0=u, [X19]=c-addr. Exit: both consumed; new TOS from under.
-: BODY-TYPE  ( -- )
-  BTI,
-  X0 X2 MOV-X-X,              \ X2 = length
-  X1 X19 8 LDR-POST,          \ X1 = c-addr
-  1 X0 MOV-X-IMM64,           \ X0 = STDOUT_FILENO
-  4 X16 MOV-X-IMM64,          \ X16 = SYS_write (BSD/Darwin)
-  $80 SVC,                    \ svc #0x80
-  X0 X19 8 LDR-POST,          \ restore previous TOS
-  ;
-
 VARIABLE ARG-P1
 VARIABLE ARG-P2
 VARIABLE ARG-P3
 VARIABLE ARG-P4
+VARIABLE IO-P1
+VARIABLE IO-P2
+VARIABLE IO-P3
+VARIABLE IO-P4
 
-\ ARG## ( n base -- c-addr u )
-\ n = 1-based user arg; base = abs addr of arg table (daddr 8).
-\ argc at base-8. Invalid → (base, 0). Memory: counted string [len][chars].
+\ write: X3=fd, TOS=u, under=c-addr → consume both, restore under
+: (BODY-WRITE-FD)  ( -- )
+  X0 X2 MOV-X-X,
+  X1 X19 8 LDR-POST,
+  X3 X0 MOV-X-X,
+  4 X16 MOV-X-IMM64,
+  $80 SVC,
+  X0 X19 8 LDR-POST,
+  ;
+
+: BODY-TYPE  ( -- )
+  BTI,  1 X3 MOV-X-IMM64,  (BODY-WRITE-FD)  ;
+
+: BODY-ETYPE  ( -- )
+  BTI,  2 X3 MOV-X-IMM64,  (BODY-WRITE-FD)  ;
+
+: BODY-WRITE  ( -- )
+  BTI,
+  X0 X3 MOV-X-X,
+  X0 X19 8 LDR-POST,
+  (BODY-WRITE-FD)
+  ;
+
+\ READ# ( c-addr u fd -- n )  Darwin: CS set ⇒ error → 0
+: BODY-READ  ( -- )
+  BTI,
+  X0 X3 MOV-X-X,
+  X2 X19 8 LDR-POST,
+  X1 X19 8 LDR-POST,
+  X3 X0 MOV-X-X,
+  3 X16 MOV-X-IMM64,
+  $80 SVC,
+  ALIGN4-T HERE-T IO-P1 !
+  0 CS B.COND,
+  AHEAD IO-P2 !
+  HERE-T IO-P1 @ PATCH-BCOND
+  0 X0 MOV-X-IMM64,
+  IO-P2 @ THEN,
+  ;
+
+\ KEY# ( -- c | -1 )
+: BODY-KEY  ( -- )
+  BTI,
+  X0 X19 -8 STR-PRE,
+  X19 X1 MOV-X-X,
+  1 X2 MOV-X-IMM64,
+  0 X0 MOV-X-IMM64,
+  3 X16 MOV-X-IMM64,
+  $80 SVC,
+  ALIGN4-T HERE-T IO-P2 !
+  0 CS B.COND,
+  XZR X0 CMP-X,
+  ALIGN4-T HERE-T IO-P1 !
+  0 EQ B.COND,
+  X4 X19 LDRB-X,
+  X0 X19 8 LDR-POST,
+  X4 X0 MOV-X-X,
+  AHEAD IO-P3 !
+  HERE-T IO-P2 @ PATCH-BCOND
+  HERE-T IO-P1 @ PATCH-BCOND
+  X0 X19 8 LDR-POST,
+  -1 X0 MOV-X-IMM64,
+  IO-P3 @ THEN,
+  ;
+
+\ ACCEPT# ( c-addr u1 -- u2 )
+: BODY-ACCEPT  ( -- )
+  BTI,
+  X0 X2 MOV-X-X,
+  X1 X19 8 LDR-POST,
+  X1 X4 MOV-X-X,
+  X2 X5 MOV-X-X,
+  X4 X1 MOV-X-X,
+  X5 X2 MOV-X-X,
+  0 X0 MOV-X-IMM64,
+  3 X16 MOV-X-IMM64,
+  $80 SVC,
+  ALIGN4-T HERE-T IO-P1 !
+  0 CS B.COND,
+  XZR X0 CMP-X,
+  ALIGN4-T HERE-T IO-P4 !
+  0 EQ B.COND,
+  X0 X2 MOV-X-X,
+  1 X0 X3 SUB-IMM,
+  X3 X4 X6 ADD-X-X,
+  X1 X6 LDRB-X,
+  10 X5 MOV-X-IMM64,
+  X5 X1 CMP-X,
+  ALIGN4-T HERE-T IO-P3 !
+  0 NE B.COND,
+  X3 X0 MOV-X-X,
+  HERE-T IO-P3 @ PATCH-BCOND
+  AHEAD IO-P2 !
+  HERE-T IO-P1 @ PATCH-BCOND
+  HERE-T IO-P4 @ PATCH-BCOND
+  0 X0 MOV-X-IMM64,
+  IO-P2 @ THEN,
+  ;
+
+\ OPEN-R# ( c-addr u pathbuf -- fd )  O_RDONLY; -1 fail
+: BODY-OPEN-R  ( -- )
+  BTI,
+  X0 X7 MOV-X-X,                 \ pathbuf
+  X2 X19 8 LDR-POST,             \ u
+  X1 X19 8 LDR-POST,             \ src
+  255 X3 MOV-X-IMM64,
+  X3 X2 CMP-X,
+  ALIGN4-T HERE-T IO-P1 !
+  0 LS B.COND,
+  255 X2 MOV-X-IMM64,
+  HERE-T IO-P1 @ PATCH-BCOND
+  0 X6 MOV-X-IMM64,
+  ALIGN4-T HERE-T IO-P2 !
+  X6 X2 CMP-X,
+  ALIGN4-T HERE-T IO-P3 !
+  0 EQ B.COND,
+  X1 X6 X4 ADD-X-X,
+  X0 X4 LDRB-X,
+  X7 X6 X4 ADD-X-X,
+  X0 X4 STRB-X,
+  1 X6 X6 ADD-IMM,
+  IO-P2 @ HERE-T - 4 / B-IMM,
+  HERE-T IO-P3 @ PATCH-BCOND
+  0 X0 MOV-X-IMM64,
+  X7 X6 X4 ADD-X-X,
+  X0 X4 STRB-X,                  \ NUL
+  X7 X0 MOV-X-X,                 \ path
+  0 X1 MOV-X-IMM64,              \ O_RDONLY
+  0 X2 MOV-X-IMM64,              \ mode
+  5 X16 MOV-X-IMM64,             \ SYS_open
+  $80 SVC,
+  ALIGN4-T HERE-T IO-P4 !
+  0 CS B.COND,
+  AHEAD IO-P1 !
+  HERE-T IO-P4 @ PATCH-BCOND
+  -1 X0 MOV-X-IMM64,
+  IO-P1 @ THEN,
+  ;
+
+\ OPEN-W# ( c-addr u pathbuf -- fd )  WRONLY|CREAT|TRUNC 0644
+: BODY-OPEN-W  ( -- )
+  BTI,
+  X0 X7 MOV-X-X,
+  X2 X19 8 LDR-POST,
+  X1 X19 8 LDR-POST,
+  255 X3 MOV-X-IMM64,
+  X3 X2 CMP-X,
+  ALIGN4-T HERE-T IO-P1 !
+  0 LS B.COND,
+  255 X2 MOV-X-IMM64,
+  HERE-T IO-P1 @ PATCH-BCOND
+  0 X6 MOV-X-IMM64,
+  ALIGN4-T HERE-T IO-P2 !
+  X6 X2 CMP-X,
+  ALIGN4-T HERE-T IO-P3 !
+  0 EQ B.COND,
+  X1 X6 X4 ADD-X-X,
+  X0 X4 LDRB-X,
+  X7 X6 X4 ADD-X-X,
+  X0 X4 STRB-X,
+  1 X6 X6 ADD-IMM,
+  IO-P2 @ HERE-T - 4 / B-IMM,
+  HERE-T IO-P3 @ PATCH-BCOND
+  0 X0 MOV-X-IMM64,
+  X7 X6 X4 ADD-X-X,
+  X0 X4 STRB-X,
+  X7 X0 MOV-X-X,
+  $601 X1 MOV-X-IMM64,           \ O_WRONLY|O_CREAT|O_TRUNC
+  $1A4 X2 MOV-X-IMM64,           \ 0644
+  5 X16 MOV-X-IMM64,
+  $80 SVC,
+  ALIGN4-T HERE-T IO-P4 !
+  0 CS B.COND,
+  AHEAD IO-P1 !
+  HERE-T IO-P4 @ PATCH-BCOND
+  -1 X0 MOV-X-IMM64,
+  IO-P1 @ THEN,
+  ;
+
+\ CLOSE# ( fd -- ior )  0 ok; Darwin CS ⇒ errno in X0
+: BODY-CLOSE  ( -- )
+  BTI,
+  6 X16 MOV-X-IMM64,
+  $80 SVC,
+  ALIGN4-T HERE-T IO-P1 !
+  0 CS B.COND,
+  0 X0 MOV-X-IMM64,
+  AHEAD IO-P2 !
+  HERE-T IO-P1 @ PATCH-BCOND
+  \ X0 already errno
+  IO-P2 @ THEN,
+  ;
+
 : BODY-ARGNUM  ( -- )
   BTI,
   X0 X1 MOV-X-X,                 \ X1 = table base
@@ -177,22 +360,6 @@ VARIABLE ARG-P4
   (TADDR-BR,)
   X0 X19 8 LDR-POST,             \ drop dest on fall-through
   ;
-
-' BODY-STUB    LIB-PRIM-XT LIT#
-' BODY-EXIT    LIB-PRIM-XT EXIT#
-' BODY-EXIT    LIB-PRIM-XT UNNEST#
-' BODY-BRANCH  LIB-PRIM-XT BRANCH#
-' BODY-ZBRANCH LIB-PRIM-XT ZBRANCH#
-' BODY-FETCH   LIB-PRIM-XT FETCH#
-' BODY-STORE   LIB-PRIM-XT STORE#
-' BODY-DUP     LIB-PRIM-XT DUP#
-' BODY-DROP    LIB-PRIM-XT DROP#
-' BODY-SWAP    LIB-PRIM-XT SWAP#
-' BODY-OVER    LIB-PRIM-XT OVER#
-' BODY-PLUS    LIB-PRIM-XT PLUS#
-' BODY-MINUS   LIB-PRIM-XT MINUS#
-' BODY-MUL     LIB-PRIM-XT MUL#
-\ ----- compares: leave 0 or 1 (TIF treats any non-zero as true) -----
 : BODY-ZEQ  ( -- )   \ 0=  ( n -- flag )
   BTI,
   T0=,
@@ -253,7 +420,19 @@ VARIABLE ARG-P4
   X0 X19 8 LDR-POST,             \ drop char cell; restore TOS
   ;
 
-\ CR#  emit newline
+\ EEMIT# ( c -- ) write one char to stderr
+: BODY-EEMIT  ( -- )
+  BTI,
+  X0 X19 -8 STR-PRE,
+  X19 X1 MOV-X-X,
+  1 X2 MOV-X-IMM64,
+  2 X0 MOV-X-IMM64,
+  4 X16 MOV-X-IMM64,
+  $80 SVC,
+  X0 X19 8 LDR-POST,
+  ;
+
+\ CR#  emit newline to stdout
 : BODY-CR  ( -- )
   BTI,
   X0 X19 -8 STR-PRE,             \ save TOS
@@ -266,6 +445,21 @@ VARIABLE ARG-P4
   $80 SVC,
   X0 X19 8 LDR-POST,             \ drop temp
   X0 X19 8 LDR-POST,             \ restore TOS
+  ;
+
+\ ECR#  emit newline to stderr
+: BODY-ECR  ( -- )
+  BTI,
+  X0 X19 -8 STR-PRE,
+  10 X0 MOV-X-IMM64,
+  X0 X19 -8 STR-PRE,
+  X19 X1 MOV-X-X,
+  1 X2 MOV-X-IMM64,
+  2 X0 MOV-X-IMM64,
+  4 X16 MOV-X-IMM64,
+  $80 SVC,
+  X0 X19 8 LDR-POST,
+  X0 X19 8 LDR-POST,
   ;
 
 \ SPACE#  emit blank
@@ -398,7 +592,30 @@ VARIABLE SN-P3
   HERE-T SN-P0 @ PATCH-CBZ
   ;
 
+
+' BODY-STUB    LIB-PRIM-XT LIT#
+' BODY-EXIT    LIB-PRIM-XT EXIT#
+' BODY-EXIT    LIB-PRIM-XT UNNEST#
+' BODY-BRANCH  LIB-PRIM-XT BRANCH#
+' BODY-ZBRANCH LIB-PRIM-XT ZBRANCH#
+' BODY-FETCH   LIB-PRIM-XT FETCH#
+' BODY-STORE   LIB-PRIM-XT STORE#
+' BODY-DUP     LIB-PRIM-XT DUP#
+' BODY-DROP    LIB-PRIM-XT DROP#
+' BODY-SWAP    LIB-PRIM-XT SWAP#
+' BODY-OVER    LIB-PRIM-XT OVER#
+' BODY-PLUS    LIB-PRIM-XT PLUS#
+' BODY-MINUS   LIB-PRIM-XT MINUS#
+' BODY-MUL     LIB-PRIM-XT MUL#
 ' BODY-TYPE    LIB-PRIM-XT TYPE#
+' BODY-ETYPE   LIB-PRIM-XT ETYPE#
+' BODY-WRITE   LIB-PRIM-XT WRITE#
+' BODY-READ    LIB-PRIM-XT READ#
+' BODY-KEY     LIB-PRIM-XT KEY#
+' BODY-ACCEPT  LIB-PRIM-XT ACCEPT#
+' BODY-OPEN-R  LIB-PRIM-XT OPENR#
+' BODY-OPEN-W  LIB-PRIM-XT OPENW#
+' BODY-CLOSE   LIB-PRIM-XT CLOSE#
 ' BODY-ARGNUM  LIB-PRIM-XT ARG##
 ' BODY-ZEQ     LIB-PRIM-XT ZEQ#
 ' BODY-EQ      LIB-PRIM-XT EQ#
@@ -408,10 +625,23 @@ VARIABLE SN-P3
 ' BODY-NIP     LIB-PRIM-XT NIP#
 ' BODY-2DUP    LIB-PRIM-XT 2DUP#
 ' BODY-EMIT    LIB-PRIM-XT EMIT#
+' BODY-EEMIT   LIB-PRIM-XT EEMIT#
 ' BODY-CR      LIB-PRIM-XT CR#
+' BODY-ECR     LIB-PRIM-XT ECR#
 ' BODY-SPACE   LIB-PRIM-XT SPACE#
 ' BODY-DOT     LIB-PRIM-XT DOT#
 ' BODY-SNUMBER LIB-PRIM-XT SNUMBER#
+
+\ WINDOW# ( -- )  host slot 0 → tcom_host_window(); preserves TOS
+\ GUI shell opens a blank NSWindow; CLI stub returns -1 (no window).
+: BODY-WINDOW  ( -- )
+  BTI,
+  X0 X19 -8 STR-PRE,                 \ save TOS
+  0 HOST-CALL,                       \ slot 0
+  X0 X19 8 LDR-POST,                 \ restore TOS (ignore host result)
+  ;
+
+' BODY-WINDOW  LIB-PRIM-XT WINDOW#
 
 HERE-T LIB-CODE-END !
 SYM-N @ LIB-SYM-N !

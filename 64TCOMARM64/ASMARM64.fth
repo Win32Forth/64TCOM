@@ -207,6 +207,12 @@ $9A9F17E0 CONSTANT (A64-CSET-X0-EQ)   \ CSET X0, EQ
   $39400000 A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
   ;
 
+\ STRB Xt,[Xn]
+: STRB-X,  ( xt xn -- )
+  A64-N ! A64-D !
+  $39000000 A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
 \ MUL Xd, Xn, Xm  — 64-bit multiply (alias MADD Xd,Xn,Xm,XZR)
 : MUL-X,  ( xm xn xd -- )
   A64-D ! A64-N ! A64-M !
@@ -491,19 +497,20 @@ VARIABLE TLOOP-DEST
 
 \ BEGIN … WHILE … REPEAT  (non-nested; TLOOP-DEST = BEGIN)
 \ TWHILE: if flag==0 skip to after TREPEAT; else continue (flag dropped)
+\ CBZ origin on TCS (not host data stack) — same hygiene as TIF/TELSE.
 \ TREPEAT: B back to BEGIN; patch WHILE's CBZ to fall-through after REPEAT
-: TWHILE  ( -- while-orig )
+: TWHILE  ( -- )
   X0 X1 MOV-X-X,
   X0 X19 8 LDR-POST,
   ALIGN4-T
-  HERE-T
+  HERE-T TCS-PUSH                    \ CBZ site
   X1 0 CBZ-X,
   ;
 
-: TREPEAT  ( while-orig -- )
+: TREPEAT  ( -- )
   ALIGN4-T
   TLOOP-DEST @ HERE-T - 4 / B-IMM,   \ back to BEGIN
-  HERE-T SWAP PATCH-CBZ              \ false WHILE → here
+  TCS-POP HERE-T SWAP PATCH-CBZ      \ false WHILE → here
   ;
 
 \ Count in X0 from 0 until X0==3. Result X0=3.

@@ -134,7 +134,15 @@ CREATE TCOM-OUT   256 ALLOT
   ;
 
 : TCOM  ( "<spaces>path" | "<spaces>\"path with spaces\"" -- )
+  /NOMACHO-GUI
   TCOM-PARSE-PATH (TCOM)
+  ;
+
+\ Layer 4 GUI build: same as TCOM but AppKit .m shell + run loop
+: TCOM-GUI  ( "<spaces>path" | "<spaces>\"path with spaces\"" -- )
+  /MACHO-GUI
+  TCOM-PARSE-PATH (TCOM)
+  /NOMACHO-GUI
   ;
 
 TCOM-ORDER
@@ -148,4 +156,4 @@ TCOM-WARN-ON
 S" 64TCOM ARM64 ready — " TYPE TVERSION CR
 S" HERE-T=" TYPE HERE-T . S"  LIB-CODE-END=" TYPE LIB-CODE-END @ . CR
 S" Native: .RUN-ANS-N   Standalone: SAVE-MACHO-FILE (see .MACHOARM64)" TYPE CR
-S" Try: TCOM samples/print.tfth   (→ samples/print)  or  SRC-DEMO PRINT-DEMO" TYPE CR
+S" Try: TCOM samples/print.tfth  |  TCOM-GUI window/win.tfth" TYPE CR

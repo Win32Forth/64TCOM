@@ -8,7 +8,7 @@ TCOM-ANEW OPTARM64
 FORTH DEFINITIONS
 DECIMAL
 
-: (TVER-ARM64)  ( -- )  ." 64TCOM ARM64 Version 0.2" ;
+: (TVER-ARM64)  ( -- )  ." 64TCOM ARM64 Version 0.3" ;
 ' (TVER-ARM64) IS TVERSION
 
 /LOW-HIGH
@@ -326,6 +326,41 @@ VARIABLE DATA-RELOC-N
 
 : DATA-RELOC-CLEAR  ( -- )  0 DATA-RELOC-N ! ;
 
+\ Host-call relocs (GUI / C helpers): .quad site patched to &host_fn[slot]
+\ Magic in .quad = $C0DE000000000000 | slot  (never a valid code taddr)
+$C0DE000000000000 CONSTANT HOST-CALL-MAGIC
+16 CONSTANT #HOST-RELOC
+CREATE HOST-RELOC-OFF  #HOST-RELOC CELLS ALLOT   \ taddr of .quad
+CREATE HOST-RELOC-SLOT #HOST-RELOC CELLS ALLOT   \ host fn index
+VARIABLE HOST-RELOC-N
+0 HOST-RELOC-N !
+
+: HOST-RELOC-CLEAR  ( -- )  0 HOST-RELOC-N ! ;
+
+: HOST-RELOC-ADD  ( slot -- )
+  HOST-RELOC-N @ #HOST-RELOC U>= IF
+    S" too many host-call relocs" TCOM-ABORT
+  THEN
+  HERE-T HOST-RELOC-N @ CELLS HOST-RELOC-OFF + !
+  DUP  HOST-RELOC-N @ CELLS HOST-RELOC-SLOT + !
+  DROP
+  1 HOST-RELOC-N +!
+  ;
+
+\ Call a C/ObjC host helper. slot indexes the shell's host_fn[] table.
+\ Same call frame as CALL-ABS; .quad = HOST-CALL-MAGIC|slot (patched by shell).
+: HOST-CALL,  ( slot -- )
+  ALIGN4-T
+  HERE-T 7 AND 0= IF  NOP,  THEN
+  (A64-STP-X30-XZR-SP) W,
+  X16 4 LDR64-LIT,
+  X16 BLR-X,
+  (A64-LDP-X30-XZR-SP) W,
+  3 B-IMM,
+  DUP HOST-RELOC-ADD
+  HOST-CALL-MAGIC OR ,-T
+  ;
+
 : (COMP-DATA-ADDR-A64)  ( daddr -- )
   \ LIT-PUSH = STR-PRE + MOVZ/MOVK×3; reloc points at MOVZ (HERE+4).
   DATA-RELOC-N @ #DATA-RELOC U>= IF
@@ -354,14 +389,22 @@ VARIABLE DATA-RELOC-N
 : G@  ( -- )  COMP-FETCH ;
 : G!  ( -- )  COMP-STORE ;
 
-\ ----- CLI args (Layer 2): fixed daddrs in T-DATA, filled by Mach-O main -----
-\ Layout:  daddr 0: ARGCOUNT cell
-\          daddr 8: 16 × 256-byte counted strings (user argv[1]..)
+\ ----- CLI args + I/O scratch (fixed daddrs in T-DATA) -----
+\ Layout:
+\   0: ARGCOUNT cell
+\   8: 16 × 256-byte counted argv strings
+\   4104: line buffer (ACCEPT default / LINE-BUF)
+\   4616: path buffer (OPEN-R/W NUL-terminated copy)
 0 CONSTANT TCOM-ARGC-DADDR
 8 CONSTANT TCOM-ARGS-DADDR
 16 CONSTANT #TCOM-ARGS
 256 CONSTANT /TCOM-ARG
 8 16 256 * + CONSTANT TCOM-ARGS-END   \ 4104
+4104 CONSTANT TCOM-LINE-DADDR
+512 CONSTANT /TCOM-LINE
+4104 512 + CONSTANT TCOM-PATH-DADDR   \ 4616
+260 CONSTANT /TCOM-PATH
+4104 512 + 260 + CONSTANT TCOM-IO-END \ 4876
 
 \ Compile-time words (TSRC host-exec): leave c-addr u or n at runtime
 : ARGCOUNT  ( -- )  TCOM-ARGC-DADDR COMP-DATA-ADDR COMP-FETCH ;
@@ -377,10 +420,22 @@ VARIABLE DATA-RELOC-N
 : ARG1  ( -- )  1 COMP-SINGLE ARG# ;
 : ARG2  ( -- )  2 COMP-SINGLE ARG# ;
 
+\ LINE-BUF ( -- c-addr )  fixed 512-byte stdin/work buffer
+: LINE-BUF  ( -- )  TCOM-LINE-DADDR COMP-DATA-ADDR ;
+
+\ OPEN-R / OPEN-W ( c-addr u -- fd ): push path scratch then call prim
+: OPEN-R  ( -- )
+  TCOM-PATH-DADDR COMP-DATA-ADDR
+  S" OPENR#" SYM-FIND IF SYM-ADDR@ COMP-CALL ELSE S" OPENR# missing" TCOM-ABORT THEN
+  ;
+: OPEN-W  ( -- )
+  TCOM-PATH-DADDR COMP-DATA-ADDR
+  S" OPENW#" SYM-FIND IF SYM-ADDR@ COMP-CALL ELSE S" OPENW# missing" TCOM-ABORT THEN
+  ;
 : TCOM-ARGS-RESERVE  ( -- )
-  \ Always pin arg block at daddr 0..TCOM-ARGS-END-1 (zeros from ERASE)
+  \ Pin args + I/O scratch at low daddrs (zeros from ERASE)
   0 DP-D !
-  TCOM-ARGS-END ALLOT-D
+  TCOM-IO-END ALLOT-D
   ;
 
 : TARGET-INIT  ( -- )
@@ -395,6 +450,7 @@ VARIABLE DATA-RELOC-N
   DATA-START DP-D !
   T-DATA-BASE T-DATA-MAX ERASE
   DATA-RELOC-CLEAR
+  \ HOST-RELOC kept: WINDOW# etc. record slots at LIB load, not per TARGET-INIT
   TCOM-ARGS-RESERVE
   [DEFINED] TCS-CLEAR [IF] TCS-CLEAR [THEN]
   [DEFINED] LL-INIT [IF] LL-INIT [THEN]

@@ -14,6 +14,7 @@ VARIABLE SIM-STEPS
 VARIABLE SIM-MAX
 VARIABLE SIM-Z          \ last SUBS/ADDS zero flag (true = Z set)
 VARIABLE SIM-C          \ carry (unsigned no-borrow for SUBS / CMP)
+VARIABLE SIM-N          \ result negative (signed)
 100000 SIM-MAX !
 
 CREATE SIM-X  32 CELLS ALLOT     \ X0..X31 (31 = XZR reads 0 / ignores write)
@@ -73,6 +74,7 @@ VARIABLE SM
   T-DATA-BASE T-DATA-MAX + 64 -  19 SIM-X!
   FALSE SIM-Z !
   FALSE SIM-C !
+  FALSE SIM-N !
   SIM-R-CLEAR  0 SIM-STEPS !  FALSE SIM-HALT !
   ;
 
@@ -127,7 +129,7 @@ VARIABLE SM
     DROP EXIT
   THEN
 
-  \ B.cond  top byte 0x54; cond in bits 3:0; EQ=0 NE=1 HI=8 CS=2 CC=3 AL=14
+  \ B.cond  top byte 0x54; cond in bits 3:0
   DUP 24 RSHIFT $FF AND $54 = IF
     DUP $F AND SD !
     SD @ 0 = IF  SIM-Z @  ELSE
@@ -136,8 +138,12 @@ VARIABLE SM
     SD @ 3 = IF  SIM-C @ 0=  ELSE
     SD @ 8 = IF  SIM-C @ SIM-Z @ 0= AND  ELSE
     SD @ 9 = IF  SIM-C @ 0= SIM-Z @ OR  ELSE
+    SD @ 10 = IF  SIM-N @ SIM-Z @ OR 0=  ELSE   \ GE approx !N||Z without V
+    SD @ 11 = IF  SIM-N @  ELSE                  \ LT approx N (no V)
+    SD @ 12 = IF  SIM-N @ 0= SIM-Z @ 0= AND  ELSE \ GT approx !N && !Z
+    SD @ 13 = IF  SIM-N @ SIM-Z @ OR  ELSE       \ LE
     SD @ 14 = IF TRUE  ELSE
-    FALSE THEN THEN THEN THEN THEN THEN THEN
+    FALSE THEN THEN THEN THEN THEN THEN THEN THEN THEN THEN THEN
     IF  SIM-IMM19 4 * SIM-PC @ 4 - + SIM-PC !  THEN
     DROP EXIT
   THEN
@@ -245,6 +251,7 @@ VARIABLE SM
     SN @ SM @ - SM !
     SD @ 31 <> IF SM @ SD @ SIM-X! THEN
     SM @ 0= SIM-Z !
+    SM @ 0< SIM-N !                \ N from signed result
     DROP EXIT
   THEN
 
@@ -252,6 +259,13 @@ VARIABLE SM
   DUP $FFC00000 AND $39400000 = IF
     DUP SIM-RD SD !
     SIM-RN SIM-X@ C@ $FF AND SD @ SIM-X!
+    DROP EXIT
+  THEN
+
+  \ STRB Xt,[Xn]  0x39000000
+  DUP $FFC00000 AND $39000000 = IF
+    DUP SIM-RD SIM-X@ $FF AND
+    SWAP SIM-RN SIM-X@ C!
     DROP EXIT
   THEN
 
@@ -391,14 +405,25 @@ VARIABLE SM
     DROP EXIT
   THEN
 
-  \ SVC #imm16  — Layer 2: Darwin write when imm=#0x80 and X16=4
+  \ SVC #imm16  — Darwin BSD syscalls via X16
   DUP $FFE0001F AND $D4000001 = IF
     DUP 5 RSHIFT $FFFF AND $80 = IF
       16 SIM-X@ 4 = IF
-        \ write(fd=X0, buf=X1, n=X2) → host TYPE; X0 := n
+        \ write(fd,buf,n): fd1/2 → host TYPE; X0 := n
         1 SIM-X@  2 SIM-X@  TYPE
         2 SIM-X@  0 SIM-X!
         DROP EXIT
+      THEN
+      16 SIM-X@ 3 = IF
+        \ read → 0 (EOF) in sim
+        0 0 SIM-X!  DROP EXIT
+      THEN
+      16 SIM-X@ 5 = IF
+        \ open → -1 fail in sim
+        -1 0 SIM-X!  DROP EXIT
+      THEN
+      16 SIM-X@ 6 = IF
+        0 0 SIM-X!  DROP EXIT
       THEN
     THEN
     S" SIM: unsupported SVC " TYPE DUP SYM-HEX. CR

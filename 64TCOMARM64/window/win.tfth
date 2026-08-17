@@ -1,0 +1,13 @@
+\ win.tfth — Layer 4 blank-window MVP (WINDOW)
+\
+\   FLOAD TARGETARM64.fth
+\   TCOM-GUI window/win.tfth
+\   ./window/win
+\
+\ Opens one blank NSWindow titled "64TCOM" and stays until quit
+\ (close the window or Cmd-Q). CLI TCOM is unchanged.
+
+: MAIN
+  WINDOW
+  0
+;
