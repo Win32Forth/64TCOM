@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-06 (Phase 3.5 true BLR default — native + Mach-O)
+**Last updated:** 2026-08-16 (Phase 3.5 true BLR verified; control flow TIF/TELSE/TTHEN)
 
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
@@ -21,7 +21,8 @@
   Phase 3.5        DONE   — true BLR default: fixup .quad → base+taddr
                            (/INLINE-CALLS restores paste-leaf path)
   Phase 4.0        OPEN   — utilities (listing, xref, debugger)
-  Next roadmap     B      — control flow (BRANCH/IF) for real programs
+  Roadmap B        partial — TIF/TELSE/TTHEN + IF-DEMO (sim);
+                           BEGIN/UNTIL emitted; loops TBD in demos
 ```
 
 **Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.1+**  
@@ -169,11 +170,26 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 
 ## Next step
 
-1. **Roadmap B** — real `BRANCH#`/`ZBRANCH#` + IF/THEN compile (control flow)  
+1. **Roadmap B2/B3** — IF native/Mach-O in runtest; fix runtime `BRANCH#` bake-in  
 2. Nested colon demo under true BLR (roadmap E)  
-3. **Phase 4.0:** utilities (`64TCOMUTILS`) — after control flow works  
-4. Grow assembler / library **on demand** as programs need more ISA  
-5. Phase 3.5 detail (historical): [`64DESIGN/Phase 3.5 ARM64 notes.txt`](64DESIGN/Phase%203.5%20ARM64%20notes.txt)
+3. **Phase 4.0:** utilities (`64TCOMUTILS`)  
+4. Grow assembler / library **on demand** (see “Assembler completeness policy”)  
+5. Phase 3.5 detail: [`64DESIGN/Phase 3.5 ARM64 notes.txt`](64DESIGN/Phase%203.5%20ARM64%20notes.txt)
+
+## Assembler completeness policy
+
+The ARM64 assembler is **not** a finished full A64 ISA and is **not** completed up front.
+It is a **growing toolkit** driven by the compiler and demos:
+
+| Layer | Role |
+|-------|------|
+| **ASMARM64** | Emitters for instructions the pack needs *now* |
+| **LIB / OPT / T:** | Use those emitters; reveal the next gap |
+| **Add insn** | Only when a prim, control form, or demo needs it |
+
+Examples: Phase 3.5 added STP/LDP around BLR; control flow added `PATCH-CBZ` and
+`TIF`/`TELSE`/`TTHEN`. NEON and exotic addressing stay out until something real
+requires them.
 
 ---
 
@@ -367,7 +383,9 @@ Avoid full-ISA tourism before steps 1–4.
 ### Concrete roadmap (checklist)
 
 - [x] **A.** Phase 3.5 — true BLR (no inline) — *runtime* (default; `/INLINE-CALLS` fallback)
-- [ ] **B.** Real `BRANCH#`/`ZBRANCH#` + IF/THEN compile — *lib + OPT*
+- [x] **B.** IF/THEN compile via `TIF`/`TELSE`/`TTHEN` (+ `TBEGIN`/`TUNTIL` emitters) — *asm*
+  - [ ] B2. Loop demos + native/Mach-O IF green in `runtest`
+  - [ ] B3. Runtime `BRANCH#`/`ZBRANCH#` without host `T-CODE-BASE` bake-in
 - [ ] **C.** `LDP`/`STP` + `ADRP` (or lit-pool) for frames/data — *asm*
 - [ ] **D.** Library wave: `ROT`, logic, compares, `C@`/`C!` — *lib*
 - [ ] **E.** Nested colon demo (true BLR, multi-level calls) — *proof*

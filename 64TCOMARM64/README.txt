@@ -40,13 +40,16 @@ What v0.2 / 3.0c emits
 
   Forward G': RESOLVE-1 stores final taddr in .quad at site.
 
-Assembler 3.1
--------------
+Assembler 3.1+ (grows with the compiler — not a full ISA)
+---------------------------------------------------------
   Registers X0–X30, AND/ORR/EOR, ADDS/SUBS/CMP, ADD/SUB #imm
   LDR/STR scaled, B/BL/B.cond, CBZ/CBNZ
   Labels: L:  BR>L  (0..15)
   Control: AHEAD THEN, AIF, AELSE, ATHEN,
-  Demo: ASM-DEMO  (leaf 7 and count-to-3 loop via sim)
+  Forth-ABI: TIF TELSE TTHEN  TBEGIN TUNTIL  (TOS flag in X0)
+  CALL-ABS: STP LR; LDR; BLR; LDP LR; B+3; .quad  (Phase 3.5)
+  Demo: ASM-DEMO  IF-DEMO  (sim)
+  Policy: add emitters when LIB/OPT/demos need them, not full A64 first.
 
 Image save
 ----------

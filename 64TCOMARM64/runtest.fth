@@ -30,6 +30,15 @@ S" --- .RUN-ANS (sim) ---" TYPE CR
 S" --- .RUN-ANS-N (native true BLR) ---" TYPE CR
 .RUN-ANS-N
 
+S" --- IF-DEMO (TIF/TELSE/TTHEN sim) ---" TYPE CR
+IF-DEMO
+
+\ Re-run ANS path after IF-DEMO (TARGET-INIT cleared app)
+S" --- ARM64-DEMO again + native after IF ---" TYPE CR
+ARM64-DEMO
+.RUN-ANS
+.RUN-ANS-N
+
 S" --- SAVE-MACHO-FILE ---" TYPE CR
 S" ANS" MACHO-ENTRY-SET
 SAVE-MACHO-FILE

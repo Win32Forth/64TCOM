@@ -295,6 +295,16 @@ $A8C17FFE CONSTANT (A64-LDP-X30-XZR-SP)   \ LDP X30, XZR, [SP], #16
   DROP
   ;
 
+\ Patch CBZ/CBNZ at taddr to branch to dest (keeps Rt + B4/B5 opcode)
+: PATCH-CBZ  ( dest taddr -- )
+  DUP W@-T $1F AND A64-D !                 \ Rt
+  DUP W@-T $FF000000 AND A64-I !           \ $B4000000 or $B5000000
+  2DUP - 4 /
+  $7FFFF AND 5 LSHIFT A64-I @ OR A64-D @ OR
+  SWAP PATCH-W
+  DROP
+  ;
+
 \ ----- structured control (asm) -----
 : AHEAD  ( -- orig )
   ALIGN4-T  HERE-T  0 B-IMM,
@@ -321,6 +331,45 @@ $A8C17FFE CONSTANT (A64-LDP-X30-XZR-SP)   \ LDP X30, XZR, [SP], #16
 
 : AELSE,  ( orig1 -- orig2 )
   AHEAD  SWAP ATHEN,
+  ;
+
+\ ----- Forth-ABI control (TOS = flag in X0) — for T: … ;T graphs -----
+\ TIF: drop flag; if it was 0, branch to unresolved (ELSE/THEN)
+\ TELSE / TTHEN: resolve like classic structured Forth
+
+: TIF  ( -- orig )
+  X1 X0 MOV-X-X,                 \ flag → X1
+  X0 X19 8 LDR-POST,             \ drop flag; new TOS
+  ALIGN4-T
+  HERE-T                         \ orig = CBZ site
+  X1 0 CBZ-X,                    \ if flag==0 skip true part (imm patched later)
+  ;
+
+\ Resolve TIF's CBZ or TELSE's B (auto-detect opcode)
+: TTHEN  ( orig -- )
+  DUP W@-T 24 RSHIFT $FF AND $14 = IF
+    HERE-T SWAP PATCH-B
+  ELSE
+    HERE-T SWAP PATCH-CBZ
+  THEN
+  ;
+
+: TELSE  ( orig-if -- orig-ahead )
+  ALIGN4-T HERE-T 0 B-IMM,       \ branch around else-part
+  SWAP                           \ ahead-orig  if-orig
+  HERE-T SWAP PATCH-CBZ          \ IF's CBZ → start of else
+  ;                              \ leave ahead-orig for TTHEN
+  ;
+
+\ BEGIN / UNTIL (flag): loop while flag is 0 (exit when flag <> 0)
+: TBEGIN  ( -- dest )  ALIGN4-T HERE-T ;
+
+: TUNTIL  ( dest -- )
+  X1 X0 MOV-X-X,
+  X0 X19 8 LDR-POST,
+  ALIGN4-T
+  HERE-T - 4 /                   \ imm19 = (dest - HERE) / 4
+  X1 SWAP CBZ-X,                 \ if flag==0 branch back to BEGIN
   ;
 
 \ ----- local labels 0..15 -----
@@ -375,8 +424,9 @@ CREATE LL-FWD  #LLAB CELLS ALLOT
   ;
 
 : .ASMARM64  ( -- )
-  S" ASMARM64 3.1: X0-X30 AND/ORR/EOR ADD/SUB CMP B/BL/B.cond CBZ" TYPE CR
+  S" ASMARM64 3.1+: X0-X30 AND/ORR/EOR ADD/SUB CMP B/BL/B.cond CBZ" TYPE CR
   S"   L: BR>L  AHEAD THEN, AIF, AELSE, ATHEN,  CALL-ABS" TYPE CR
+  S"   Forth-ABI: TIF TELSE TTHEN  TBEGIN TUNTIL" TYPE CR
   ;
 
 : (SETASSEM)  ( -- )
