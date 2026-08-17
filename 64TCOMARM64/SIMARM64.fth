@@ -13,6 +13,7 @@ VARIABLE SIM-HALT
 VARIABLE SIM-STEPS
 VARIABLE SIM-MAX
 VARIABLE SIM-Z          \ last SUBS/ADDS zero flag (true = Z set)
+VARIABLE SIM-C          \ carry (unsigned no-borrow for SUBS / CMP)
 100000 SIM-MAX !
 
 CREATE SIM-X  32 CELLS ALLOT     \ X0..X31 (31 = XZR reads 0 / ignores write)
@@ -71,6 +72,7 @@ VARIABLE SM
   SIM-X 32 CELLS 0 FILL
   T-DATA-BASE T-DATA-MAX + 64 -  19 SIM-X!
   FALSE SIM-Z !
+  FALSE SIM-C !
   SIM-R-CLEAR  0 SIM-STEPS !  FALSE SIM-HALT !
   ;
 
@@ -125,13 +127,17 @@ VARIABLE SM
     DROP EXIT
   THEN
 
-  \ B.cond  top byte 0x54; cond in bits 3:0; EQ=0 NE=1
+  \ B.cond  top byte 0x54; cond in bits 3:0; EQ=0 NE=1 HI=8 CS=2 CC=3 AL=14
   DUP 24 RSHIFT $FF AND $54 = IF
     DUP $F AND SD !
     SD @ 0 = IF  SIM-Z @  ELSE
     SD @ 1 = IF  SIM-Z @ 0=  ELSE
+    SD @ 2 = IF  SIM-C @  ELSE
+    SD @ 3 = IF  SIM-C @ 0=  ELSE
+    SD @ 8 = IF  SIM-C @ SIM-Z @ 0= AND  ELSE
+    SD @ 9 = IF  SIM-C @ 0= SIM-Z @ OR  ELSE
     SD @ 14 = IF TRUE  ELSE
-    FALSE THEN THEN THEN
+    FALSE THEN THEN THEN THEN THEN THEN THEN
     IF  SIM-IMM19 4 * SIM-PC @ 4 - + SIM-PC !  THEN
     DROP EXIT
   THEN
@@ -230,14 +236,41 @@ VARIABLE SM
     DROP EXIT
   THEN
 
-  \ SUBS / CMP  (EB......)  result = Xn - Xm (reg 31 = 0); sets SIM-Z
+  \ SUBS / CMP  (EB......)  result = Xn - Xm (reg 31 = 0); sets SIM-Z and SIM-C
   DUP 24 RSHIFT $FF AND $EB = IF
     DUP SIM-RD SD !
     DUP SIM-RN DUP 31 = IF DROP 0 ELSE SIM-X@ THEN SN !
     DUP SIM-RM DUP 31 = IF DROP 0 ELSE SIM-X@ THEN SM !
+    SN @ SM @ U>= SIM-C !          \ C = no unsigned borrow
     SN @ SM @ - SM !
     SD @ 31 <> IF SM @ SD @ SIM-X! THEN
     SM @ 0= SIM-Z !
+    DROP EXIT
+  THEN
+
+  \ LDRB Xt,[Xn]  0x39400000 family (imm12=0 form)
+  DUP $FFC00000 AND $39400000 = IF
+    DUP SIM-RD SD !
+    SIM-RN SIM-X@ C@ $FF AND SD @ SIM-X!
+    DROP EXIT
+  THEN
+
+  \ UBFM as LSL #sh (immr=64-sh, imms=63-sh)
+  DUP $FF800000 AND $D3400000 = IF
+    DUP SIM-RD SD !
+    DUP SIM-RN SN !
+    DUP 16 RSHIFT $3F AND SM !      \ immr
+    10 RSHIFT $3F AND                \ imms
+    SM @ + 63 = IF
+      SM @ 0= IF
+        SN @ SIM-X@ SD @ SIM-X!
+      ELSE
+        64 SM @ -                     \ shift
+        SN @ SIM-X@ SWAP LSHIFT SD @ SIM-X!
+      THEN
+    ELSE
+      S" SIM: unsupported UBFM" TYPE CR TRUE SIM-HALT !
+    THEN
     DROP EXIT
   THEN
 

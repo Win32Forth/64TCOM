@@ -309,8 +309,12 @@ $D65F03C0 CONSTANT MH-RET
   MH-EMIT-DATA-ARRAY
   S" #define TCOM_ENTRY " MH-EMIT-S MACHO-ENTRY-T@ MH-EMIT-U MH-EMIT-NL
   S" #define TCOM_PAGE 0x4000u" MH-EMIT-S MH-EMIT-NL
+  S" #define TCOM_ARGC_OFF 0u" MH-EMIT-S MH-EMIT-NL
+  S" #define TCOM_ARGS_OFF 8u" MH-EMIT-S MH-EMIT-NL
+  S" #define TCOM_ARG_STRIDE 256u" MH-EMIT-S MH-EMIT-NL
+  S" #define TCOM_MAX_ARGS 16u" MH-EMIT-S MH-EMIT-NL
   MH-EMIT-NL
-  S" int main(void) {" MH-EMIT-S MH-EMIT-NL
+  S" int main(int argc, char **argv) {" MH-EMIT-S MH-EMIT-NL
   S"   uint32_t code_bytes = (TCOM_CODE_LEN + TCOM_PAGE - 1u) & ~(TCOM_PAGE - 1u);" MH-EMIT-S MH-EMIT-NL
   S"   uint32_t total = code_bytes + TCOM_PAGE;" MH-EMIT-S MH-EMIT-NL
   S"   uint8_t *buf = (uint8_t *)mmap(NULL, total, 3, 0x1002, -1, 0);" MH-EMIT-S MH-EMIT-NL
@@ -318,6 +322,22 @@ $D65F03C0 CONSTANT MH-RET
   S"   memcpy(buf, tcom_code, TCOM_CODE_LEN);" MH-EMIT-S MH-EMIT-NL
   S"   uint8_t *data = buf + code_bytes;" MH-EMIT-S MH-EMIT-NL
   S"   if (TCOM_DATA_LEN > 1u) memcpy(data, tcom_data, TCOM_DATA_LEN);" MH-EMIT-S MH-EMIT-NL
+  S"   /* Layer 2: user argv[1..] as counted strings (max 16 x 255) */" MH-EMIT-S MH-EMIT-NL
+  S"   {" MH-EMIT-S MH-EMIT-NL
+  S"     int n = argc > 1 ? argc - 1 : 0;" MH-EMIT-S MH-EMIT-NL
+  S"     int i;" MH-EMIT-S MH-EMIT-NL
+  S"     if (n > (int)TCOM_MAX_ARGS) n = (int)TCOM_MAX_ARGS;" MH-EMIT-S MH-EMIT-NL
+  S"     *(uint64_t *)(data + TCOM_ARGC_OFF) = (uint64_t)(uint32_t)n;" MH-EMIT-S MH-EMIT-NL
+  S"     for (i = 0; i < n; i++) {" MH-EMIT-S MH-EMIT-NL
+  S"       const char *s = argv[i + 1] ? argv[i + 1] : " MH-EMIT-S
+  34 MH-EMIT-B 34 MH-EMIT-B S" ;" MH-EMIT-S MH-EMIT-NL
+  S"       size_t len = strlen(s);" MH-EMIT-S MH-EMIT-NL
+  S"       uint8_t *slot = data + TCOM_ARGS_OFF + (size_t)i * TCOM_ARG_STRIDE;" MH-EMIT-S MH-EMIT-NL
+  S"       if (len > 255u) len = 255u;" MH-EMIT-S MH-EMIT-NL
+  S"       slot[0] = (uint8_t)len;" MH-EMIT-S MH-EMIT-NL
+  S"       if (len) memcpy(slot + 1, s, len);" MH-EMIT-S MH-EMIT-NL
+  S"     }" MH-EMIT-S MH-EMIT-NL
+  S"   }" MH-EMIT-S MH-EMIT-NL
   [DEFINED] ?INLINE-CALLS [IF]
     ?INLINE-CALLS 0= IF MH-EMIT-FIXUP-C THEN
   [ELSE]

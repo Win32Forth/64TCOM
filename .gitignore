@@ -41,5 +41,9 @@ node_modules/
 64TCOMARM64/samples/hello.bin
 64TCOMARM64/samples/hello.c
 64TCOMARM64/samples/hello-build.sh
+64TCOMARM64/samples/args
+64TCOMARM64/samples/args.bin
+64TCOMARM64/samples/args.c
+64TCOMARM64/samples/args-build.sh
 64TCOMARM64/*.bin
 64TCOMARM64/samples/*.bin

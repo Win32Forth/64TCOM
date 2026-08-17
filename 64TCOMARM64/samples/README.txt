@@ -21,6 +21,7 @@ Build a sample (64Forth console)
 
   TCOM samples/hello.tfth
   TCOM samples/print.tfth
+  TCOM samples/args.tfth
 
 Paths with spaces must be quoted:
 
@@ -53,6 +54,17 @@ What each sample does
   print.tfth
     Prints "Hello, 64TCOM" and exits with status 0
     (minimal S" + TYPE demo)
+
+  args.tfth
+    Prints ARG1 and ARG2 (each on a line); exits with ARGCOUNT
+    User args are 1-based (program name is not ARG1).
+    Shell quotes apply: ./samples/args "" foo  → empty ARG1, ARG2=foo
+
+  CLI words (always available in the dialect after pack load):
+    ARGCOUNT   ( -- n )         number of user arguments
+    ARG1       ( -- c-addr u )  first user arg, or empty
+    ARG2       ( -- c-addr u )  second user arg, or empty
+    ARG#       ( n -- c-addr u ) nth user arg (1-based); invalid n → empty
 
 Optional demos (after FLOAD TARGETARM64.fth)
 -------------------------------------------

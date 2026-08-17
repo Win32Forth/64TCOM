@@ -16,14 +16,14 @@
 |-------|------|--------|
 | **Layer 0** | Codegen foundation: calls, control demos, lib leaves, sim / native / Mach-O | **Done** |
 | **Layer 1** | Compile a **Forth source file** into a complete image + entry + standalone | **Done** (restricted dialect; `hello.tfth` MAIN=>42 all paths) |
-| **Layer 2** | Useful **CLI** tools (args, print, exit code) in Terminal | **In progress** — **print done**; args not yet |
+| **Layer 2** | Useful **CLI** tools (args, print, exit code) in Terminal | **Mostly done** — print + args + exit; more I/O later |
 | **Later** | Real I/O, files, strings, runtime services | **Layer 3** |
 | **Eventually** | Finder double-clickable apps with their own window(s), like 64Forth | **Layer 4** |
 
 ```text
   Layer 4  Finder double-click + own windows  (64Forth-class app)
   Layer 3  Real I/O, files, strings, runtime services
-  Layer 2  CLI: print DONE; args / richer exit next               ← you are here
+  Layer 2  CLI: print + args DONE; grow tools / multi-file next   ← you are here
   Layer 1  Compile a Forth source file into a complete image     DONE
   Layer 0  Codegen foundation (calls, control, lib, sim/native/Mach-O)   DONE
 ```
@@ -91,8 +91,8 @@ Eventually that binary *is* the app (or is linked into one), with a small C/runt
   Layer 2 print    DONE   — TYPE# (Darwin write SVC); dialect S" / TYPE / ."
                            samples/print.tfth → "Hello, 64TCOM\n" + exit 0 (all paths)
   Console build    DONE   — `TCOM path.tfth` → same-dir leaf (MAIN); quoted OK
-  Layer 2 args     OPEN   — argc/argv onto data stack
-  Product path     OPEN   — finish Layer 2, grow dialect, multi-file, GUI last
+  Layer 2 args     DONE   — ARGCOUNT ARG1 ARG2 ARG# (1-based user argv; Mach-O fill)
+  Product path     OPEN   — grow dialect, multi-file, richer CLI, GUI last
 ```
 
 **Pack version history**
@@ -321,6 +321,17 @@ VARIABLE X
 | `." …"` | Dialect: string + `TYPE#` |
 | SIM | Traps `SVC #0x80` with `X16=4` → host `TYPE` |
 | Native / Mach-O | Real syscall; string addr via existing data reloc |
+
+**CLI args (Layer 2)**
+
+| Word | Stack | Meaning |
+|------|--------|---------|
+| `ARGCOUNT` | `( -- n )` | Number of **user** arguments (not including program name) |
+| `ARG1` | `( -- c-addr u )` | First user arg, or empty `(addr 0)` |
+| `ARG2` | `( -- c-addr u )` | Second user arg, or empty |
+| `ARG#` | `( n -- c-addr u )` | 1-based user arg; invalid `n` → empty |
+
+Shell already parses blanks and `"..."` (including empty `""`). Mach-O `main(argc,argv)` copies `argv[1..]` into fixed `T-DATA` counted slots (max 16 × 255). Sim/native leave `ARGCOUNT=0`. Sample: `samples/args.tfth`.
 
 **Re-run (agent):**
 
@@ -574,7 +585,7 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 2c. ~~**Data embed for standalone VAR (Mach-O)**~~ — **done** (`tcom_data[]` + MOV fixup)  
 3. ~~**Source loader + closed loop**~~ — **done** (`TSRC-INCLUDE`, `TSRC-BUILD`, `SRC-DEMO` MAIN=>42)  
 4. ~~**Layer 2 print**~~ — **done** (`TYPE#` write SVC, dialect `S"`/`TYPE`, `PRINT-DEMO`)  
-5. **Layer 2 args** — argc/argv into image / data stack for Mach-O (+ sim stub)  
+5. ~~**Layer 2 args**~~ — **done** (`ARGCOUNT` `ARG1` `ARG2` `ARG#`; `samples/args.tfth`)  
 6. Grow dialect + messier `.tfth` (control-heavy, multi-def)  
 7. Library wave (compares, `ROT`, …) as demos need  
 8. Grow assembler / library **on demand**  

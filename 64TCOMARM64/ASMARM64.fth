@@ -179,6 +179,24 @@ $9A9F17E0 CONSTANT (A64-CSET-X0-EQ)   \ CSET X0, EQ
   A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
   ;
 
+\ 64-bit LSL Xd,Xn,#uimm (UBFM alias)
+: LSL-IMM,  ( uimm xn xd -- )
+  A64-D ! A64-N ! A64-I !
+  A64-I @ 0= IF  A64-N @ A64-D @ MOV-X-X, EXIT  THEN
+  A64-I @ 63 U> IF S" LSL-IMM 0..63" TCOM-ABORT THEN
+  $D3400000
+  64 A64-I @ - $3F AND 16 LSHIFT OR   \ immr
+  63 A64-I @ - $3F AND 10 LSHIFT OR   \ imms
+  A64-N @ (REG) 5 LSHIFT OR
+  A64-D @ (REG) OR W,
+  ;
+
+\ LDRB Xt,[Xn]  (zero-extend byte)
+: LDRB-X,  ( xt xn -- )
+  A64-N ! A64-D !
+  $39400000 A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
 \ ADR Xd, #0 — Xd := address of this instruction (relocatable base recovery)
 : ADR-X0,  ( xd -- )
   (REG) $10000000 OR W,

@@ -354,6 +354,35 @@ VARIABLE DATA-RELOC-N
 : G@  ( -- )  COMP-FETCH ;
 : G!  ( -- )  COMP-STORE ;
 
+\ ----- CLI args (Layer 2): fixed daddrs in T-DATA, filled by Mach-O main -----
+\ Layout:  daddr 0: ARGCOUNT cell
+\          daddr 8: 16 × 256-byte counted strings (user argv[1]..)
+0 CONSTANT TCOM-ARGC-DADDR
+8 CONSTANT TCOM-ARGS-DADDR
+16 CONSTANT #TCOM-ARGS
+256 CONSTANT /TCOM-ARG
+8 16 256 * + CONSTANT TCOM-ARGS-END   \ 4104
+
+\ Compile-time words (TSRC host-exec): leave c-addr u or n at runtime
+: ARGCOUNT  ( -- )  TCOM-ARGC-DADDR COMP-DATA-ADDR COMP-FETCH ;
+: ARG#  ( -- )
+  \ runtime stack has n; push table base then call ARG## ( n base -- c-addr u )
+  TCOM-ARGS-DADDR COMP-DATA-ADDR
+  S" ARG##" SYM-FIND IF
+    SYM-ADDR@ COMP-CALL
+  ELSE
+    S" ARG## prim missing" TCOM-ABORT
+  THEN
+  ;
+: ARG1  ( -- )  1 COMP-SINGLE ARG# ;
+: ARG2  ( -- )  2 COMP-SINGLE ARG# ;
+
+: TCOM-ARGS-RESERVE  ( -- )
+  \ Always pin arg block at daddr 0..TCOM-ARGS-END-1 (zeros from ERASE)
+  0 DP-D !
+  TCOM-ARGS-END ALLOT-D
+  ;
+
 : TARGET-INIT  ( -- )
   ?LIB IF  S" Can't use TARGET-INIT in a library routine" TCOM-ABORT  THEN
   LIB-CODE-END @ 0= IF
@@ -366,6 +395,7 @@ VARIABLE DATA-RELOC-N
   DATA-START DP-D !
   T-DATA-BASE T-DATA-MAX ERASE
   DATA-RELOC-CLEAR
+  TCOM-ARGS-RESERVE
   TCOM-ORDER
   >TARGET
   [DEFINED] DIR-ON-TARGET-INIT [IF] DIR-ON-TARGET-INIT [THEN]

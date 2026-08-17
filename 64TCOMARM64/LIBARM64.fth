@@ -112,6 +112,49 @@ VARIABLE LIB-BODY-XT
   X0 X19 8 LDR-POST,          \ restore previous TOS
   ;
 
+VARIABLE ARG-P1
+VARIABLE ARG-P2
+VARIABLE ARG-P3
+VARIABLE ARG-P4
+
+\ ARG## ( n base -- c-addr u )
+\ n = 1-based user arg; base = abs addr of arg table (daddr 8).
+\ argc at base-8. Invalid → (base, 0). Memory: counted string [len][chars].
+: BODY-ARGNUM  ( -- )
+  BTI,
+  X0 X1 MOV-X-X,                 \ X1 = table base
+  X0 X19 8 LDR-POST,             \ X0 = n
+  8 X1 X2 SUB-IMM,
+  X2 X2 LDR-X0,                  \ X2 = argc
+  \ n == 0 → empty
+  ALIGN4-T HERE-T ARG-P1 !
+  X0 0 CBZ-X,
+  \ n > 16 → empty  (CMP X0,#16; B.HI)
+  16 X3 MOV-X-IMM64,
+  X3 X0 CMP-X,
+  ALIGN4-T HERE-T ARG-P2 !
+  0 HI B.COND,
+  \ n > argc → empty
+  X2 X0 CMP-X,
+  ALIGN4-T HERE-T ARG-P3 !
+  0 HI B.COND,
+  \ valid: c-addr u from counted string at base+(n-1)*256
+  1 X0 X0 SUB-IMM,
+  8 X0 X0 LSL-IMM,
+  X0 X1 X3 ADD-X-X,              \ X3 → counted
+  X0 X3 LDRB-X,                  \ X0 = len
+  1 X3 X3 ADD-IMM,               \ X3 = body
+  X3 X19 -8 STR-PRE,             \ push c-addr; TOS = len
+  AHEAD ARG-P4 !
+  \ empty:
+  HERE-T ARG-P1 @ PATCH-CBZ
+  HERE-T ARG-P2 @ PATCH-BCOND
+  HERE-T ARG-P3 @ PATCH-BCOND
+  X1 X19 -8 STR-PRE,             \ dummy c-addr = base
+  0 X0 MOV-X-IMM64,              \ u = 0
+  ARG-P4 @ THEN,
+  ;
+
 \ BRANCH# ( taddr -- ) tail BR to image_base+taddr (relocatable; no host bake-in)
 : BODY-BRANCH  ( -- )
   BTI,
@@ -143,6 +186,7 @@ VARIABLE LIB-BODY-XT
 ' BODY-PLUS    LIB-PRIM-XT PLUS#
 ' BODY-MINUS   LIB-PRIM-XT MINUS#
 ' BODY-TYPE    LIB-PRIM-XT TYPE#
+' BODY-ARGNUM  LIB-PRIM-XT ARG##
 ' BODY-STUB    LIB-PRIM-XT EXEC#
 ' BODY-NOOP    LIB-PRIM-XT NOOP#
 
