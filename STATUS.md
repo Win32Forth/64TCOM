@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-17 (**Layer 2 print started**: `S"` + `TYPE` / `TYPE#` → stdout on sim+native+Mach-O; pack **0.2**)
+**Last updated:** 2026-08-17 — **pack Version 0.2 released** (Layer 1 closed; Layer 2 print; `TCOM` sample builds)
 
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
@@ -100,7 +100,7 @@ Eventually that binary *is* the app (or is linked into one), with a small C/runt
 | Version | Notes |
 |---------|--------|
 | **0.1** | First ARM64 pack: prims, SIM, native, SAVE-MACHO, true BLR, IF demos |
-| **0.2** | NEST/VAR; Roadmap B; TSRC-INCLUDE; Mach-O data; **Layer 2 print** (`TYPE#`, `print.tfth`) |
+| **0.2** | NEST/VAR; Roadmap B complete; `TSRC-INCLUDE` + Mach-O data page; Layer 1 `hello.tfth` MAIN=>42; Layer 2 print (`TYPE#`, `S"`); console **`TCOM path.tfth`** → same-dir executable; `samples/` + README (`.tfth` only in dist) |
 
 **Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2** (agent channel shipped; ANS/Hayes + agent green on install).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  

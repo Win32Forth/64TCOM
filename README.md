@@ -6,6 +6,23 @@ It is **not** an F-PC 16-bit translation layer. The compiler director is being r
 
 **Public domain.** 64TCOM, like classic **TCOM** and **F-PC** (Tom Zimmer and contributors), is dedicated to the public domain.
 
+**Current pack:** ARM64 **Version 0.2** (see [`STATUS.md`](STATUS.md)).  
+**Host:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2+** recommended.
+
+### Version 0.2 (ARM64) — highlight
+
+- Restricted target sources (`.tfth`) via `TSRC-INCLUDE` / console **`TCOM path.tfth`**
+- `samples/hello.tfth` → `samples/hello` (print + exit 42); `samples/print.tfth` → print + exit 0
+- Sim + in-process native + standalone Mach-O; `VARIABLE`, control flow, nested calls, `TYPE`/write
+- Ship **`.tfth` + docs**; regenerate binaries with `TCOM` (see `64TCOMARM64/samples/README.txt`)
+
+```forth
+\ Working folder: 64TCOMARM64/
+FLOAD TARGETARM64.fth
+TCOM samples/hello.tfth
+S" ./samples/hello" SYSTEM .
+```
+
 ---
 
 ## What it is evolving from
