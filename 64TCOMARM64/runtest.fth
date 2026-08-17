@@ -39,6 +39,9 @@ NEST-DEMO
 S" --- VAR-DEMO (VARIABLE + @/!) ---" TYPE CR
 VAR-DEMO
 
+S" --- SRC-DEMO (TSRC-INCLUDE hello.tfth) ---" TYPE CR
+SRC-DEMO
+
 \ Re-run ANS path after demos (TARGET-INIT cleared app)
 S" --- ARM64-DEMO again + native after nest ---" TYPE CR
 ARM64-DEMO

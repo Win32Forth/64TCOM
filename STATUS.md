@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-17 (Roadmap B **complete**; ARM64 **0.2**; agent 1.1.2)
+**Last updated:** 2026-08-17 (TSRC-INCLUDE source loader in **64TCOMSRC**; Roadmap B done; pack **0.2**)
 
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
@@ -58,6 +58,7 @@ Debugging capability comes at some point (listing, symbol map, SIM step, crash P
   Host automation  DONE   — 64Forth **1.1.2** agent channel (validated on Applications install)
   Roadmap E        DONE   — NEST-DEMO nested colon + IF, sim + native true BLR
   Roadmap C/D partial — TVARIABLE + FETCH#/STORE# (VAR-DEMO sim+native)
+  Layer 1 start     DONE   — `64TCOMSRC/64SRC.fth` TSRC-INCLUDE + samples/hello.tfth
 ```
 
 **Pack version history**
@@ -65,7 +66,7 @@ Debugging capability comes at some point (listing, symbol map, SIM step, crash P
 | Version | Notes |
 |---------|--------|
 | **0.1** | First ARM64 pack: prims, SIM, native, SAVE-MACHO, true BLR, IF demos |
-| **0.2** | NEST/VAR demos; Roadmap B complete (IF-DEMO sim+native+Mach-O, WHILE/REPEAT); agent re-run docs; next: source loader / Layer 1 |
+| **0.2** | NEST/VAR; Roadmap B complete; **TSRC-INCLUDE** generic `.tfth` loader (`64SRC.fth`); `samples/hello.tfth` => 42 |
 
 **Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2** (agent channel shipped; ANS/Hayes + agent green on install).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  
@@ -204,7 +205,41 @@ T: BUMP
 - **`TVARIABLE name`** — one cell in target data; symbol type `SYM-DATA` (host address of cell).  
 - **`G' name`** — for DATA: push host addr (`COMP-SINGLE`), not a call.  
 - **`G@` / `G!`** — compile `FETCH#` / `STORE#`.  
-- In-process **sim and native** use absolute host `T-DATA` pointers (same process). **Standalone Mach-O** still needs data embed (open item 2b).
+- In-process **sim and native** use absolute host `T-DATA` pointers (same process). **Standalone Mach-O** still needs data embed (open item 2c).
+
+### Source loader (Layer 1 start) — pack-independent
+
+**Architecture:** the restricted interpreter / token scanner lives in **`64TCOMSRC/64SRC.fth`** (compiler). Target packs only supply emitters (`TIF`, `G@`, prims). Do **not** put a special interpreter in `64TCOMARM64/`.
+
+| Piece | Location |
+|-------|----------|
+| `TSRC-INCLUDE` token scanner + dialect | `64TCOMSRC/64SRC.fth` |
+| Control/data emitters | Pack (`ASMARM64` / `OPTARM64`) |
+| Sample source | `64TCOMARM64/samples/hello.tfth` |
+| Pack demo wrapper | `SRC-DEMO` / `SRCDEMO.fth` |
+
+**Dialect:** `VARIABLE`, `: … ;`, numbers/`$hex`, `IF ELSE THEN`, `BEGIN UNTIL AGAIN WHILE REPEAT`, `@ ! + - DUP DROP SWAP OVER`, other names → symbol compile.
+
+**Re-run:**
+
+```bash
+cd ~/Documents/64TCOM/64TCOMARM64
+FORTH=/Applications/64Forth.app/Contents/MacOS/64Forth
+$FORTH --agent -c "$(pwd)" \
+  -e 'FLOAD TARGETARM64.fth' \
+  -e 'SRC-DEMO' \
+  -o /tmp/src.txt
+# Expect: MAIN => 42  and  SRC-DEMO: OK
+```
+
+Or after pack load:
+
+```forth
+TARGET-INIT
+S" samples/hello.tfth" TSRC-INCLUDE
+ARM64-FINISH
+S" MAIN" RUN-SYM .
+```
 
 ---
 
@@ -310,7 +345,7 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 | IF / BEGIN–UNTIL / WHILE / loops | **Done** — Roadmap B (`IF-DEMO` sim+native+Mach-O) |
 | Sim + in-process native run | Working |
 | Standalone CLI Mach-O via `cc` | Working for tiny entry words (e.g. ANS → exit 5) |
-| **Parse a `.fth` and compile colon defs automatically** | **Not yet** — demos are still hand-assembled `T:` scripts |
+| **Parse a `.tfth` and compile colon defs** | **Started** — `TSRC-INCLUDE` (restricted dialect); expand as needed |
 | Target `TVARIABLE` + `@`/`!` | **Done** in-process — `VAR-DEMO`; Mach-O data embed later |
 | Strings, I/O, argc/argv, GUI apps | Not yet |
 | **Host agent: headless load + transcript** | **Done** — 64Forth 1.1.2 `/Applications` |
@@ -336,6 +371,7 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 |------|------|
 | `64TCOMSRC/64HOST.fth` | Host layer + options |
 | `64TCOMSRC/64DIR.fth` | Symbol table + director (Phase 1.3) |
+| `64TCOMSRC/64SRC.fth` | Generic `.tfth` loader (`TSRC-INCLUDE`) — **not** pack-specific |
 | `64TCOMGEN/` | GEN pack (tutorial tags) — done for demos |
 | `64TCOMARM64/` | ARM64 real target pack — `FLOAD TARGETARM64.fth` |
 | `REFERENCE_FILES/` | Classic F-PC 3.6 + TCOM 2.5 |
@@ -355,6 +391,7 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 | `IFDEMO.fth` | Control-flow smoke (sim+native subset) |
 | `NESTDEMO.fth` | Nested `G'` / true BLR + IF + forward call |
 | `VARDEMO.fth` | `TVARIABLE` + `G@`/`G!` data cells |
+| `SRCDEMO.fth` / `samples/hello.tfth` | Source loader smoke (MAIN => 42) |
 | `runtest.fth` | Full pack smoke (agent: `-f runtest.fth`) |
 
 ---
@@ -385,7 +422,7 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 |------|-------------|------|
 | 1 | Nested colon + IF/loop **via compiled words**, sim+native (+Mach-O later) | **Done sim+native** — `NEST-DEMO`; Mach-O entry optional B4 |
 | 2 | `VARIABLE` + `@`/`!` + data area (in-process host ptrs) | **Done** — `TVARIABLE` / `VAR-DEMO`; Mach-O embed later |
-| 3 | Target subset parser: `: … ;` `IF`… numbers, word calls | One `.tfth` (or similar) file |
+| 3 | Target subset parser: `: … ;` `IF`… numbers, word calls | **Started** — `64SRC` + `hello.tfth` => 42 sim+native |
 | 4 | `MAIN` + `SAVE-MACHO` exit code / `write` | `./prog ; echo $?` |
 | 5 | Second, messier source (two files, deeper control) | Still green on three runners |
 | 6 | I/O and strings | Useful CLI tools |
@@ -398,7 +435,7 @@ Immediate engineering queue:
 2. ~~**VARIABLE + @/!**~~ — **done** (`TVARIABLE`, `G@`/`G!`, `VAR-DEMO` sim+native)  
 2b. ~~**Roadmap B**~~ — **done** (WHILE/REPEAT, full native IF-DEMO, Mach-O LOOP3)  
 2c. Data embed for standalone VAR (Mach-O) if needed  
-3. **Source loader** (step 3 — Layer 1)  
+3. ~~**Source loader**~~ — **started** (`64TCOMSRC/64SRC.fth`, `SRC-DEMO`); grow dialect as needed  
 4. Library wave (compares, `ROT`, …) as demos need  
 5. Grow assembler / library **on demand**  
 6. **Phase 4.0** utilities — *after* source compile  

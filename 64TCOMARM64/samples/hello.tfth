@@ -1,0 +1,14 @@
+\ hello.tfth — minimal target source (restricted dialect)
+\ Expect MAIN => 42
+
+VARIABLE X
+
+: DOUBLE
+  DUP +
+;
+
+: MAIN
+  21 DOUBLE
+  X !
+  X @
+;

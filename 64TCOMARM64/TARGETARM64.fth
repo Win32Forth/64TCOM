@@ -38,6 +38,8 @@ INCLUDE LIBARM64.fth
 INCLUDE SIMARM64.fth
 INCLUDE NATARM64.fth
 INCLUDE MACHOARM64.fth
+\ Generic .tfth loader (compiler) — after pack hooks/prims exist
+INCLUDE ../64TCOMSRC/64SRC.fth
 
 TCOM-ORDER
 TCOM-WARN-ON
