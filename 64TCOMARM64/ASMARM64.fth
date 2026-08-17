@@ -207,6 +207,13 @@ $9A9F17E0 CONSTANT (A64-CSET-X0-EQ)   \ CSET X0, EQ
   $39400000 A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
   ;
 
+\ MUL Xd, Xn, Xm  — 64-bit multiply (alias MADD Xd,Xn,Xm,XZR)
+: MUL-X,  ( xm xn xd -- )
+  A64-D ! A64-N ! A64-M !
+  $9B007C00 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
 \ UDIV Xd, Xn, Xm  — unsigned divide
 : UDIV-X,  ( xm xn xd -- )
   A64-D ! A64-N ! A64-M !

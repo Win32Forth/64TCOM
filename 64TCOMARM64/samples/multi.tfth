@@ -1,0 +1,30 @@
+\ multi.tfth — multi-file sample: FLOAD math.tfth then use its words
+\
+\ How to build (from 64Forth, working folder = 64TCOMARM64/):
+\   FLOAD TARGETARM64.fth
+\   TCOM samples/multi.tfth
+\
+\ Run:
+\   ./samples/multi 7     → prints 14 and 49, exit 0
+\   ./samples/multi       → usage, exit 1
+\
+\ Relative FLOAD looks next to this file (samples/math.tfth).
+\
+\ See samples/README.txt
+
+FLOAD math.tfth
+
+: MAIN
+  ARGCOUNT 1 =
+  IF
+    ARG1 S>N
+    DUP DOUBLE . SPACE
+    SQUARE . CR
+    0
+  ELSE
+    S" usage: multi n
+"
+    TYPE
+    1
+  THEN
+;

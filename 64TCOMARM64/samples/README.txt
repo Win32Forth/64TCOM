@@ -23,6 +23,7 @@ Build a sample (64Forth console)
   TCOM samples/print.tfth
   TCOM samples/args.tfth
   TCOM samples/add.tfth
+  TCOM samples/multi.tfth
 
 Paths with spaces must be quoted:
 
@@ -64,10 +65,15 @@ What each sample does
   add.tfth
     ./samples/add 3 5 → prints 8 (uses = IF S>N + . CR)
 
+  multi.tfth + math.tfth
+    multi does:  FLOAD math.tfth  (relative to samples/)
+    ./samples/multi 7 → prints "14 49" (DOUBLE and SQUARE from math.tfth)
+
   CLI / dialect words (after pack load):
     ARGCOUNT ARG1 ARG2 ARG#
-    0=  =  <  >   ROT NIP 2DUP
+    0=  =  <  >   + - *   ROT NIP 2DUP
     EMIT CR SPACE .   TYPE   S>N  (string to signed decimal)
+    FLOAD path.tfth  |  INCLUDE path.tfth   (top-level; relative to this file)
 
 Optional demos (after FLOAD TARGETARM64.fth)
 -------------------------------------------

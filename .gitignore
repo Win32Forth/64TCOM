@@ -49,5 +49,9 @@ node_modules/
 64TCOMARM64/samples/add.bin
 64TCOMARM64/samples/add.c
 64TCOMARM64/samples/add-build.sh
+64TCOMARM64/samples/multi
+64TCOMARM64/samples/multi.bin
+64TCOMARM64/samples/multi.c
+64TCOMARM64/samples/multi-build.sh
 64TCOMARM64/*.bin
 64TCOMARM64/samples/*.bin

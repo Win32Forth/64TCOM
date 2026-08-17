@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-17 — dialect growth: compares, stack, `.` / `S>N`, `samples/add`; TIF control stack
+**Last updated:** 2026-08-17 — multi-file `.tfth` via FLOAD/INCLUDE; samples/multi + math.tfth
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
 
@@ -91,8 +91,9 @@ Eventually that binary *is* the app (or is linked into one), with a small C/runt
                            samples/print.tfth → "Hello, 64TCOM\n" + exit 0 (all paths)
   Console build    DONE   — `TCOM path.tfth` → same-dir leaf (MAIN); quoted OK
   Layer 2 args     DONE   — ARGCOUNT ARG1 ARG2 ARG# (1-based user argv; Mach-O fill)
-  Dialect grow     DONE   — 0= = < > ROT NIP 2DUP EMIT CR SPACE . S>N; samples/add
-  Product path     OPEN   — multi-file, richer CLI, GUI last
+  Dialect grow     DONE   — 0= = < > * ROT NIP 2DUP EMIT CR SPACE . S>N; samples/add
+  Multi-file       DONE   — FLOAD/INCLUDE in .tfth (nested); samples/multi + math.tfth
+  Product path     OPEN   — richer CLI I/O, more dialect on demand, GUI last
 ```
 **Pack version history**
 

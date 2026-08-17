@@ -88,6 +88,12 @@ VARIABLE LIB-BODY-XT
   X0 X1 X0 SUB-X-X,
   ;
 
+: BODY-MUL  ( -- )
+  BTI,
+  X1 X19 8 LDR-POST,
+  X0 X1 X0 MUL-X,                \ X0 = X1 * X0
+  ;
+
 : BODY-FETCH  ( -- )
   BTI,
   X0 X0 LDR-X0,
@@ -185,6 +191,7 @@ VARIABLE ARG-P4
 ' BODY-OVER    LIB-PRIM-XT OVER#
 ' BODY-PLUS    LIB-PRIM-XT PLUS#
 ' BODY-MINUS   LIB-PRIM-XT MINUS#
+' BODY-MUL     LIB-PRIM-XT MUL#
 \ ----- compares: leave 0 or 1 (TIF treats any non-zero as true) -----
 : BODY-ZEQ  ( -- )   \ 0=  ( n -- flag )
   BTI,

@@ -1,0 +1,11 @@
+\ math.tfth — helpers included by other target sources (FLOAD)
+\
+\ Not a standalone program (no MAIN). Built only via FLOAD from another .tfth.
+
+: DOUBLE
+  DUP +
+;
+
+: SQUARE
+  DUP *
+;
