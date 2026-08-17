@@ -91,8 +91,23 @@ CREATE A64-HDR  32 ALLOT
   ;
 ' (%COMP-JMP-IMM) IS COMP-JMP-IMM
 
-: (%COMP-FETCH)   ( -- )  ?QUIET 0= IF ." @" CR THEN  NOP, ;
-: (%COMP-STORE)   ( -- )  ?QUIET 0= IF ." !" CR THEN  NOP, ;
+\ Lookup prim cookie by name at runtime (FETCH#/STORE# exist after LIBARM64).
+: (LIB-CALL-NAME)  ( ca u -- )
+  2DUP SYM-FIND IF
+    NIP NIP SYM-ADDR@ COMP-CALL
+  ELSE
+    TYPE S"  ? (need LIBARM64 prim)" TYPE CR TCOM-ABORT
+  THEN
+  ;
+
+: (%COMP-FETCH)   ( -- )
+  ?QUIET 0= IF ." @" CR THEN
+  S" FETCH#" (LIB-CALL-NAME)
+  ;
+: (%COMP-STORE)   ( -- )
+  ?QUIET 0= IF ." !" CR THEN
+  S" STORE#" (LIB-CALL-NAME)
+  ;
 : (%COMP-PERFORM) ( -- )  ?QUIET 0= IF ." PERFORM" CR THEN  NOP, ;
 : (%COMP-ON)      ( -- )  NOP, ;
 : (%COMP-OFF)     ( -- )  NOP, ;
@@ -311,7 +326,8 @@ VARIABLE MAP-FID
   T-CODE-BASE 0= IF  TCOM-INIT-MEM-DEFAULT  THEN
   SYM-CLEAR-APP
   LIB-CODE-END @ DUP A64-CODE-START ! DP-T !
-  0 DP-D !
+  DATA-START DP-D !                  \ data grows up from DATA-START
+  T-DATA-BASE T-DATA-MAX ERASE       \ clear data image each app build
   TCOM-ORDER
   >TARGET
   [DEFINED] DIR-ON-TARGET-INIT [IF] DIR-ON-TARGET-INIT [THEN]
@@ -320,9 +336,27 @@ VARIABLE MAP-FID
   THEN
   SET-COLD-ENTRY
   \ Cold prologue: X19 = data stack top (host), X0 = 0
+  \ DSP at high end of data buffer; variables use low daddrs (no clash).
   T-DATA-BASE T-DATA-MAX + 64 -
   DSP-INIT,
   ;
+
+\ Target VARIABLE: one cell in T-DATA, symbol SYM-DATA with host address.
+\ Use:  TVARIABLE X   then in T:  G' X  ' FETCH# LIB,   /  G' X  ' STORE# LIB,
+\ Also: G' X G@   /  G' X G!   (sugar below)
+: TVARIABLE  ( "<spaces>name" -- )
+  CELL-ALIGN-D
+  HERE-D DUP 0 ,-D DTHERE >R       ( R: host-addr of cell )
+  BL WORD COUNT                    ( ca u )
+  SYM-DATA R@ SYM-ADD DROP         ( ca u type host → SYM-ADD )
+  ?QUIET 0= IF
+    S" TVARIABLE host=" TYPE R@ SYM-HEX. CR
+  THEN
+  R> DROP
+  ;
+
+: G@  ( -- )  COMP-FETCH ;
+: G!  ( -- )  COMP-STORE ;
 
 : ARM64-FINISH  ( -- )
   TARGET-FINISH
@@ -378,6 +412,14 @@ VARIABLE AD-BASE
   S" IFDEMO.fth" INCLUDED
   ;
 
+: NEST-DEMO  ( -- )
+  S" NESTDEMO.fth" INCLUDED
+  ;
+
+: VAR-DEMO  ( -- )
+  S" VARDEMO.fth" INCLUDED
+  ;
+
 : .ARM64  ( -- )
   TVERSION CR
   .64HOST
@@ -391,7 +433,7 @@ VARIABLE AD-BASE
   S"   /MAP /NOMAP  /HDR /NOHDR  /MACHO /NOMACHO  NOSAVE /SAVE" TYPE CR
   S"   /MACHO-BUILD /NOMACHO-BUILD  (auto-cc via SYSTEM; default on)" TYPE CR
   S"   SAVE-IMAGE-FILE  SAVE-MACHO-FILE  MACHO-ENTRY-SET" TYPE CR
-  S" Try: ARM64-DEMO IF-DEMO .RUN-ANS .RUN-ANS-N SAVE-MACHO-FILE" TYPE CR
+  S" Try: ARM64-DEMO IF-DEMO NEST-DEMO VAR-DEMO .RUN-ANS .RUN-ANS-N SAVE-MACHO-FILE" TYPE CR
   [DEFINED] .DIR [IF] .DIR [THEN]
   ;
 

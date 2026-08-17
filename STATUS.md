@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-17 (agent channel for host 64Forth; product destination; IF-DEMO sim green)
+**Last updated:** 2026-08-17 (how to re-run demos; VAR/NEST/IF green; agent 1.1.2)
 
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
@@ -52,14 +52,16 @@ Debugging capability comes at some point (listing, symbol map, SIM step, crash P
                            (/INLINE-CALLS restores paste-leaf path)
   Phase 4.0        OPEN   — utilities (listing, xref, debugger) — after source compile
   Roadmap B        mostly done — TIF/TELSE/TTHEN, TBEGIN/TUNTIL,
-                           IF-DEMO sim green (IFT…LOOP3), reloc BRANCH#/ZBRANCH#
+                           IF-DEMO sim+native (IFT…LOOP3), reloc BRANCH#/ZBRANCH#
   Product path     OPEN   — source file → image → CLI → (later) GUI apps
-  Host automation  OPEN   — 64Forth **agent channel** (headless --agent; rebuild required)
+  Host automation  DONE   — 64Forth **1.1.2** agent channel (validated on Applications install)
+  Roadmap E        DONE   — NEST-DEMO nested colon + IF, sim + native true BLR
+  Roadmap C/D partial — TVARIABLE + FETCH#/STORE# (VAR-DEMO sim+native)
 ```
 
-**Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2** (in progress — agent channel; GUI from **1.1.1** still fine for interactive work).  
-Agent channel ships with **1.1.2** (build 19): rebuild 64Forth in Xcode so the installed app includes `--agent`.  
-(Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)
+**Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2** (agent channel shipped; ANS/Hayes + agent green on install).  
+(Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  
+Release: https://github.com/Win32Forth/64Forth/releases/tag/v1.1.2  
 
 ---
 
@@ -74,24 +76,127 @@ Agent channel ships with **1.1.2** (build 19): rebuild 64Forth in Xcode so the i
 | **Activate** | `…/64Forth.app/Contents/MacOS/64Forth --agent …` or `FORTH64_AGENT=1` |
 | **Wrapper** | `64Forth/tools/64forth-agent` (resolves app binary, passes `--agent`) |
 | **Capture** | All kernel EMIT → **stdout**; optional `-o transcript.txt` |
-| **Typical 64TCOM use** | After rebuild: load pack + demo and save transcript |
+| **Invoke** | Bundle **binary** path — not `open -a` (need a real stdout pipe) |
 
-```bash
-# After rebuilding 64Forth with AgentChannel (install or set FORTH64_APP):
-FORTH=/Applications/64Forth.app/Contents/MacOS/64Forth
-$FORTH --agent \
-  -c ~/Documents/64TCOM/64TCOMARM64 \
-  -e 'FLOAD TARGETARM64.fth' \
-  -f IFDEMO.fth \
-  -o /tmp/ifdemo-agent.txt
-# then inspect /tmp/ifdemo-agent.txt
-```
-
-**Status:** Sources landed in 64Forth (**AppMain**, **AgentChannel**, KernelBridge sync emit). **Not** in the currently installed `/Applications/64Forth.app` until you **rebuild in Xcode**. This machine’s CLI lacks full Xcode (`xcodebuild` unavailable); build from the IDE.
+**Status:** **Shipped in 64Forth 1.1.2** (GitHub release + `/Applications` install validated: agent eval, ANS-VALIDATE 383/0, Hayes all-zero).
 
 **Grok / workspace:** Work on 64TCOM and 64Forth can stay in one session (workspace under `Documents` or either project). No need to restart the agent from the 64Forth folder — paths are absolute. Rebuild the **app** when agent sources change; restarting Grok does not install the new binary.
 
 **Not the same as:** typing into a live GUI window (Accessibility), or a future socket into a running session. Agent mode is a **separate headless process**.
+
+---
+
+## How to re-run 64TCOM demos (agent channel)
+
+Requires **64Forth 1.1.2+** installed (e.g. `/Applications/64Forth.app`). Working directory for pack loads: `64TCOMARM64/`.
+
+```bash
+cd ~/Documents/64TCOM/64TCOMARM64
+FORTH=/Applications/64Forth.app/Contents/MacOS/64Forth
+```
+
+### One-shot demos
+
+Each of these does its own `TARGET-INIT` (they do not share one image — that is fine).
+
+```bash
+# Nested colon calls (Roadmap E) — sim + native true BLR
+$FORTH --agent -c "$(pwd)" \
+  -e 'FLOAD TARGETARM64.fth' \
+  -e 'NEST-DEMO' \
+  -o /tmp/nest.txt
+
+# VARIABLE + @ / ! (data cells)
+$FORTH --agent -c "$(pwd)" \
+  -e 'FLOAD TARGETARM64.fth' \
+  -e 'VAR-DEMO' \
+  -o /tmp/var.txt
+
+# IF / LOOP (sim + native subset)
+$FORTH --agent -c "$(pwd)" \
+  -e 'FLOAD TARGETARM64.fth' \
+  -e 'IF-DEMO' \
+  -o /tmp/if.txt
+```
+
+### All three in one agent process
+
+```bash
+$FORTH --agent -c "$(pwd)" \
+  -e 'FLOAD TARGETARM64.fth' \
+  -e 'NEST-DEMO' \
+  -e 'VAR-DEMO' \
+  -e 'IF-DEMO' \
+  -o /tmp/64tcom-demos.txt
+```
+
+### Full pack smoke (heavier)
+
+```bash
+$FORTH --agent -c "$(pwd)" -f runtest.fth -o /tmp/runtest.txt
+```
+
+Loads the pack and runs ARM64-DEMO, ANS sim/native, IF-DEMO, NEST-DEMO, VAR-DEMO, SAVE-MACHO, standalone, etc.
+
+### Interactive GUI (optional)
+
+In 64Forth (after `CHDIR` / `cd` to `64TCOMARM64/`):
+
+```forth
+FLOAD TARGETARM64.fth
+NEST-DEMO
+VAR-DEMO
+IF-DEMO
+\ or:  ARM64-DEMO  .RUN-ANS  .RUN-ANS-N
+```
+
+### Success markers
+
+| Demo | Word | Expect in transcript |
+|------|------|----------------------|
+| **NEST-DEMO** | `OUTER` | `=> 7` |
+| | `GO` | `=> 12` |
+| | `NIF` | `=> 5` |
+| | `FWDN` | `=> 8738` ($2222) |
+| | | `NEST-DEMO: OK (sim)` and `NEST-DEMO: OK (native true BLR)` |
+| **VAR-DEMO** | `VGET` | `=> 0` |
+| | `VSET` | `=> 42` |
+| | `VINC` | `=> 43` |
+| | `VSWP` | `=> 100` |
+| | | `VAR-DEMO: OK (sim)` and `VAR-DEMO: OK (native)` |
+| **IF-DEMO** | `IFT`…`LOOP3` | `LOOP3 => 3`, etc. |
+| | | `IF-DEMO: OK (sim)` and `IF-DEMO: OK (native)` (IFT/IFF/LOOP3) |
+
+Quick check:
+
+```bash
+grep -E 'OK|fail|ABORT|undefined' /tmp/nest.txt /tmp/var.txt /tmp/if.txt
+```
+
+### Demo inventory (what each proves)
+
+| Word / file | Proves |
+|-------------|--------|
+| `NEST-DEMO` / `NESTDEMO.fth` | Multi-level `G'` → `CALL-ABS` / true BLR; forward call; IF + nested calls |
+| `VAR-DEMO` / `VARDEMO.fth` | `TVARIABLE`, `SYM-DATA`, `G'`, `G@`/`G!`, `FETCH#`/`STORE#`, data in `T-DATA` |
+| `IF-DEMO` / `IFDEMO.fth` | `TIF`/`TELSE`/`TTHEN`, `T0=,`, `TBEGIN`/`TUNTIL`, `TLOOP-TO-3,`, native subset |
+| `ARM64-DEMO` | Lit + `PLUS#` → ANS => 5 (sim/native/Mach-O) |
+| `runtest.fth` | End-to-end pack smoke including demos above |
+
+### Target VARIABLE usage pattern
+
+```forth
+TVARIABLE X
+T: BUMP
+  G' X G@  1 G,  ' PLUS# LIB,  G' X G!
+  G' X G@
+;T
+```
+
+- **`TVARIABLE name`** — one cell in target data; symbol type `SYM-DATA` (host address of cell).  
+- **`G' name`** — for DATA: push host addr (`COMP-SINGLE`), not a call.  
+- **`G@` / `G!`** — compile `FETCH#` / `STORE#`.  
+- In-process **sim and native** use absolute host `T-DATA` pointers (same process). **Standalone Mach-O** still needs data embed (open item 2b).
 
 ---
 
@@ -193,13 +298,14 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 | Capability | Status |
 |------------|--------|
 | Target image, symbols, `T:` / `G,` / lib prims | Working |
-| True BLR, nested *call plumbing* | Working (multi-level demos still needed) |
-| IF / BEGIN–UNTIL / loop shape (asm + demos) | **Sim green** (`IF-DEMO` incl. `LOOP3`); native/Mach-O IF still thin |
+| True BLR, nested colon calls | **Done** — `NEST-DEMO` sim+native (OUTER/GO/NIF/FWDN) |
+| IF / BEGIN–UNTIL / loops | **Done** — `IF-DEMO` sim+native (IFT…LOOP3); Mach-O IF optional |
 | Sim + in-process native run | Working |
 | Standalone CLI Mach-O via `cc` | Working for tiny entry words (e.g. ANS → exit 5) |
 | **Parse a `.fth` and compile colon defs automatically** | **Not yet** — demos are still hand-assembled `T:` scripts |
-| Variables, strings, I/O, argc/argv, GUI | Not yet |
-| **Host agent: headless load + transcript** | **Sources in 64Forth** — needs Xcode rebuild of the app |
+| Target `TVARIABLE` + `@`/`!` | **Done** in-process — `VAR-DEMO`; Mach-O data embed later |
+| Strings, I/O, argc/argv, GUI apps | Not yet |
+| **Host agent: headless load + transcript** | **Done** — 64Forth 1.1.2 `/Applications` |
 
 ### Reload / restart (host 64Forth session)
 
@@ -237,8 +343,11 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 | `SIMARM64.fth` | Software sim — `.RUN-ANS` |
 | `NATARM64.fth` | Native run — `.RUN-ANS-N` (inline calls) |
 | `MACHOARM64.fth` | `SAVE-MACHO` → C + build.sh → Mach-O |
-| `ARM64DEMO.fth` / `FWDARM64.fth` / `ASMDEMO.fth` | Demos |
-| `IFDEMO.fth` / `runtest.fth` | Control-flow smoke; full pack retest |
+| `ARM64DEMO.fth` / `FWDARM64.fth` / `ASMDEMO.fth` | ANS/lit demos; forward refs; asm leaves |
+| `IFDEMO.fth` | Control-flow smoke (sim+native subset) |
+| `NESTDEMO.fth` | Nested `G'` / true BLR + IF + forward call |
+| `VARDEMO.fth` | `TVARIABLE` + `G@`/`G!` data cells |
+| `runtest.fth` | Full pack smoke (agent: `-f runtest.fth`) |
 
 ---
 
@@ -266,23 +375,24 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 
 | Step | Deliverable | Gate |
 |------|-------------|------|
-| 1 | Nested colon + IF/loop **via compiled words**, sim+native+Mach-O | `NEST-DEMO` / extended `runtest` |
-| 2 | `VARIABLE` + `@`/`!` + data area in image/Mach-O | Small stateful demo |
+| 1 | Nested colon + IF/loop **via compiled words**, sim+native (+Mach-O later) | **Done sim+native** — `NEST-DEMO`; Mach-O entry optional B4 |
+| 2 | `VARIABLE` + `@`/`!` + data area (in-process host ptrs) | **Done** — `TVARIABLE` / `VAR-DEMO`; Mach-O embed later |
 | 3 | Target subset parser: `: … ;` `IF`… numbers, word calls | One `.tfth` (or similar) file |
 | 4 | `MAIN` + `SAVE-MACHO` exit code / `write` | `./prog ; echo $?` |
 | 5 | Second, messier source (two files, deeper control) | Still green on three runners |
 | 6 | I/O and strings | Useful CLI tools |
 | 7 | App bundle + windows | 64Forth-class apps |
 
-Immediate engineering queue (feeds steps 1–2):
+Immediate engineering queue:
 
-0. **Host:** rebuild 64Forth with agent channel; smoke `--agent -e '2 2 + .'` then 64TCOM demos via `-f`  
-1. **Roadmap B4 / E** — optional Mach-O IF; nested colon demo under true BLR  
-2. Library wave (compares, `0=`, `ROT`, …) as demos need  
-3. **Memory + frames** — ADRP/LDP/STP when variables need them  
-4. Grow assembler / library **on demand** (see “Assembler completeness policy”)  
-5. **Phase 4.0** utilities (`64TCOMUTILS`) — *after* source compile works, not before  
-6. Phase 3.5 detail: [`64DESIGN/Phase 3.5 ARM64 notes.txt`](64DESIGN/Phase%203.5%20ARM64%20notes.txt)
+0. ~~**Host agent**~~ — **done** (64Forth 1.1.2)  
+1. ~~**Roadmap E nested colon**~~ — **done** (`NEST-DEMO` sim+native)  
+2. ~~**VARIABLE + @/!**~~ — **done** (`TVARIABLE`, `G@`/`G!`, `VAR-DEMO` sim+native)  
+2b. **B4** — optional Mach-O entry for IF/VAR demos; data embed for standalone  
+3. **Source loader** (step 3 — Layer 1)  
+4. Library wave (compares, `ROT`, …) as demos need  
+5. Grow assembler / library **on demand**  
+6. **Phase 4.0** utilities — *after* source compile  
 
 ## Assembler completeness policy
 

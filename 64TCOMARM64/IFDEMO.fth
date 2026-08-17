@@ -80,4 +80,25 @@ VARIABLE RX
   S" IF-DEMO: OK (sim)" TYPE CR
   ;
 
-IF-DEMO-CHECK
+\ Optional native pass (Roadmap B2b) — same words, RUN-NATIVE / true BLR
+: IF-DEMO-NAT  ( -- )
+  [DEFINED] RUN-SYM-N [IF]
+    S" --- IF-DEMO native ---" TYPE CR
+    S" IFT" RUN-SYM-N RX !  S" IFT => " TYPE RX @ . CR
+    RX @ 1 <> IF S" fail IFT native" TYPE CR ABORT THEN
+    S" IFF" RUN-SYM-N RX !  S" IFF => " TYPE RX @ . CR
+    RX @ 2 <> IF S" fail IFF native" TYPE CR ABORT THEN
+    S" LOOP3" RUN-SYM-N RX ! S" LOOP3 => " TYPE RX @ . CR
+    RX @ 3 <> IF S" fail LOOP3 native" TYPE CR ABORT THEN
+    S" IF-DEMO: OK (native)" TYPE CR
+  [ELSE]
+    S" IF-DEMO: skip native" TYPE CR
+  [THEN]
+  ;
+
+: IF-DEMO-ALL  ( -- )
+  IF-DEMO-CHECK
+  IF-DEMO-NAT
+  ;
+
+IF-DEMO-ALL

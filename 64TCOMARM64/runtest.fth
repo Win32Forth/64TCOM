@@ -33,8 +33,14 @@ S" --- .RUN-ANS-N (native true BLR) ---" TYPE CR
 S" --- IF-DEMO (TIF/TELSE/TTHEN sim) ---" TYPE CR
 IF-DEMO
 
-\ Re-run ANS path after IF-DEMO (TARGET-INIT cleared app)
-S" --- ARM64-DEMO again + native after IF ---" TYPE CR
+S" --- NEST-DEMO (nested colon true BLR) ---" TYPE CR
+NEST-DEMO
+
+S" --- VAR-DEMO (VARIABLE + @/!) ---" TYPE CR
+VAR-DEMO
+
+\ Re-run ANS path after demos (TARGET-INIT cleared app)
+S" --- ARM64-DEMO again + native after nest ---" TYPE CR
 ARM64-DEMO
 .RUN-ANS
 .RUN-ANS-N

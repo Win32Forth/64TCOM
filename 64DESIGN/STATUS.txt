@@ -28,8 +28,10 @@ Host agent (summary — full text in STATUS.md / 64Forth Docs)
   64Forth headless:  …/MacOS/64Forth --agent -e … -f … -o transcript.txt
   Wrapper:  XCodeProjects/64Forth/tools/64forth-agent
   Docs:     64Forth/Resources/Docs/Agent-channel.md
-  Status:   64Forth 1.1.2 (build 19) in tree; rebuild app in Xcode before use
+  Status:   64Forth 1.1.2 shipped; agent green on /Applications
   Grok:     can stay in Documents workspace — no need to restart from 64Forth folder
+  Demos:    NEST-DEMO VAR-DEMO IF-DEMO — see STATUS.md "How to re-run 64TCOM demos"
+  Re-run:   cd 64TCOMARM64; FORTH=…/64Forth --agent -c $PWD -e 'FLOAD TARGETARM64.fth' -e 'VAR-DEMO'
 
 Product destination (summary — full text in STATUS.md)
 ------------------------------------------------------
