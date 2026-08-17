@@ -43,8 +43,12 @@ PRINT-DEMO   \ print.tfth writes "Hello, 64TCOM\n", MAIN exit 0
 Or one-shot:
 
 ```text
-S" samples/hello.tfth" TSRC-BUILD   \ image + SAVE-MACHO entry MAIN
+S" samples/hello.tfth" TSRC-BUILD   \ image + SAVE-MACHO entry MAIN → ./tcomarm64
 S" ./tcomarm64" SYSTEM .            \ exit status 42
+
+\ Preferred console form (leaf name = source without .tfth):
+TCOM samples/print.tfth             \ → ./print  (entry MAIN)
+TCOM "path with spaces/foo.tfth"    \ quote-delimited path
 ```
 
 ### Why `.tfth` (not `.fth`) for target sources
@@ -86,6 +90,7 @@ Eventually that binary *is* the app (or is linked into one), with a small C/runt
                            samples/hello.tfth → MAIN => 42 (sim + native + Mach-O)
   Layer 2 print    DONE   — TYPE# (Darwin write SVC); dialect S" / TYPE / ."
                            samples/print.tfth → "Hello, 64TCOM\n" + exit 0 (all paths)
+  Console build    DONE   — `TCOM path.tfth` → ./leaf (MAIN); quoted paths OK
   Layer 2 args     OPEN   — argc/argv onto data stack
   Product path     OPEN   — finish Layer 2, grow dialect, multi-file, GUI last
 ```
