@@ -1,5 +1,5 @@
-\ hello.tfth — minimal target source (restricted dialect)
-\ Expect MAIN => 42
+\ hello.tfth — Layer 1 sample: compute + print
+\ Expect: stdout "Hello, 64TCOM\n" and MAIN => 42
 
 VARIABLE X
 
@@ -8,6 +8,9 @@ VARIABLE X
 ;
 
 : MAIN
+  S" Hello, 64TCOM
+"
+  TYPE
   21 DOUBLE
   X !
   X @

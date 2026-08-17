@@ -290,7 +290,13 @@ T: BUMP
 ```forth
 VARIABLE X
 : DOUBLE  DUP + ;
-: MAIN    21 DOUBLE  X !  X @ ;
+: MAIN
+  S" Hello, 64TCOM
+"
+  TYPE
+  21 DOUBLE  X !  X @
+;
+\ stdout Hello + exit 42
 ```
 
 **Sample `samples/print.tfth` (Layer 2 print):**

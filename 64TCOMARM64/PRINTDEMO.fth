@@ -8,6 +8,9 @@ FORTH DEFINITIONS
 
 S" samples/print.tfth" TSRC-INCLUDE
 
+S" samples/print" MACHO-FILENAME PLACE
+S" samples/print.bin" IMAGE-FILENAME PLACE
+
 ARM64-FINISH
 FORTH DEFINITIONS
 
@@ -26,9 +29,10 @@ VARIABLE RX
   [DEFINED] SAVE-MACHO-FILE [IF]
     S" --- PRINT-DEMO Mach-O MAIN ---" TYPE CR
     S" MAIN" MACHO-ENTRY-SET
+    S" samples/print" MACHO-FILENAME PLACE
     SAVE-MACHO-FILE
     [DEFINED] SYSTEM [IF]
-      S" ./tcomarm64" SYSTEM
+      S" ./samples/print" SYSTEM
       S" Mach-O MAIN exit (want 0) = " TYPE DUP . CR
       0 <> IF S" PRINT-DEMO fail Mach-O MAIN exit" TYPE CR ABORT THEN
       S" PRINT-DEMO: OK (Mach-O MAIN => 0 + print)" TYPE CR
