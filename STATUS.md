@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-17 (ARM64 pack **Version 0.2**; VAR/NEST/IF green; agent 1.1.2)
+**Last updated:** 2026-08-17 (Roadmap B **complete**; ARM64 **0.2**; agent 1.1.2)
 
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
@@ -52,8 +52,8 @@ Debugging capability comes at some point (listing, symbol map, SIM step, crash P
   Phase 3.5        DONE   — true BLR default: fixup .quad → base+taddr
                            (/INLINE-CALLS restores paste-leaf path)
   Phase 4.0        OPEN   — utilities (listing, xref, debugger) — after source compile
-  Roadmap B        mostly done — TIF/TELSE/TTHEN, TBEGIN/TUNTIL,
-                           IF-DEMO sim+native (IFT…LOOP3), reloc BRANCH#/ZBRANCH#
+  Roadmap B        DONE   — TIF/TELSE/TTHEN, TBEGIN/TUNTIL/TAGAIN/TWHILE/TREPEAT,
+                           IF-DEMO sim+native+Mach-O LOOP3, BRANCH#/ZBRANCH#
   Product path     OPEN   — source file → image → CLI → (later) GUI apps
   Host automation  DONE   — 64Forth **1.1.2** agent channel (validated on Applications install)
   Roadmap E        DONE   — NEST-DEMO nested colon + IF, sim + native true BLR
@@ -65,7 +65,7 @@ Debugging capability comes at some point (listing, symbol map, SIM step, crash P
 | Version | Notes |
 |---------|--------|
 | **0.1** | First ARM64 pack: prims, SIM, native, SAVE-MACHO, true BLR, IF demos |
-| **0.2** | NEST-DEMO (nested colon true BLR), VAR-DEMO (`TVARIABLE`/`G@`/`G!`), IF-DEMO native subset, agent re-run docs; next: source loader / Layer 1 |
+| **0.2** | NEST/VAR demos; Roadmap B complete (IF-DEMO sim+native+Mach-O, WHILE/REPEAT); agent re-run docs; next: source loader / Layer 1 |
 
 **Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2** (agent channel shipped; ANS/Hayes + agent green on install).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  
@@ -172,8 +172,8 @@ IF-DEMO
 | | `VINC` | `=> 43` |
 | | `VSWP` | `=> 100` |
 | | | `VAR-DEMO: OK (sim)` and `VAR-DEMO: OK (native)` |
-| **IF-DEMO** | `IFT`…`LOOP3` | `LOOP3 => 3`, etc. |
-| | | `IF-DEMO: OK (sim)` and `IF-DEMO: OK (native)` (IFT/IFF/LOOP3) |
+| **IF-DEMO** | `IFT`…`LOOP3`, `WONCE` | `LOOP3 => 3`, `WONCE => 7`, etc. |
+| | | `IF-DEMO: OK (sim)`, `OK (native)`, `OK (Mach-O LOOP3 => 3)` |
 
 Quick check:
 
@@ -187,7 +187,7 @@ grep -E 'OK|fail|ABORT|undefined' /tmp/nest.txt /tmp/var.txt /tmp/if.txt
 |-------------|--------|
 | `NEST-DEMO` / `NESTDEMO.fth` | Multi-level `G'` → `CALL-ABS` / true BLR; forward call; IF + nested calls |
 | `VAR-DEMO` / `VARDEMO.fth` | `TVARIABLE`, `SYM-DATA`, `G'`, `G@`/`G!`, `FETCH#`/`STORE#`, data in `T-DATA` |
-| `IF-DEMO` / `IFDEMO.fth` | `TIF`/`TELSE`/`TTHEN`, `T0=,`, `TBEGIN`/`TUNTIL`, `TLOOP-TO-3,`, native subset |
+| `IF-DEMO` / `IFDEMO.fth` | Full Roadmap B: IF/loops/WHILE, sim+native+Mach-O LOOP3 |
 | `ARM64-DEMO` | Lit + `PLUS#` → ANS => 5 (sim/native/Mach-O) |
 | `runtest.fth` | End-to-end pack smoke including demos above |
 
@@ -307,7 +307,7 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 |------------|--------|
 | Target image, symbols, `T:` / `G,` / lib prims | Working |
 | True BLR, nested colon calls | **Done** — `NEST-DEMO` sim+native (OUTER/GO/NIF/FWDN) |
-| IF / BEGIN–UNTIL / loops | **Done** — `IF-DEMO` sim+native (IFT…LOOP3); Mach-O IF optional |
+| IF / BEGIN–UNTIL / WHILE / loops | **Done** — Roadmap B (`IF-DEMO` sim+native+Mach-O) |
 | Sim + in-process native run | Working |
 | Standalone CLI Mach-O via `cc` | Working for tiny entry words (e.g. ANS → exit 5) |
 | **Parse a `.fth` and compile colon defs automatically** | **Not yet** — demos are still hand-assembled `T:` scripts |
@@ -396,7 +396,8 @@ Immediate engineering queue:
 0. ~~**Host agent**~~ — **done** (64Forth 1.1.2)  
 1. ~~**Roadmap E nested colon**~~ — **done** (`NEST-DEMO` sim+native)  
 2. ~~**VARIABLE + @/!**~~ — **done** (`TVARIABLE`, `G@`/`G!`, `VAR-DEMO` sim+native)  
-2b. **B4** — optional Mach-O entry for IF/VAR demos; data embed for standalone  
+2b. ~~**Roadmap B**~~ — **done** (WHILE/REPEAT, full native IF-DEMO, Mach-O LOOP3)  
+2c. Data embed for standalone VAR (Mach-O) if needed  
 3. **Source loader** (step 3 — Layer 1)  
 4. Library wave (compares, `ROT`, …) as demos need  
 5. Grow assembler / library **on demand**  
@@ -432,7 +433,7 @@ requires them.
 | **3.3** Native in-process | **Done** | `.RUN-ANS-N` => 5 (inline path retained as fallback) |
 | **3.4** Standalone Mach-O | **Done** | `SAVE-MACHO` → C + `cc`; auto-build via `SYSTEM` |
 | **3.5** True BL/BLR (no inline) | **Done** | Default fixup; `/INLINE-CALLS` fallback |
-| **Control demos** | **Sim green** | `IF-DEMO` IFT…LOOP3; native/Mach-O still thin |
+| **Control demos** | **Roadmap B done** | `IF-DEMO` sim+native+Mach-O LOOP3; WHILE/REPEAT |
 | **Source→CLI→app** | **Open** | Layers 1–4 (see Product destination) |
 | **4.0** Utilities | **Open** | Listing, xref, debugger — after source compile |
 
@@ -492,8 +493,9 @@ requires them.
 - **`ASM-DEMO`** — leaf add, AHEAD/THEN skip, unrolled adds (via SIM)
 - **Library leaves** (`DUP#` `DROP#` `+` …) built from these emitters
 - **Full path:** sim / native / SAVE-MACHO for ANS => 5
-- **`IF-DEMO` (sim):** IFT/IFF/IFN/IFZ, ZEQ/ZNE, ONCE, PUSHPOP, ADD3, **LOOP3 => 3**
+- **`IF-DEMO` (sim+native+Mach-O):** IFT/IFF/IFN/IFZ, ZEQ/ZNE, ONCE, PUSHPOP, ADD3, **LOOP3 => 3**, **WONCE => 7** (WHILE/REPEAT)
   - LOOP3 machine: `MOV#0` + `ADD-IMM` + `MOV` + `SUB-IMM` + `CBNZ` back (`B5FFFFA1`)
+  - Mach-O entry `LOOP3` process exit **3**
 
 ### How the assembler is used
 
@@ -708,9 +710,10 @@ Avoid full-ISA tourism before steps 1–4.
 - [x] **A.** Phase 3.5 — true BLR (no inline) — *runtime* (default; `/INLINE-CALLS` fallback)
 - [x] **B.** IF/THEN via `TIF`/`TELSE`/`TTHEN`; loops via `TBEGIN`/`TUNTIL` / `TLOOP-TO-3,`
   - [x] B2. `IF-DEMO`: IF cases + `LOOP3` on **sim** (IFT…LOOP3 => OK; `ADD-IMM`/`SUB-IMM` in SIM fixed)
-  - [ ] B2b. Same on **native** + Mach-O entry (`runtest` / SAVE-MACHO)
+  - [x] B2b. Full suite on **native** + Mach-O entry `LOOP3` => exit 3
   - [x] B3. `BRANCH#`/`ZBRANCH#` relocatable via ADR−taddr base (no host bake-in)
-  - [ ] B4. Optional: Mach-O entry for IFT; WHILE/REPEAT; high-level IF sugar
+  - [x] B4. `TAGAIN` / `TWHILE` / `TREPEAT`; `WONCE` demo; Mach-O LOOP3 in IF-DEMO
+  - Pack IF remains `TIF`/`TELSE`/`TTHEN` (host `IF` left alone; source-loader sugar later)
 - [ ] **C.** `LDP`/`STP` + `ADRP` (or lit-pool) for frames/data — *asm*
 - [ ] **D.** Library wave: `ROT`, logic, compares, `C@`/`C!` — *lib*
 - [ ] **E.** Nested colon demo (true BLR, multi-level calls) — *proof*

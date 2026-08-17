@@ -411,6 +411,29 @@ VARIABLE TLOOP-DEST
   X1 SWAP CBZ-X,
   ;
 
+\ Unconditional back to TBEGIN (non-nested; uses TLOOP-DEST)
+: TAGAIN  ( -- )
+  ALIGN4-T
+  TLOOP-DEST @ HERE-T - 4 / B-IMM,
+  ;
+
+\ BEGIN … WHILE … REPEAT  (non-nested; TLOOP-DEST = BEGIN)
+\ TWHILE: if flag==0 skip to after TREPEAT; else continue (flag dropped)
+\ TREPEAT: B back to BEGIN; patch WHILE's CBZ to fall-through after REPEAT
+: TWHILE  ( -- while-orig )
+  X0 X1 MOV-X-X,
+  X0 X19 8 LDR-POST,
+  ALIGN4-T
+  HERE-T
+  X1 0 CBZ-X,
+  ;
+
+: TREPEAT  ( while-orig -- )
+  ALIGN4-T
+  TLOOP-DEST @ HERE-T - 4 / B-IMM,   \ back to BEGIN
+  HERE-T SWAP PATCH-CBZ              \ false WHILE → here
+  ;
+
 \ Count in X0 from 0 until X0==3. Result X0=3.
 \   n=0
 \ L: n += 1
@@ -487,7 +510,7 @@ CREATE LL-FWD  #LLAB CELLS ALLOT
 : .ASMARM64  ( -- )
   S" ASMARM64 3.1+: X0-X30 AND/ORR/EOR ADD/SUB CMP B/BL/B.cond CBZ" TYPE CR
   S"   LL: BR>LL  AHEAD THEN, AIF, AELSE, ATHEN,  CALL-ABS" TYPE CR
-  S"   Forth-ABI: TIF TELSE TTHEN  TBEGIN TUNTIL T0=," TYPE CR
+  S"   Forth-ABI: TIF TELSE TTHEN  TBEGIN TUNTIL TAGAIN TWHILE TREPEAT T0=," TYPE CR
   ;
 
 : (SETASSEM)  ( -- )
