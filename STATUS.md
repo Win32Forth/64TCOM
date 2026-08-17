@@ -1,10 +1,40 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-16 (Phase 3.5 true BLR verified; control flow TIF/TELSE/TTHEN)
+**Last updated:** 2026-08-17 (agent channel for host 64Forth; product destination; IF-DEMO sim green)
 
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
+
+---
+
+## Product destination
+
+**Goal:** The ARM64 target of TCOM should compile **fairly complicated Forth programs** into **complete standalone executable apps**.
+
+| Stage | What | Status |
+|-------|------|--------|
+| **Now** | Codegen foundation: calls, control demos, lib leaves, sim / native / Mach-O | **Layer 0** — largely done |
+| **Next** | Compile a **Forth source file** into a complete image + entry | **Layer 1** — not yet |
+| **Then** | Useful **CLI** tools (args, print, exit code) in Terminal | **Layer 2** — thin (ANS exit 5 only) |
+| **Later** | Real I/O, files, strings, runtime services | **Layer 3** |
+| **Eventually** | Finder double-clickable apps with their own window(s), like 64Forth | **Layer 4** |
+
+```text
+  Layer 4  Finder double-click + own windows  (64Forth-class app)
+  Layer 3  Real I/O, files, strings, runtime services
+  Layer 2  CLI Mach-O that does something useful (args, print, exit code)
+  Layer 1  Compile a Forth source file into a complete image + entry
+  Layer 0  Codegen foundation (calls, control, lib, sim/native/Mach-O)  ← you are here
+```
+
+**Product story** (not “finish the ARM64 ISA”):
+
+> Host 64Forth runs 64TCOM → reads target source → emits ARM64 image → `SAVE-MACHO` → terminal binary.
+
+Eventually that binary *is* the app (or is linked into one), with a small C/runtime shell only where the OS forces it (Mach-O, windowing, etc.).
+
+Debugging capability comes at some point (listing, symbol map, SIM step, crash PC→name). **First need:** compile a Forth source file end-to-end. GUI/Finder apps come last.
 
 ---
 
@@ -20,13 +50,48 @@
                            (+ auto-cc via 64Forth SYSTEM when available)
   Phase 3.5        DONE   — true BLR default: fixup .quad → base+taddr
                            (/INLINE-CALLS restores paste-leaf path)
-  Phase 4.0        OPEN   — utilities (listing, xref, debugger)
-  Roadmap B        partial — TIF/TELSE/TTHEN + IF-DEMO (sim);
-                           BEGIN/UNTIL emitted; loops TBD in demos
+  Phase 4.0        OPEN   — utilities (listing, xref, debugger) — after source compile
+  Roadmap B        mostly done — TIF/TELSE/TTHEN, TBEGIN/TUNTIL,
+                           IF-DEMO sim green (IFT…LOOP3), reloc BRANCH#/ZBRANCH#
+  Product path     OPEN   — source file → image → CLI → (later) GUI apps
+  Host automation  OPEN   — 64Forth **agent channel** (headless --agent; rebuild required)
 ```
 
-**Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.1+**  
+**Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2** (in progress — agent channel; GUI from **1.1.1** still fine for interactive work).  
+Agent channel ships with **1.1.2** (build 19): rebuild 64Forth in Xcode so the installed app includes `--agent`.  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)
+
+---
+
+## Host automation (64Forth agent channel)
+
+64TCOM demos and regressions are driven **from** 64Forth. The GUI does not expose a reliable stdin REPL for AI/CI. A **headless agent channel** was added on the 64Forth side so tools (Grok, scripts) can load files and capture console output.
+
+| Item | Detail |
+|------|--------|
+| **Where** | 64Forth repo: `XCodeProjects/64Forth/` (not inside 64TCOM) |
+| **Docs** | `64Forth/Resources/Docs/Agent-channel.md`, `tools/64forth-agent`, 64Forth README |
+| **Activate** | `…/64Forth.app/Contents/MacOS/64Forth --agent …` or `FORTH64_AGENT=1` |
+| **Wrapper** | `64Forth/tools/64forth-agent` (resolves app binary, passes `--agent`) |
+| **Capture** | All kernel EMIT → **stdout**; optional `-o transcript.txt` |
+| **Typical 64TCOM use** | After rebuild: load pack + demo and save transcript |
+
+```bash
+# After rebuilding 64Forth with AgentChannel (install or set FORTH64_APP):
+FORTH=/Applications/64Forth.app/Contents/MacOS/64Forth
+$FORTH --agent \
+  -c ~/Documents/64TCOM/64TCOMARM64 \
+  -e 'FLOAD TARGETARM64.fth' \
+  -f IFDEMO.fth \
+  -o /tmp/ifdemo-agent.txt
+# then inspect /tmp/ifdemo-agent.txt
+```
+
+**Status:** Sources landed in 64Forth (**AppMain**, **AgentChannel**, KernelBridge sync emit). **Not** in the currently installed `/Applications/64Forth.app` until you **rebuild in Xcode**. This machine’s CLI lacks full Xcode (`xcodebuild` unavailable); build from the IDE.
+
+**Grok / workspace:** Work on 64TCOM and 64Forth can stay in one session (workspace under `Documents` or either project). No need to restart the agent from the 64Forth folder — paths are absolute. Rebuild the **app** when agent sources change; restarting Grok does not install the new binary.
+
+**Not the same as:** typing into a live GUI window (Accessibility), or a future socket into a running session. Agent mode is a **separate headless process**.
 
 ---
 
@@ -123,6 +188,32 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 
 **Note:** Exit status **5** is the ANS demo contract (X0 after the sample), not a product UI. Real programs would define their own entry/runtime/exit policy; auto-run via `SYSTEM` is for smoke tests.
 
+### Capability matrix (honest)
+
+| Capability | Status |
+|------------|--------|
+| Target image, symbols, `T:` / `G,` / lib prims | Working |
+| True BLR, nested *call plumbing* | Working (multi-level demos still needed) |
+| IF / BEGIN–UNTIL / loop shape (asm + demos) | **Sim green** (`IF-DEMO` incl. `LOOP3`); native/Mach-O IF still thin |
+| Sim + in-process native run | Working |
+| Standalone CLI Mach-O via `cc` | Working for tiny entry words (e.g. ANS → exit 5) |
+| **Parse a `.fth` and compile colon defs automatically** | **Not yet** — demos are still hand-assembled `T:` scripts |
+| Variables, strings, I/O, argc/argv, GUI | Not yet |
+| **Host agent: headless load + transcript** | **Sources in 64Forth** — needs Xcode rebuild of the app |
+
+### Reload / restart (host 64Forth session)
+
+| Situation | Action |
+|-----------|--------|
+| Changed `ASMARM64` / `SIMARM64` / pack load order | `FLOAD TARGETARM64.fth` then demo (`IFDEMO.fth`, …) — no full Forth restart |
+| Only changed a demo source and pack is current | `FLOAD` that demo alone is enough |
+| `dictionary full` / FORGET errors / redefine mess after many partial loads | **Restart 64Forth**, then full pack load |
+| Unsure if host matches disk | Prefer full pack reload: `FLOAD TARGETARM64.fth` |
+| Agent channel sources changed in 64Forth | **Rebuild 64Forth.app** in Xcode (not just FLOAD / not restart Grok) |
+| Want automated transcript without GUI | Use `--agent` (after rebuild); GUI instance can stay open separately |
+
+`TCOM-ANEW` is reload-safe. Reloading only one pack file out of order (e.g. ASM alone) forgets SIM and everything defined after it.
+
 ---
 
 ## Key source files
@@ -147,6 +238,7 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 | `NATARM64.fth` | Native run — `.RUN-ANS-N` (inline calls) |
 | `MACHOARM64.fth` | `SAVE-MACHO` → C + build.sh → Mach-O |
 | `ARM64DEMO.fth` / `FWDARM64.fth` / `ASMDEMO.fth` | Demos |
+| `IFDEMO.fth` / `runtest.fth` | Control-flow smoke; full pack retest |
 
 ---
 
@@ -170,11 +262,27 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 
 ## Next step
 
-1. **Roadmap B2/B3** — IF native/Mach-O in runtest; fix runtime `BRANCH#` bake-in  
-2. Nested colon demo under true BLR (roadmap E)  
-3. **Phase 4.0:** utilities (`64TCOMUTILS`)  
+**Strategic priority:** shortest path to “I can compile a Forth source file” (Layer 1), then useful CLI (Layer 2). GUI is last.
+
+| Step | Deliverable | Gate |
+|------|-------------|------|
+| 1 | Nested colon + IF/loop **via compiled words**, sim+native+Mach-O | `NEST-DEMO` / extended `runtest` |
+| 2 | `VARIABLE` + `@`/`!` + data area in image/Mach-O | Small stateful demo |
+| 3 | Target subset parser: `: … ;` `IF`… numbers, word calls | One `.tfth` (or similar) file |
+| 4 | `MAIN` + `SAVE-MACHO` exit code / `write` | `./prog ; echo $?` |
+| 5 | Second, messier source (two files, deeper control) | Still green on three runners |
+| 6 | I/O and strings | Useful CLI tools |
+| 7 | App bundle + windows | 64Forth-class apps |
+
+Immediate engineering queue (feeds steps 1–2):
+
+0. **Host:** rebuild 64Forth with agent channel; smoke `--agent -e '2 2 + .'` then 64TCOM demos via `-f`  
+1. **Roadmap B4 / E** — optional Mach-O IF; nested colon demo under true BLR  
+2. Library wave (compares, `0=`, `ROT`, …) as demos need  
+3. **Memory + frames** — ADRP/LDP/STP when variables need them  
 4. Grow assembler / library **on demand** (see “Assembler completeness policy”)  
-5. Phase 3.5 detail: [`64DESIGN/Phase 3.5 ARM64 notes.txt`](64DESIGN/Phase%203.5%20ARM64%20notes.txt)
+5. **Phase 4.0** utilities (`64TCOMUTILS`) — *after* source compile works, not before  
+6. Phase 3.5 detail: [`64DESIGN/Phase 3.5 ARM64 notes.txt`](64DESIGN/Phase%203.5%20ARM64%20notes.txt)
 
 ## Assembler completeness policy
 
@@ -206,7 +314,9 @@ requires them.
 | **3.3** Native in-process | **Done** | `.RUN-ANS-N` => 5 (inline path retained as fallback) |
 | **3.4** Standalone Mach-O | **Done** | `SAVE-MACHO` → C + `cc`; auto-build via `SYSTEM` |
 | **3.5** True BL/BLR (no inline) | **Done** | Default fixup; `/INLINE-CALLS` fallback |
-| **4.0** Utilities | **Open** | Listing, xref, debugger |
+| **Control demos** | **Sim green** | `IF-DEMO` IFT…LOOP3; native/Mach-O still thin |
+| **Source→CLI→app** | **Open** | Layers 1–4 (see Product destination) |
+| **4.0** Utilities | **Open** | Listing, xref, debugger — after source compile |
 
 ---
 
@@ -242,7 +352,7 @@ requires them.
 - `CBZ-X,` `CBNZ-X,`
 - `CALL-ABS,` / `JMP-ABS,` — LDR X16 + BLR/BR + B+3 + `.quad` taddr
 - Structured: `AHEAD` `THEN,` `AGAIN,` `AIF,` `AELSE,` `ATHEN,`
-- Labels **L0–L15**: `L:` `BR>L` (one forward site each)
+- Labels **L0–L15**: `LL:` `BR>LL` (not `L:` — that is 64DIR library define)
 
 **Data / ALU (64-bit X):**
 
@@ -264,6 +374,8 @@ requires them.
 - **`ASM-DEMO`** — leaf add, AHEAD/THEN skip, unrolled adds (via SIM)
 - **Library leaves** (`DUP#` `DROP#` `+` …) built from these emitters
 - **Full path:** sim / native / SAVE-MACHO for ANS => 5
+- **`IF-DEMO` (sim):** IFT/IFF/IFN/IFZ, ZEQ/ZNE, ONCE, PUSHPOP, ADD3, **LOOP3 => 3**
+  - LOOP3 machine: `MOV#0` + `ADD-IMM` + `MOV` + `SUB-IMM` + `CBNZ` back (`B5FFFFA1`)
 
 ### How the assembler is used
 
@@ -289,19 +401,110 @@ The assembler is the **instruction toolkit**; the high-level target compiler onl
 
 ### Maturity (one line)
 
-**Solid Phase 3.1 working assembler for a small STC/Forth-ish ARM64 subset** — enough for demos, real stack prims, branches/labels, and the green ANS path. **Not** a general-purpose AArch64 assembler or a complete TCOM library emitter yet.
+**Solid Phase 3.1+ working assembler for a small STC/Forth-ish ARM64 subset** — enough for demos (incl. IF/LOOP on sim), real stack prims, branches/labels, true BLR, and the green ANS path. **Not** a general-purpose AArch64 assembler, a complete TCOM library emitter, or a Forth source compiler yet.
 
 ---
 
 ## Roadmap: expand for real program generation
 
-Goal: move from **leaf demos** (ANS => 5) to code the **compiler** can generate for nested colon definitions, control flow, and real data—without finishing the entire ARM64 ISA first.
+Goal: move from **leaf demos** (ANS => 5) to code the **compiler** can generate for nested colon definitions, control flow, and real data—without finishing the entire ARM64 ISA first—then **source file → standalone CLI**, and eventually **Finder apps**.
+
+### Critical path: compile a Forth source file (Layer 1)
+
+Aim for a **restricted but real** dialect first, not full ANS. Example shape:
+
+```forth
+\ hello.tfth  — target source (name TBD)
+VARIABLE X
+: DOUBLE  ( n -- 2n )  DUP + ;
+: MAIN    ( -- )  21 DOUBLE  X !  X @  ;
+```
+
+**Success criteria for the first “real compiler” milestone:**
+
+1. `FLOAD TARGETARM64.fth`
+2. Something like `S" hello.tfth" TCOM-COMPILE` (or `INCLUDE` under a target compile mode)
+3. Sim and native: `MAIN` leaves expected result
+4. `SAVE-MACHO-FILE` → `./hello` exits with that value (or prints it)
+
+That proves the whole toolchain without GUI, files, or a full kernel.
+
+### Design choice: target source language (lock early)
+
+| Option | Notes |
+|--------|--------|
+| **1. Restricted Forth** (recommended) | Classic colon syntax, small wordset, clear “not supported” errors |
+| **2. TCOM-only syntax forever** | `T:` `G,` `TIF`… — faster for demos, not “compile a Forth source file” |
+| **3. Full ANS later** | Superset after (1) works |
+
+Public story: **(1)**. Keep `TIF` / `G,` / emitters as the **internal IR** the compiler emits.
+
+### Work packages (P1–P6)
+
+#### P1 — Compiler surface (highest leverage)
+
+Wire control and calls so **colon text** drives emission, not only `TIF`/`G,` by hand:
+
+- High-level `IF` `ELSE` `THEN` `BEGIN` `UNTIL` `AGAIN` `WHILE` `REPEAT` → existing emitters
+- Word lookup → `CALL-ABS` / lib cookies for non-immediates
+- Nested colon trees (roadmap E) under true BLR
+- `VARIABLE` / `CREATE` / `@` `!` with a simple data segment
+- **Target source loader** (`TCOM-INCLUDE` / compile mode): supported subset only; clear errors otherwise
+
+Until P1 exists, every “program” stays a hand-written demo file.
+
+#### P2 — Library breadth (only what source needs)
+
+Grow LIB as the first real sources demand it:
+
+- Stack: `ROT` `NIP` `2DUP` `2DROP` …
+- Compare/logic: `0=` `=` `<` `AND` `OR` …
+- Memory: `C@` `C!` `+!`
+- Later: multiply, `EXECUTE`, etc.
+
+Assembler grows **on demand** (ADR/ADRP, more LDR/STR, frames)—same “grow with demos” rule.
+
+#### P3 — Standalone CLI runtime
+
+Mach-O is not just “code blob + exit(X0)”:
+
+- Documented entry: `MAIN` or `COLD` → return code or `TYPE`-style write
+- Minimal syscalls or libc: `write`, `exit`, later `open`/`read`
+- Optional argc/argv onto the data stack
+- One golden program: e.g. factorial / string length / “add numbers from args”
+
+Still no Finder app—just a real terminal tool.
+
+#### P4 — “Fairly complicated” Forth
+
+Stress the compiler, not the OS:
+
+- Multi-file target sources
+- Deeper nesting, recursion (LR/stack discipline)
+- Locals or a simple return-stack model if DO/LOOP is wanted
+- Larger lib (strings, pictured numeric output)
+- Keep **sim + native + Mach-O** as three gates for every milestone
+
+#### P5 — Debuggability (after P1, not before)
+
+Listing, symbol map, “show code for word,” single-step in SIM, crash PC → name. Phase 4 utilities matter once there is real code to inspect; they should **not** block the first source compile.
+
+#### P6 — Double-clickable GUI apps (last)
+
+This is a **product runtime**, not more codegen:
+
+- App bundle / `Info.plist` / icon
+- Event loop + window(s) (reuse 64Forth patterns: Cocoa/AppKit or whatever 64Forth uses)
+- Hosted vs freestanding: link a small UI runtime with the image, or compile Forth that *calls* a fixed UI prim library
+- Same image model as CLI; only the outer shell and I/O prims change
+
+Do **not** design windowing into the compiler until CLI source→binary is boringly reliable.
 
 ### What we already have
 
-Enough for **leaf graphs**: stack ops, `+`/`-`, lit, `CALL-ABS` (with **inlining** for native/Mach-O), branches/labels in the **assembler**, sim + native + standalone.
+Enough for **leaf graphs**: stack ops, `+`/`-`, lit, `CALL-ABS` (true BLR default; `/INLINE-CALLS` fallback), branches/labels in the **assembler**, control demos (`IF-DEMO` sim incl. `LOOP3`), sim + native + standalone.
 
-A **real** program needs more than leaves: nested calls, richer control, memory/locals, strings/I/O policy, and a library the **compiler** actually uses—not only hand asm.
+A **real** program needs more than leaves: nested calls, richer control **through the compiler**, memory/locals, strings/I/O policy, a library the **compiler** actually uses—not only hand asm—and eventually a **source loader**.
 
 ### Priority order (what blocks real programs)
 
@@ -382,17 +585,32 @@ Avoid full-ISA tourism before steps 1–4.
 
 ### Concrete roadmap (checklist)
 
+**Codegen foundation (Layer 0):**
+
 - [x] **A.** Phase 3.5 — true BLR (no inline) — *runtime* (default; `/INLINE-CALLS` fallback)
-- [x] **B.** IF/THEN compile via `TIF`/`TELSE`/`TTHEN` (+ `TBEGIN`/`TUNTIL` emitters) — *asm*
-  - [ ] B2. Loop demos + native/Mach-O IF green in `runtest`
-  - [ ] B3. Runtime `BRANCH#`/`ZBRANCH#` without host `T-CODE-BASE` bake-in
+- [x] **B.** IF/THEN via `TIF`/`TELSE`/`TTHEN`; loops via `TBEGIN`/`TUNTIL` / `TLOOP-TO-3,`
+  - [x] B2. `IF-DEMO`: IF cases + `LOOP3` on **sim** (IFT…LOOP3 => OK; `ADD-IMM`/`SUB-IMM` in SIM fixed)
+  - [ ] B2b. Same on **native** + Mach-O entry (`runtest` / SAVE-MACHO)
+  - [x] B3. `BRANCH#`/`ZBRANCH#` relocatable via ADR−taddr base (no host bake-in)
+  - [ ] B4. Optional: Mach-O entry for IFT; WHILE/REPEAT; high-level IF sugar
 - [ ] **C.** `LDP`/`STP` + `ADRP` (or lit-pool) for frames/data — *asm*
 - [ ] **D.** Library wave: `ROT`, logic, compares, `C@`/`C!` — *lib*
 - [ ] **E.** Nested colon demo (true BLR, multi-level calls) — *proof*
 - [ ] **F.** Optional: strings / `TYPE` if host I/O model exists
 - [ ] **G.** More ISA as programs demand
 
-### Success test for “useful for real generation”
+**Source → CLI → app (Layers 1–4):**
+
+- [ ] **P1** Compiler surface: high-level IF/loops, calls, `VARIABLE`, target source loader
+- [ ] **P2** Library breadth driven by first real sources
+- [ ] **P3** Standalone CLI runtime (`MAIN`/`COLD`, write/exit, optional argc/argv)
+- [ ] **P4** Fairly complicated multi-file Forth (stress compiler; three runners)
+- [ ] **P5** Debuggability (listing, map, SIM step) — after P1
+- [ ] **P6** Finder double-click + windows (app bundle + UI prims) — last
+
+### Success tests
+
+**Codegen (Layer 0):**
 
 ```text
 T: FOO  ... nested calls, IF/THEN, @/! ... ;T
@@ -401,23 +619,42 @@ SAVE-MACHO-FILE  → binary behaves the same
 without relying on 5-insn inlining
 ```
 
-### What not to do next
+**Source compile (Layer 1):**
+
+```text
+FLOAD TARGETARM64.fth
+S" hello.tfth" TCOM-COMPILE   \ or equivalent
+MAIN  (sim + native) => expected
+SAVE-MACHO-FILE → ./hello behaves the same
+```
+
+**CLI useful (Layer 2):** same, plus print/args/exit policy that a Terminal user cares about.
+
+**GUI (Layer 4):** double-clickable bundle with its own window(s); same image model as CLI.
+
+### What not to prioritize yet
 
 - Full NEON / system register set  
+- Full ANS Forth compatibility on day one  
 - Hand-rolled perfect Mach-O (already use `cc`)  
-- Phase 4 utilities (listing/xref) **before** the compiler can emit nested control  
-- Polishing `ASM-DEMO` alone without compiler/library path  
+- Phase 4 utilities (listing/xref) **before** the compiler can emit nested control / source  
+- Interactive debugger inside the standalone app (before source→CLI works)  
+- Finder/GUI shells (before CLI source→binary is reliable)  
+- Polishing `ASM-DEMO` alone without compiler/library/source path  
 
 ### Short answer
 
-**Next for real programs:**
+**Next for real programs / apps:**
 
 1. ~~**True calls (3.5)**~~ — **done** (default true BLR)  
-2. **Control flow through LIB + COMP-*** — IF/THEN/loops  
-3. **Memory + frames** — ADRP/LDP/STP, more loads/stores  
-4. **Library breadth** — what colon definitions actually call  
-5. **Assembler opcodes only when a prim needs them**  
-6. Nested colon demo under true BLR (roadmap E)
+2. ~~**Control demos (IF-DEMO sim)**~~ — **done** (incl. `LOOP3`)  
+3. **Control flow through LIB + COMP-*** + nested colon (E) — still open  
+4. **Memory + frames** — ADRP/LDP/STP, more loads/stores  
+5. **Library breadth** — what colon definitions actually call  
+6. **Source loader (P1)** — restricted Forth `.tfth` → image  
+7. **CLI runtime (P3)** — `MAIN` + write/exit  
+8. **Assembler opcodes only when a prim needs them**  
+9. **GUI (P6)** only after CLI source→binary is boring  
 
 ---
 

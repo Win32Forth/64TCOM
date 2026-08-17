@@ -36,7 +36,7 @@ What v0.2 / 3.0c emits
   COMP-CALL taddr → LDR X16; BLR; B+3; .quad taddr (offset; native adds base)
   ;T              → RET
   DUP# DROP# SWAP# OVER# PLUS# MINUS# FETCH# STORE# EXIT#  real bodies
-  BRANCH# ZBRANCH# EXEC# LIT# still stubs (RET only)
+  BRANCH#/ZBRANCH# relocatable (ADR base); EXEC#/LIT# still stubs
 
   Forward G': RESOLVE-1 stores final taddr in .quad at site.
 
@@ -44,7 +44,7 @@ Assembler 3.1+ (grows with the compiler — not a full ISA)
 ---------------------------------------------------------
   Registers X0–X30, AND/ORR/EOR, ADDS/SUBS/CMP, ADD/SUB #imm
   LDR/STR scaled, B/BL/B.cond, CBZ/CBNZ
-  Labels: L:  BR>L  (0..15)
+  Labels: LL:  BR>LL  (0..15; not L: — that is 64DIR library)
   Control: AHEAD THEN, AIF, AELSE, ATHEN,
   Forth-ABI: TIF TELSE TTHEN  TBEGIN TUNTIL  (TOS flag in X0)
   CALL-ABS: STP LR; LDR; BLR; LDP LR; B+3; .quad  (Phase 3.5)

@@ -6,7 +6,7 @@ Canonical living status is now at project root:
 
 Update STATUS.md when phase boundaries move; keep this file
 aligned at a high level (or treat it as a short checklist).
-Last updated: 2026-08-06 (Phase 3.5 true BLR default)
+Last updated: 2026-08-17 (agent channel + product destination; IF-DEMO sim; see STATUS.md)
 
 YOU ARE HERE
 ------------
@@ -18,6 +18,33 @@ YOU ARE HERE
   Phase 3.4        DONE   — SAVE-MACHO → .c + build.sh → cc → Mach-O
                            (+ auto-cc via 64Forth SYSTEM when available)
   Phase 3.5        DONE   — true BLR default (fixup .quad; /INLINE-CALLS fallback)
+  Phase 4.0        OPEN   — utilities after source compile
+  Roadmap B        mostly done — IF-DEMO sim green (IFT…LOOP3)
+  Product path     OPEN   — source file → image → CLI → (later) GUI apps
+  Host automation  OPEN   — 64Forth --agent channel (rebuild 64Forth.app)
+
+Host agent (summary — full text in STATUS.md / 64Forth Docs)
+------------------------------------------------------------
+  64Forth headless:  …/MacOS/64Forth --agent -e … -f … -o transcript.txt
+  Wrapper:  XCodeProjects/64Forth/tools/64forth-agent
+  Docs:     64Forth/Resources/Docs/Agent-channel.md
+  Status:   64Forth 1.1.2 (build 19) in tree; rebuild app in Xcode before use
+  Grok:     can stay in Documents workspace — no need to restart from 64Forth folder
+
+Product destination (summary — full text in STATUS.md)
+------------------------------------------------------
+  Layer 0  Codegen foundation (calls, control, lib, runners)  ← here
+  Layer 1  Compile a Forth source file into image + entry
+  Layer 2  Useful CLI Mach-O (args, print, exit)
+  Layer 3  I/O, files, strings, runtime services
+  Layer 4  Finder double-click + own windows (64Forth-class)
+
+  Story: 64Forth hosts 64TCOM → target source → ARM64 image → SAVE-MACHO
+         → terminal binary; GUI apps last. Debug after source compile works.
+
+  Next: nested colon + IF via compiler path; VARIABLE; target subset
+        loader (restricted Forth); MAIN + CLI runtime; then multi-file;
+        utilities; only then app bundle/windows.
 
 Coding style (host/director/GEN)
 --------------------------------
@@ -61,7 +88,9 @@ Phase checklist
 [x] 3.3  Native ANS: FLOAD TARGETARM64; ARM64-DEMO; .RUN-ANS; .RUN-ANS-N => 5
 [x] 3.4  SAVE-MACHO-FILE → NAME.c + NAME-build.sh → cc → arm64 Mach-O
 [x] 3.5  True BLR default: fixup .quad → base+taddr; /INLINE-CALLS fallback
-[ ] 4.0  Utilities (listing, xref, debugger) in 64TCOMUTILS
+[x] IF-DEMO sim (IFT…LOOP3) — native/Mach-O IF still thin
+[ ] Source→CLI→app Layers 1–4 (P1 compiler surface … P6 GUI) — STATUS.md
+[ ] 4.0  Utilities (listing, xref, debugger) in 64TCOMUTILS — after source
 
 
 What works today

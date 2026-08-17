@@ -100,26 +100,21 @@ VARIABLE LIB-BODY-XT
   X0 X19 8 LDR-POST,
   ;
 
-\ BRANCH# ( taddr -- ) tail BR to T-CODE-BASE+taddr
+\ BRANCH# ( taddr -- ) tail BR to image_base+taddr (relocatable; no host bake-in)
 : BODY-BRANCH  ( -- )
   BTI,
-  T-CODE-BASE X16 MOV-X-IMM64,
-  X0 X16 X16 ADD-X-X,
-  X16 BR-X,
+  (TADDR-BR,)
   ;
 
-\ ZBRANCH# ( flag dest -- )
+\ ZBRANCH# ( flag dest -- )  TOS=dest, under=flag
 \ if flag <> 0: drop dest, continue; if flag = 0: BR to dest
-\ CBNZ X1, #7 skips 4*MOV + ADD + BR (same distance with or without BTI
-\ before the LDR/CBNZ pair)
+\ Branch path: ADR + 4*MOVZ/K + SUB + ADD + BR = 8 insns → CBNZ #9
 : BODY-ZBRANCH  ( -- )
   BTI,
-  X1 X19 8 LDR-POST,
-  X1 7 CBNZ-X,
-  T-CODE-BASE X16 MOV-X-IMM64,
-  X0 X16 X16 ADD-X-X,
-  X16 BR-X,
-  X0 X19 8 LDR-POST,
+  X1 X19 8 LDR-POST,             \ X1=flag, X0=dest taddr
+  X1 9 CBNZ-X,                   \ non-zero: skip branch block
+  (TADDR-BR,)
+  X0 X19 8 LDR-POST,             \ drop dest on fall-through
   ;
 
 ' BODY-STUB    LIB-PRIM-XT LIT#

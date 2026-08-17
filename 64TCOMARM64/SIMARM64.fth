@@ -158,6 +158,14 @@ VARIABLE SM
   \ LDP X30, XZR, [SP], #16  — CALL-ABS LR restore (SIM uses R-stack for BLR)
   DUP $A8C17FFE = IF  DROP EXIT  THEN
 
+  \ ADR Xd, #imm (imm0 used for base recovery): Xd := host addr of this insn
+  DUP $9F000000 AND $10000000 = IF
+    DUP SIM-RD SD !
+    SIM-PC @ 4 - T-CODE-BASE +     \ host address of ADR
+    SD @ SIM-X!
+    DROP EXIT
+  THEN
+
   \ BLR Xn  — CALL-ABS loads taddr into Xn from .quad; B skips .quad
   \ SIM uses a separate return stack (hardware X30 is clobbered by BLR).
   DUP $FFFFFC1F AND $D63F0000 = IF
@@ -222,13 +230,21 @@ VARIABLE SM
     DROP EXIT
   THEN
 
-  \ SUBS (incl CMP)  mask matches EB0xxxxx
+  \ SUBS / CMP  (EB......)  result = Xn - Xm (reg 31 = 0); sets SIM-Z
   DUP 24 RSHIFT $FF AND $EB = IF
     DUP SIM-RD SD !
-    DUP SIM-RN SIM-X@ SN !
-    SN @ SIM-RM SIM-X@ -  SM !
-    SD @ 31 <> IF  SM @ SD @ SIM-X!  THEN
+    DUP SIM-RN DUP 31 = IF DROP 0 ELSE SIM-X@ THEN SN !
+    DUP SIM-RM DUP 31 = IF DROP 0 ELSE SIM-X@ THEN SM !
+    SN @ SM @ - SM !
+    SD @ 31 <> IF SM @ SD @ SIM-X! THEN
     SM @ 0= SIM-Z !
+    DROP EXIT
+  THEN
+
+  \ CSET Xd, EQ  (CSINC Xd,XZR,XZR,NE)  e.g. 9A9F17E0 = CSET X0,EQ
+  DUP $FFFFFFE0 AND $9A9F17E0 = IF
+    DUP SIM-RD SD !
+    SIM-Z @ IF 1 ELSE 0 THEN SD @ SIM-X!
     DROP EXIT
   THEN
 
@@ -242,20 +258,21 @@ VARIABLE SM
     DROP EXIT
   THEN
 
-  \ ADD imm  91000000
+  \ ADD imm  91000000  (Xd = Xn + imm12)
+  \ Stack: keep insn until DROP (same pattern as MOVZ).
   DUP $FF000000 AND $91000000 = IF
     DUP SIM-RD SD !
-    DUP SIM-RN SIM-X@
-    SWAP 10 RSHIFT $FFF AND +
+    DUP SIM-RN SIM-X@ SN !
+    DUP 10 RSHIFT $FFF AND SN @ +
     SD @ SIM-X!
     DROP EXIT
   THEN
 
-  \ SUB imm  D1000000
+  \ SUB imm  D1000000  (Xd = Xn - imm12)
   DUP $FF000000 AND $D1000000 = IF
     DUP SIM-RD SD !
-    DUP SIM-RN SIM-X@
-    SWAP 10 RSHIFT $FFF AND -
+    DUP SIM-RN SIM-X@ SN !
+    DUP 10 RSHIFT $FFF AND SN @ SWAP -
     SD @ SIM-X!
     DROP EXIT
   THEN

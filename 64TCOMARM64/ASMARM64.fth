@@ -151,6 +151,16 @@ VARIABLE A64-T
 
 : CMP-X,  ( xm xn -- )  XZR SUBS-X, ;
 
+\ 0= on TOS (X0): MOV X1,X0; CMP X1,XZR; CSET X0,EQ
+$EB1F003F CONSTANT (A64-CMP-X1-XZR)   \ CMP X1, XZR
+$9A9F17E0 CONSTANT (A64-CSET-X0-EQ)   \ CSET X0, EQ
+
+: T0=,  ( -- )
+  X0 X1 MOV-X-X,
+  (A64-CMP-X1-XZR) W,
+  (A64-CSET-X0-EQ) W,
+  ;
+
 : ADD-IMM,  ( imm12 xn xd -- )
   A64-D ! A64-N ! A64-I !
   $91000000 A64-I @ $FFF AND 10 LSHIFT OR
@@ -161,6 +171,28 @@ VARIABLE A64-T
   A64-D ! A64-N ! A64-I !
   $D1000000 A64-I @ $FFF AND 10 LSHIFT OR
   A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
+\ ADR Xd, #0 — Xd := address of this instruction (relocatable base recovery)
+: ADR-X0,  ( xd -- )
+  (REG) $10000000 OR W,
+  ;
+
+\ Emit: X16 := image base (runtime). Uses X17. PC-relative ADR - taddr.
+\ base = ADR_result - taddr_of_ADR
+: (BASE-X16,)  ( -- )
+  ALIGN4-T
+  HERE-T A64-T !                 \ taddr of ADR
+  X16 ADR-X0,
+  A64-T @ X17 MOV-X-IMM64,
+  X17 X16 X16 SUB-X-X,           \ X16 = X16 - X17
+  ;
+
+\ X0 = dest taddr → BR to base+X0 (relocatable BRANCH helper)
+: (TADDR-BR,)  ( -- )
+  (BASE-X16,)
+  X0 X16 X16 ADD-X-X,
+  X16 BR-X,
   ;
 
 \ ----- load/store -----
@@ -363,14 +395,41 @@ $A8C17FFE CONSTANT (A64-LDP-X30-XZR-SP)   \ LDP X30, XZR, [SP], #16
   ;
 
 \ BEGIN / UNTIL (flag): loop while flag is 0 (exit when flag <> 0)
-: TBEGIN  ( -- dest )  ALIGN4-T HERE-T ;
+\ Loop address in TLOOP-DEST. Non-nested only.
+VARIABLE TLOOP-DEST
 
-: TUNTIL  ( dest -- )
-  X0 X1 MOV-X-X,                 \ flag → X1  (xm xd)
+: TBEGIN  ( -- )
+  ALIGN4-T HERE-T TLOOP-DEST !
+  ;
+
+: TUNTIL  ( -- )
+  \ flag TOS → X1; restore under to X0; CBZ X1,dest
+  X0 X1 MOV-X-X,
   X0 X19 8 LDR-POST,
   ALIGN4-T
-  HERE-T - 4 /                   \ imm19 = (dest - HERE) / 4
-  X1 SWAP CBZ-X,                 \ if flag==0 branch back to BEGIN
+  TLOOP-DEST @ HERE-T - 4 /      \ imm19 = (dest - HERE) / 4
+  X1 SWAP CBZ-X,
+  ;
+
+\ Count in X0 from 0 until X0==3. Result X0=3.
+\   n=0
+\ L: n += 1
+\    if (n - 3) != 0 goto L
+\ Machine (after 4-insn MOV#0):
+\   91000400  ADD X0,X0,#1
+\   AA0003E1  MOV X1,X0
+\   D1000C21  SUB X1,X1,#3
+\   B5FFFFA1  CBNZ X1,#-3     (imm19 = -3 → back to ADD)
+\ No patch. No stack effects left for caller.
+: TLOOP-TO-3,  ( -- )
+  0 X0 MOV-X-IMM64,
+  ALIGN4-T HERE-T TLOOP-DEST !
+  1 X0 X0 ADD-IMM,                 \ n++
+  X0 X1 MOV-X-X,                   \ X1 = n
+  3 X1 X1 SUB-IMM,                 \ X1 = n - 3
+  ALIGN4-T
+  TLOOP-DEST @ HERE-T - 4 /        \ imm19 = (head - cbnz) / 4  (= -3)
+  X1 SWAP CBNZ-X,
   ;
 
 \ ----- local labels 0..15 -----
@@ -386,7 +445,8 @@ CREATE LL-FWD  #LLAB CELLS ALLOT
   REPEAT DROP
   ;
 
-: L:  ( n -- )   \ define label n at HERE-T
+\ Note: cannot be named L: — that is 64DIR library define. Use LL: / BR>LL.
+: LL:  ( n -- )   \ define local label n at HERE-T
   DUP #LLAB U>= IF S" label 0..15" TCOM-ABORT THEN
   A64-T !
   HERE-T A64-T @ CELLS LL-POS + !
@@ -397,7 +457,7 @@ CREATE LL-FWD  #LLAB CELLS ALLOT
   ELSE DROP THEN
   ;
 
-: BR>L  ( n -- )  \ B to label n (back or one forward site)
+: BR>LL  ( n -- )  \ B to local label n (back or one forward site)
   DUP #LLAB U>= IF S" label 0..15" TCOM-ABORT THEN
   A64-T !
   ALIGN4-T
@@ -426,8 +486,8 @@ CREATE LL-FWD  #LLAB CELLS ALLOT
 
 : .ASMARM64  ( -- )
   S" ASMARM64 3.1+: X0-X30 AND/ORR/EOR ADD/SUB CMP B/BL/B.cond CBZ" TYPE CR
-  S"   L: BR>L  AHEAD THEN, AIF, AELSE, ATHEN,  CALL-ABS" TYPE CR
-  S"   Forth-ABI: TIF TELSE TTHEN  TBEGIN TUNTIL" TYPE CR
+  S"   LL: BR>LL  AHEAD THEN, AIF, AELSE, ATHEN,  CALL-ABS" TYPE CR
+  S"   Forth-ABI: TIF TELSE TTHEN  TBEGIN TUNTIL T0=," TYPE CR
   ;
 
 : (SETASSEM)  ( -- )
