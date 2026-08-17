@@ -26,8 +26,9 @@ Run
   ./window/win
 
   A blank window titled "64TCOM" should appear and stay until you
-  close it or quit (Cmd-Q). Launch from Terminal for this MVP;
-  a Finder .app bundle comes later.
+  close it (red button) or Quit 64TCOM (menu / Cmd-Q).
+  Launch from Terminal for this MVP; a Finder .app bundle comes later.
+  The menu bar app name is "64TCOM" (not the binary leaf name).
 
 Dialect
 -------

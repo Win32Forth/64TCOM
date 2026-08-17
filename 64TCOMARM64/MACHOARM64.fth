@@ -425,11 +425,30 @@ $D65F03C0 CONSTANT MH-RET
   S"   (void)sender; return YES;" MH-EMIT-S MH-EMIT-NL
   S" }" MH-EMIT-S MH-EMIT-NL
   S" @end" MH-EMIT-S MH-EMIT-NL
+  \ Minimal menubar: app menu titled 64TCOM + Quit (Cmd-Q).
+  \ Without this, macOS shows only the process name (e.g. Win) and Cmd-Q does nothing.
+  S" static void tcom_install_main_menu(NSApplication *app) {" MH-EMIT-S MH-EMIT-NL
+  S"   if ([app mainMenu] != nil) return;" MH-EMIT-S MH-EMIT-NL
+  S"   NSMenu *menubar = [NSMenu new];" MH-EMIT-S MH-EMIT-NL
+  S"   NSMenuItem *appItem = [NSMenuItem new];" MH-EMIT-S MH-EMIT-NL
+  S"   [menubar addItem:appItem];" MH-EMIT-S MH-EMIT-NL
+  S"   NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@" MH-EMIT-S
+    34 MH-EMIT-B S" 64TCOM" MH-EMIT-S 34 MH-EMIT-B S" ];" MH-EMIT-S MH-EMIT-NL
+  S"   NSMenuItem *quitItem = [[NSMenuItem alloc]" MH-EMIT-S MH-EMIT-NL
+  S"     initWithTitle:@" MH-EMIT-S 34 MH-EMIT-B S" Quit 64TCOM" MH-EMIT-S 34 MH-EMIT-B
+  S"  action:@selector(terminate:) keyEquivalent:@" MH-EMIT-S
+    34 MH-EMIT-B S" q" MH-EMIT-S 34 MH-EMIT-B S" ];" MH-EMIT-S MH-EMIT-NL
+  S"   [quitItem setTarget:app];" MH-EMIT-S MH-EMIT-NL
+  S"   [appMenu addItem:quitItem];" MH-EMIT-S MH-EMIT-NL
+  S"   [appItem setSubmenu:appMenu];" MH-EMIT-S MH-EMIT-NL
+  S"   [app setMainMenu:menubar];" MH-EMIT-S MH-EMIT-NL
+  S" }" MH-EMIT-S MH-EMIT-NL
   S" static int64_t tcom_host_window(void) {" MH-EMIT-S MH-EMIT-NL
   S"   NSApplication *app = [NSApplication sharedApplication];" MH-EMIT-S MH-EMIT-NL
   S"   [app setActivationPolicy:NSApplicationActivationPolicyRegular];" MH-EMIT-S MH-EMIT-NL
   S"   static TcomAppDelegate *delegate = nil;" MH-EMIT-S MH-EMIT-NL
   S"   if (!delegate) { delegate = [TcomAppDelegate new]; [app setDelegate:delegate]; }" MH-EMIT-S MH-EMIT-NL
+  S"   tcom_install_main_menu(app);" MH-EMIT-S MH-EMIT-NL
   S"   NSRect frame = NSMakeRect(200, 200, 480, 320);" MH-EMIT-S MH-EMIT-NL
   S"   NSUInteger style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |" MH-EMIT-S MH-EMIT-NL
   S"                      NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;" MH-EMIT-S MH-EMIT-NL
