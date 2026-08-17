@@ -6,7 +6,7 @@ Canonical living status is now at project root:
 
 Update STATUS.md when phase boundaries move; keep this file
 aligned at a high level (or treat it as a short checklist).
-Last updated: 2026-08-06 (pointer + 3.4 SYSTEM auto-build note)
+Last updated: 2026-08-06 (Phase 3.5 true BLR default)
 
 YOU ARE HERE
 ------------
@@ -14,9 +14,10 @@ YOU ARE HERE
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
   Phase 3.2        DONE   — SAVE-IMAGE → tcomarm64.bin (+ optional .map/.hdr)
-  Phase 3.3        DONE   — .RUN-ANS-N => 5 (native; inline callees in copy)
+  Phase 3.3        DONE   — .RUN-ANS-N => 5 (native; inline path retained)
   Phase 3.4        DONE   — SAVE-MACHO → .c + build.sh → cc → Mach-O
                            (+ auto-cc via 64Forth SYSTEM when available)
+  Phase 3.5        DONE   — true BLR default (fixup .quad; /INLINE-CALLS fallback)
 
 Coding style (host/director/GEN)
 --------------------------------
@@ -59,7 +60,7 @@ Phase checklist
 [x] 3.2  SAVE-IMAGE-FILE / SAVE-IMAGE-AS / optional .map and 32-byte hdr
 [x] 3.3  Native ANS: FLOAD TARGETARM64; ARM64-DEMO; .RUN-ANS; .RUN-ANS-N => 5
 [x] 3.4  SAVE-MACHO-FILE → NAME.c + NAME-build.sh → cc → arm64 Mach-O
-[ ] 3.5  Optional: true in-process BL/BLR without callee inlining
+[x] 3.5  True BLR default: fixup .quad → base+taddr; /INLINE-CALLS fallback
 [ ] 4.0  Utilities (listing, xref, debugger) in 64TCOMUTILS
 
 
@@ -76,12 +77,11 @@ What works today
 
   FLOAD TARGETARM64.fth  (from 64TCOMARM64)
   ARM64-DEMO  .RUN-ANS  .RUN-ANS-N   \ both => 5
-  Native path (64Forth 1.0.4+): mmap RW code+DSP pages, mprotect code RX,
-  inline CALL-ABS callees into the copy (BLR into leaves was unreliable),
-  CALL-NATIVE with X0=0 and DSP on the RW page.
+  Native path (64Forth 1.0.4+): mmap RW; Phase 3.5 fixup .quad → base+taddr;
+  true BLR (default). /INLINE-CALLS for old paste path. CALL-NATIVE.
 
   Standalone: S" ANS" MACHO-ENTRY-SET  SAVE-MACHO-FILE
-              (auto-cc via SYSTEM on 64Forth 1.0.5+; or sh *-build.sh)
+              (C fixup true BLR; auto-cc via SYSTEM; or sh *-build.sh)
 
 
 Key source files
@@ -111,6 +111,7 @@ Design docs (background)
 
 Next step
 ---------
-  Optional 3.5: true in-process BL/BLR without inlining
-    → see Phase 3.5 ARM64 notes.txt  and  ../STATUS.md
-  Phase 4.0 utilities.
+  Roadmap B: control flow (BRANCH/IF) — see ../STATUS.md
+  Nested colon demo under true BLR
+  Phase 4.0 utilities (after nested control works)
+  Phase 3.5 notes: Phase 3.5 ARM64 notes.txt (historical)

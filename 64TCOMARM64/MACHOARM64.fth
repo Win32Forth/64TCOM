@@ -1,12 +1,17 @@
-\ MACHOARM64.fth — Standalone macOS arm64 executable (Phase 3.4)
+\ MACHOARM64.fth — Standalone macOS arm64 executable (Phase 3.4 / 3.5)
 \ Public domain. Requires OPTARM64, ASMARM64, 64DIR.
 \
-\ Emits a C source file that embeds rewritten A64 and runs it via mmap.
+\ Emits a C source file that embeds A64 and runs it via mmap.
+\ Phase 3.5 default: keep CALL-ABS as BLR; C main fixups .quad
+\   offset → (buf + taddr) before mprotect. /INLINE-CALLS (NATARM64)
+\   restores leaf paste-inlining in the embedded image.
+\
 \ Writes NAME-build.sh; with 64Forth 1.0.5+ SYSTEM, SAVE-MACHO also runs
 \ the build (sh NAME-build.sh) so no separate Terminal step is required.
 \
 \   /MACHO  /NOMACHO          auto-emit on TARGET-FINISH
 \   /MACHO-BUILD /NOMACHO-BUILD   run cc after emit (default: build)
+\   /INLINE-CALLS /NOINLINE-CALLS   (shared with NATARM64; default true BLR)
 \   S" ANS" MACHO-ENTRY-SET   |  MACHO-ENTRY-COLD
 \   SAVE-MACHO-FILE
 \   c-addr u SAVE-MACHO-AS
@@ -65,6 +70,8 @@ VARIABLE MH-W
 $D63F0200 CONSTANT MH-BLR16
 $D61F0200 CONSTANT MH-BR16
 $14000003 CONSTANT MH-B3
+$A9BF7FFE CONSTANT MH-STP-LR
+$A8C17FFE CONSTANT MH-LDP-LR
 $D503201F CONSTANT MH-NOP
 $D65F03C0 CONSTANT MH-RET
 
@@ -99,17 +106,42 @@ $D65F03C0 CONSTANT MH-RET
   REPEAT
   ;
 
-\ Same strategy as NATARM64: inline callee until RET over the 20-byte call site
+\ Match CALL-ABS: set MH-P = .quad host addr, MH-T = taddr; MH-DST = call start
+: MH-FIND-CALL  ( host-start -- f )
+  DUP MH-DST !
+  MH-P !
+  \ New: STP.. BLR at +8, LDP +12, B+3 +16, .quad +20
+  MH-P @ 8 + MH-W@ MH-BLR16 = IF
+    MH-P @ 12 + MH-W@ MH-LDP-LR = IF
+      MH-P @ 16 + MH-W@ MH-B3 = IF
+        MH-P @ 20 + @ MH-T !
+        MH-P @ 20 + MH-P !
+        TRUE EXIT
+      THEN
+    THEN
+  THEN
+  \ Old: BLR +4, B+3 +8, .quad +12
+  MH-P @ 4 + MH-W@ DUP MH-BLR16 = SWAP MH-BR16 = OR IF
+    MH-P @ 8 + MH-W@ MH-B3 = IF
+      MH-P @ 12 + @ MH-T !
+      MH-P @ 12 + MH-P !
+      TRUE EXIT
+    THEN
+  THEN
+  FALSE
+  ;
+
+\ Optional (/INLINE-CALLS): paste leaf body over call site
 : MH-INLINE-ONE  ( dst-host taddr -- )
   MH-T !  MH-DST !
   MH-BUF @ MH-T @ + MH-SRC !
   0 MH-J !
-  BEGIN MH-J @ 5 < WHILE
+  BEGIN MH-J @ 7 < WHILE
     MH-SRC @ MH-J @ 4 * + MH-W@ MH-W !
     MH-W @ MH-DST @ MH-J @ 4 * + MH-W!
     MH-W @ MH-RET = IF
       1 MH-J +!
-      BEGIN MH-J @ 5 < WHILE
+      BEGIN MH-J @ 7 < WHILE
         MH-NOP MH-DST @ MH-J @ 4 * + MH-W!
         1 MH-J +!
       REPEAT
@@ -119,22 +151,39 @@ $D65F03C0 CONSTANT MH-RET
   REPEAT
   ;
 
-: MH-REWRITE-CALLS  ( -- )
+: MH-COUNT-CALLS  ( -- )
   0 MH-N !
   0 MH-I !
-  BEGIN MH-I @ MH-LEN @ 20 - U< WHILE
-    MH-BUF @ MH-I @ + MH-P !
-    MH-P @ 4 + MH-W@ DUP MH-BLR16 = SWAP MH-BR16 = OR IF
-      MH-P @ 8 + MH-W@ MH-B3 = IF
-        MH-P @ 12 + @ MH-T !
-        MH-T @ MH-LEN @ U< IF
-          MH-P @ MH-T @ MH-INLINE-ONE
-          1 MH-N +!
-        THEN
+  BEGIN MH-I @ MH-LEN @ 28 - U< WHILE
+    MH-BUF @ MH-I @ + MH-FIND-CALL IF
+      MH-T @ MH-LEN @ U< IF 1 MH-N +! THEN
+    THEN
+    4 MH-I +!
+  REPEAT
+  ;
+
+: MH-INLINE-CALLS  ( -- )
+  0 MH-N !
+  0 MH-I !
+  BEGIN MH-I @ MH-LEN @ 28 - U< WHILE
+    MH-BUF @ MH-I @ + MH-FIND-CALL IF
+      MH-T @ MH-LEN @ U< IF
+        MH-DST @ MH-T @ MH-INLINE-ONE
+        1 MH-N +!
       THEN
     THEN
     4 MH-I +!
   REPEAT
+  ;
+
+\ Phase 3.5 default: leave offsets; C main relocates .quad to buf+off
+\ /INLINE-CALLS: paste leaves into the embedded image (no C fixup needed)
+: MH-REWRITE-CALLS  ( -- )
+  [DEFINED] ?INLINE-CALLS [IF]
+    ?INLINE-CALLS IF MH-INLINE-CALLS ELSE MH-COUNT-CALLS THEN
+  [ELSE]
+    MH-COUNT-CALLS
+  [THEN]
   ;
 
 : MH-EMIT-S  ( c-addr u -- )  MH-FID @ WRITE-FILE DROP ;
@@ -154,11 +203,37 @@ $D65F03C0 CONSTANT MH-RET
   MH-BASE-SAVE @ BASE !
   ;
 
+: MH-EMIT-FIXUP-C  ( -- )
+  \ Relocate CALL-ABS .quad while still RW (before mprotect)
+  \ New site: STP;LDR;BLR;LDP;B+2;.quad  (.quad at +20)
+  \ Old site: LDR;BLR;B+3;.quad           (.quad at +12)
+  S"   /* Phase 3.5: CALL-ABS .quad taddr -> buf+taddr (true BLR) */" MH-EMIT-S MH-EMIT-NL
+  S"   {" MH-EMIT-S MH-EMIT-NL
+  S"     uint32_t i;" MH-EMIT-S MH-EMIT-NL
+  S"     for (i = 0; i + 28u <= TCOM_CODE_LEN; i += 4u) {" MH-EMIT-S MH-EMIT-NL
+  S"       uint32_t *w = (uint32_t *)(buf + i);" MH-EMIT-S MH-EMIT-NL
+  S"       uint64_t *q = 0;" MH-EMIT-S MH-EMIT-NL
+  S"       if (w[2] == 0xD63F0200u && w[3] == 0xA8C17FFEu && w[4] == 0x14000003u)" MH-EMIT-S MH-EMIT-NL
+  S"         q = (uint64_t *)(buf + i + 20);" MH-EMIT-S MH-EMIT-NL
+  S"       else if ((w[1] == 0xD63F0200u || w[1] == 0xD61F0200u) && w[2] == 0x14000003u)" MH-EMIT-S MH-EMIT-NL
+  S"         q = (uint64_t *)(buf + i + 12);" MH-EMIT-S MH-EMIT-NL
+  S"       if (q) {" MH-EMIT-S MH-EMIT-NL
+  S"         uint64_t off = *q;" MH-EMIT-S MH-EMIT-NL
+  S"         if (off < (uint64_t)TCOM_CODE_LEN)" MH-EMIT-S MH-EMIT-NL
+  S"           *q = (uint64_t)(uintptr_t)(buf + off);" MH-EMIT-S MH-EMIT-NL
+  S"       }" MH-EMIT-S MH-EMIT-NL
+  S"     }" MH-EMIT-S MH-EMIT-NL
+  S"   }" MH-EMIT-S MH-EMIT-NL
+  ;
+
 : MH-WRITE-C-BODY  ( -- )
   S" /* Generated by 64TCOM MACHOARM64 — public domain */" MH-EMIT-S MH-EMIT-NL
   S" #include <stdint.h>" MH-EMIT-S MH-EMIT-NL
   S" #include <string.h>" MH-EMIT-S MH-EMIT-NL
   S" #include <sys/mman.h>" MH-EMIT-S MH-EMIT-NL
+  S" #if defined(__APPLE__)" MH-EMIT-S MH-EMIT-NL
+  S" #include <libkern/OSCacheControl.h>" MH-EMIT-S MH-EMIT-NL
+  S" #endif" MH-EMIT-S MH-EMIT-NL
   MH-EMIT-NL
   S" static const uint8_t tcom_code[] = {" MH-EMIT-S MH-EMIT-NL
   0 MH-I !
@@ -183,7 +258,15 @@ $D65F03C0 CONSTANT MH-RET
   S"   uint8_t *buf = (uint8_t *)mmap(NULL, total, 3, 0x1002, -1, 0);" MH-EMIT-S MH-EMIT-NL
   S"   if (buf == (void *)(uintptr_t)-1) return 127;" MH-EMIT-S MH-EMIT-NL
   S"   memcpy(buf, tcom_code, TCOM_CODE_LEN);" MH-EMIT-S MH-EMIT-NL
+  [DEFINED] ?INLINE-CALLS [IF]
+    ?INLINE-CALLS 0= IF MH-EMIT-FIXUP-C THEN
+  [ELSE]
+    MH-EMIT-FIXUP-C
+  [THEN]
   S"   if (mprotect(buf, code_bytes, 5) != 0) return 126;" MH-EMIT-S MH-EMIT-NL
+  S" #if defined(__APPLE__)" MH-EMIT-S MH-EMIT-NL
+  S"   sys_icache_invalidate(buf, code_bytes);" MH-EMIT-S MH-EMIT-NL
+  S" #endif" MH-EMIT-S MH-EMIT-NL
   S"   void *dsp = buf + total - 64;" MH-EMIT-S MH-EMIT-NL
   S"   void *entry = buf + TCOM_ENTRY;" MH-EMIT-S MH-EMIT-NL
   S"   uint64_t result;" MH-EMIT-S MH-EMIT-NL
@@ -353,7 +436,16 @@ VARIABLE MH-SYS-N
   ?QUIET 0= IF
     S" MACHO: wrote " TYPE MH-NAME COUNT TYPE S" .c  (" TYPE
     MH-LEN @ 0 .R S"  code bytes, " TYPE
-    MH-N @ 0 .R S"  calls inlined)" TYPE CR
+    MH-N @ 0 .R
+    [DEFINED] ?INLINE-CALLS [IF]
+      ?INLINE-CALLS IF
+        S"  calls inlined)" TYPE CR
+      ELSE
+        S"  calls; C fixup true BLR)" TYPE CR
+      THEN
+    [ELSE]
+      S"  calls; C fixup true BLR)" TYPE CR
+    [THEN]
     S"        " TYPE MH-NAME COUNT TYPE S" -build.sh" TYPE CR
     S"   Entry taddr=" TYPE MACHO-ENTRY-T@ . CR
   THEN
@@ -367,6 +459,7 @@ VARIABLE MH-SYS-N
 
 : .MACHOARM64  ( -- )
   S" MACHOARM64: SAVE-MACHO-FILE / SAVE-MACHO-AS  /MACHO" TYPE CR
+  S"   Phase 3.5: true BLR via C fixup (default); /INLINE-CALLS = paste leaves" TYPE CR
   S"   Emits NAME.c + NAME-build.sh; auto-cc via SYSTEM if ?MACHO-BUILD" TYPE CR
   S"   /MACHO-BUILD (default)  /NOMACHO-BUILD  (emit sources only)" TYPE CR
   S"   Entry: use  S" TYPE 34 EMIT S" ANS" TYPE 34 EMIT
@@ -375,4 +468,4 @@ VARIABLE MH-SYS-N
   ;
 
 FORTH DEFINITIONS
-S" MACHOARM64 loaded (C→Mach-O; SYSTEM auto-build if available)." TYPE CR
+S" MACHOARM64 loaded (C→Mach-O; Phase 3.5 true BLR; SYSTEM auto-build)." TYPE CR

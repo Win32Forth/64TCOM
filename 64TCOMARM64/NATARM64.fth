@@ -1,20 +1,26 @@
 \ NATARM64.fth — Native run of compiled A64 (64Forth 1.0.4+)
 \
-\ Public domain.
+\ Public domain. Phase 3.5: true BLR by default.
 \
-\ WORKING path (ANS => 5 verified):
+\ Path:
 \   1) mmap RW buffer = page-round(HERE) code + 1 DSP page
 \   2) byte-copy image from T-CODE-BASE
-\   3) rewrite each CALL-ABS site: inline callee until RET (no BL/BLR)
+\   3) default: fixup each CALL-ABS .quad  offset → (base + taddr)
+\      optional /INLINE-CALLS: paste leaf body over call site (old 3.3)
 \   4) mprotect code pages RX; DSP page stays RW
 \   5) CALL-NATIVE ( 0  dsp  entry )
 \
-\ SIM keeps LDR/BLR/.quad(taddr). True native BL/BLR is future work.
+\ SIM keeps LDR/BLR/.quad(taddr). Image in T-CODE stays offsets.
 
 TCOM-ANEW NATARM64
 
 FORTH DEFINITIONS
 DECIMAL
+
+\ Default: true BLR (Phase 3.5). /INLINE-CALLS restores 3.3 paste path.
+FALSE VALUE ?INLINE-CALLS
+: /INLINE-CALLS    ( -- )  TRUE  TO ?INLINE-CALLS ;
+: /NOINLINE-CALLS  ( -- )  FALSE TO ?INLINE-CALLS ;
 
 VARIABLE NAT-IOR
 VARIABLE NAT-EXEC
@@ -42,7 +48,9 @@ VARIABLE NAT-DST
 
 $D63F0200 CONSTANT (A64-BLR-X16)
 $D61F0200 CONSTANT (A64-BR-X16)
-$14000003 CONSTANT (A64-B+3)
+$14000003 CONSTANT (A64-B+3)          \ skip .quad (new after LDP, and old layout)
+$A9BF7FFE CONSTANT (A64-STP-LR)       \ STP X30,XZR,[SP,#-16]!
+$A8C17FFE CONSTANT (A64-LDP-LR)       \ LDP X30,XZR,[SP],#16
 $D503201F CONSTANT (A64-NOP)
 $D65F03C0 CONSTANT (A64-RET)
 
@@ -82,17 +90,58 @@ $D65F03C0 CONSTANT (A64-RET)
   REPEAT
   ;
 
-\ Inline callee body (until RET, max 5 insns) over 20-byte call site
+\ Recognize CALL-ABS site; leave NAT-P = host addr of .quad, NAT-T = taddr
+\ New (3.5 LR-save): STP; LDR; BLR; LDP; B+3; .quad   (.quad at +20)
+\ Old (3.3):          LDR; BLR; B+3; .quad             (.quad at +12)
+: (NAT-FIND-CALL)  ( host-addr -- f )
+  NAT-P !
+  \ New pattern: BLR at +8, LDP at +12, B+3 at +16
+  NAT-P @ 8 + (NAT-W@) (A64-BLR-X16) = IF
+    NAT-P @ 12 + (NAT-W@) (A64-LDP-LR) = IF
+      NAT-P @ 16 + (NAT-W@) (A64-B+3) = IF
+        NAT-P @ 20 + @ NAT-T !
+        NAT-P @ 20 + NAT-P !       \ NAT-P → .quad host addr
+        TRUE EXIT
+      THEN
+    THEN
+  THEN
+  \ Old pattern: BLR at +4, B+3 at +8 (no LR save)
+  NAT-P @ 4 + (NAT-W@) DUP (A64-BLR-X16) = SWAP (A64-BR-X16) = OR IF
+    NAT-P @ 8 + (NAT-W@) (A64-B+3) = IF
+      NAT-P @ 12 + @ NAT-T !
+      NAT-P @ 12 + NAT-P !
+      TRUE EXIT
+    THEN
+  THEN
+  FALSE
+  ;
+
+\ Phase 3.5: .quad holds taddr offset → store absolute host address
+: (NAT-FIXUP-CALLS)  ( -- )
+  0 NAT-N !
+  0 NAT-A !
+  BEGIN NAT-A @ NAT-LEN @ 28 - U< WHILE
+    NAT-EXEC @ NAT-A @ + (NAT-FIND-CALL) IF
+      NAT-T @ NAT-LEN @ U< IF
+        NAT-EXEC @ NAT-T @ +  NAT-P @ !
+        1 NAT-N +!
+      THEN
+    THEN
+    4 NAT-A +!
+  REPEAT
+  ;
+
+\ Optional fallback: inline callee body (until RET, max 7 slots) at call start
 : (NAT-INLINE-ONE)  ( dst-host taddr -- )
   NAT-T !  NAT-DST !
   NAT-EXEC @ NAT-T @ + NAT-SRC !
   0 NAT-I !
-  BEGIN NAT-I @ 5 < WHILE
+  BEGIN NAT-I @ 7 < WHILE
     NAT-SRC @ NAT-I @ 4 * + (NAT-W@) NAT-W !
     NAT-W @ NAT-DST @ NAT-I @ 4 * + (NAT-W!)
     NAT-W @ (A64-RET) = IF
       1 NAT-I +!
-      BEGIN NAT-I @ 5 < WHILE
+      BEGIN NAT-I @ 7 < WHILE
         (A64-NOP) NAT-DST @ NAT-I @ 4 * + (NAT-W!)
         1 NAT-I +!
       REPEAT
@@ -105,19 +154,24 @@ $D65F03C0 CONSTANT (A64-RET)
 : (NAT-INLINE-CALLS)  ( -- )
   0 NAT-N !
   0 NAT-A !
-  BEGIN NAT-A @ NAT-LEN @ 20 - U< WHILE
-    NAT-EXEC @ NAT-A @ + NAT-P !
-    NAT-P @ 4 + (NAT-W@) DUP (A64-BLR-X16) = SWAP (A64-BR-X16) = OR IF
-      NAT-P @ 8 + (NAT-W@) (A64-B+3) = IF
-        NAT-P @ 12 + @ NAT-T !
-        NAT-T @ NAT-LEN @ U< IF
-          NAT-P @ NAT-T @ (NAT-INLINE-ONE)
-          1 NAT-N +!
-        THEN
+  BEGIN NAT-A @ NAT-LEN @ 28 - U< WHILE
+    NAT-EXEC @ NAT-A @ + DUP NAT-DST !
+    (NAT-FIND-CALL) IF
+      NAT-T @ NAT-LEN @ U< IF
+        NAT-DST @ NAT-T @ (NAT-INLINE-ONE)
+        1 NAT-N +!
       THEN
     THEN
     4 NAT-A +!
   REPEAT
+  ;
+
+: (NAT-RELOC)  ( -- )
+  ?INLINE-CALLS IF
+    (NAT-INLINE-CALLS)
+  ELSE
+    (NAT-FIXUP-CALLS)
+  THEN
   ;
 
 : (NAT-CLEANUP)  ( -- )
@@ -159,12 +213,17 @@ $D65F03C0 CONSTANT (A64-RET)
     NAT-EXEC !
     NAT-EXEC @ NAT-ALLOC @ + 64 - NAT-DSP !
     (NAT-COPY)
-    (NAT-INLINE-CALLS)
+    (NAT-RELOC)
     NAT-EXEC @ NAT-TADDR @ + NAT-ENTRY !
 
     S" RUN-NATIVE: taddr=" TYPE NAT-TADDR @ .
     S"  entry=" TYPE NAT-ENTRY @ H.
-    S"  inlined=" TYPE NAT-N @ . CR
+    ?INLINE-CALLS IF
+      S"  inlined=" TYPE
+    ELSE
+      S"  fixed-up=" TYPE
+    THEN
+    NAT-N @ . CR
     S"   entry insn=" TYPE NAT-ENTRY @ (NAT-W@) H. CR
 
     (NAT-PREP-RX)
@@ -204,11 +263,17 @@ $D65F03C0 CONSTANT (A64-RET)
   5 <> IF
     S" RUN-ANS-N fail: expected 5" TYPE CR ABORT
   THEN
-  S" RUN-ANS-N: OK (native)" TYPE CR
+  ?INLINE-CALLS IF
+    S" RUN-ANS-N: OK (native, inlined)" TYPE CR
+  ELSE
+    S" RUN-ANS-N: OK (native, true BLR)" TYPE CR
+  THEN
   ;
 
 : .NATARM64  ( -- )
-  S" NATARM64: inline callees for native (no BL/BLR)" TYPE CR
+  S" NATARM64 Phase 3.5: true BLR default (/NOINLINE-CALLS)" TYPE CR
+  S"   /INLINE-CALLS  — paste leaf bodies (old 3.3 path)" TYPE CR
+  S"   Fixup: CALL-ABS .quad taddr → base+taddr then BLR" TYPE CR
   ;
 
 [ELSE]
@@ -219,12 +284,14 @@ $D65F03C0 CONSTANT (A64-RET)
 : RUN-ANS-N  ( -- x0 )  0 ;
 : .RUN-ANS-N  ( -- )  S" need CALL-NATIVE" TYPE CR ;
 : .NATARM64  ( -- )  S" NATARM64: stub" TYPE CR ;
+: /INLINE-CALLS  ( -- )  ;
+: /NOINLINE-CALLS  ( -- )  ;
 
 [THEN]
 
 FORTH DEFINITIONS
 [DEFINED] CALL-NATIVE [IF]
-S" NATARM64 loaded (inline callees)." TYPE CR
+S" NATARM64 loaded (Phase 3.5 true BLR; /INLINE-CALLS fallback)." TYPE CR
 [ELSE]
 S" NATARM64 loaded (stub)." TYPE CR
 [THEN]

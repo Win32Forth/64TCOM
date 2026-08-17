@@ -152,7 +152,14 @@ VARIABLE SM
     DROP EXIT
   THEN
 
+  \ STP X30, XZR, [SP, #-16]!  — CALL-ABS LR save (no SP model; skip)
+  DUP $A9BF7FFE = IF  DROP EXIT  THEN
+
+  \ LDP X30, XZR, [SP], #16  — CALL-ABS LR restore (SIM uses R-stack for BLR)
+  DUP $A8C17FFE = IF  DROP EXIT  THEN
+
   \ BLR Xn  — CALL-ABS loads taddr into Xn from .quad; B skips .quad
+  \ SIM uses a separate return stack (hardware X30 is clobbered by BLR).
   DUP $FFFFFC1F AND $D63F0000 = IF
     SIM-PC @ SIM-R-PUSH
     SIM-RN SIM-X@

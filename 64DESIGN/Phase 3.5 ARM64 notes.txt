@@ -1,16 +1,16 @@
 64TCOM Phase 3.5 — True BL/BLR without callee inlining (ARM64)
 ==============================================================
-Date: 2026-08-05
-Status: OPTIONAL — not required for green ANS
-Related: STATUS.txt (checklist 3.5); NATARM64.fth; MACHOARM64.fth;
+Date: 2026-08-05 (implemented 2026-08-06)
+Status: DONE — true BLR is default; /INLINE-CALLS fallback
+Related: STATUS.md; NATARM64.fth; MACHOARM64.fth;
          ASMARM64.fth CALL-ABS,; Phase 3 ARM64 notes.txt
 
 YOU ARE HERE context
 --------------------
   Phase 3.0–3.2  DONE — emit, prims, SIM, BRANCH, SAVE-IMAGE
-  Phase 3.3      DONE — .RUN-ANS-N => 5 (native; inline callees in copy)
+  Phase 3.3      DONE — .RUN-ANS-N => 5 (inline path retained as fallback)
   Phase 3.4      DONE — SAVE-MACHO → .c + build.sh → cc → Mach-O
-  Phase 3.5      OPEN  — true in-process BL/BLR without callee inlining
+  Phase 3.5      DONE — true BLR: fixup .quad → base+taddr (native + C)
   Phase 4.0      OPEN  — utilities (listing, xref, debugger)
 
 Purpose of this note
@@ -181,6 +181,35 @@ Exit criteria
     Nested library call green
     SAVE-MACHO path also without inlining
     Optional BL-imm for near calls
+
+Implementation (2026-08-06)
+---------------------------
+  Default: FALSE ?INLINE-CALLS
+    /INLINE-CALLS    — restore Phase 3.3 paste-leaf path
+    /NOINLINE-CALLS  — true BLR (default)
+
+  NATARM64:
+    (NAT-FIXUP-CALLS) walks CALL-ABS sites; .quad = NAT-EXEC + taddr
+    (NAT-RELOC) chooses fixup vs inline
+
+  MACHOARM64:
+    Default: leave offsets in embedded image; C main relocates
+    .quad to (buf + off) before mprotect; sys_icache_invalidate on Apple
+    /INLINE-CALLS: MH-INLINE-CALLS as before
+
+  CALL-ABS, must SAVE/RESTORE X30 around BLR (STP/LDP on SP).
+  Without that: BLR overwrites LR; the colon word's final RET jumps to
+  the insn after BLR forever (hang). SIM still passed (separate R-stack).
+  Layout: STP; LDR X16,#16; BLR; LDP; B+3; .quad
+  B must be +3 (not +2): imm is from B itself; B+2 lands mid-.quad → SIGILL
+  (crash report: x0=5 after PLUS, pc mid-quad).
+
+  Verify (FLOAD runtest.fth from 64TCOMARM64/):
+    ARM64-DEMO  .RUN-ANS  .RUN-ANS-N
+    (expect "fixed-up=2" and "true BLR")
+    S" ANS" MACHO-ENTRY-SET  SAVE-MACHO-FILE
+    S" ./tcomarm64" SYSTEM .
+
 
 
 Effort (rough)

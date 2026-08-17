@@ -109,9 +109,9 @@ Requires **64Forth 1.0.4+** for native helpers (`CALL-NATIVE`, `MPROTECT`, JIT e
 | **1** Host + director | **Done** | `64HOST`, `64DIR` on 64Forth |
 | **2** GEN tutorial pack | **Done** | Tags / demos / forwards |
 | **3.0–3.2** ARM64 emit + SAVE-IMAGE | **Done** | Prim bodies, SIM, BRANCH, `.bin` |
-| **3.3** Native in-process | **Done** | `.RUN-ANS-N` => 5 (inline callees) |
+| **3.3** Native in-process | **Done** | `.RUN-ANS-N` => 5 (inline fallback kept) |
 | **3.4** Standalone Mach-O | **Done** | `SAVE-MACHO` → C + `cc` → executable |
-| **3.5** True BL/BLR (no inline) | Optional | Not required for green ANS |
+| **3.5** True BL/BLR (no inline) | **Done** | Default fixup; `/INLINE-CALLS` fallback |
 | **4.0** Utilities | Next | Listing, xref, debugger (`64TCOMUTILS`) |
 
 ---

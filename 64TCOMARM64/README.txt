@@ -66,17 +66,19 @@ Image save
     llvm-objdump -D -b binary -m aarch64 tcomarm64.bin
     # or:  hexdump -C tcomarm64.bin | head
 
-Native execution (Phase 3.3) — in 64Forth
------------------------------------------
+Native execution (Phase 3.3 / 3.5) — in 64Forth
+----------------------------------------------
   Requires 64Forth 1.0.4+ (MPROTECT ICACHE-INVAL CALL-NATIVE ALLOCATE-EXEC).
 
   ARM64-DEMO
   .RUN-ANS      \ simulator => 5
   .RUN-ANS-N    \ native in-process => 5
-                \ (mmap code+DSP pages; inline CALL sites in the copy)
+                \ Phase 3.5 default: true BLR
+                \   (fixup CALL-ABS .quad: taddr → base+taddr)
+                \ /INLINE-CALLS  — old paste-leaf path (Phase 3.3)
 
-Standalone Mach-O (Phase 3.4)
------------------------------
+Standalone Mach-O (Phase 3.4 / 3.5)
+-----------------------------------
   After compile (e.g. ARM64-DEMO). CHDIR to 64TCOMARM64 (or write path) first:
 
     S" ANS" MACHO-ENTRY-SET   \ or MACHO-ENTRY-COLD
@@ -84,6 +86,7 @@ Standalone Mach-O (Phase 3.4)
     \ or:  /MACHO  before finish to auto-emit
     \ or:  S" myprog" SAVE-MACHO-AS
     \ or:  /NOMACHO-BUILD SAVE-MACHO-FILE   \ sources only
+    \ or:  /INLINE-CALLS SAVE-MACHO-FILE    \ embed inlined leaves
 
   64Forth 1.0.5+ (SYSTEM): SAVE-MACHO runs  sh NAME-build.sh  for you and
   reports "MACHO: built ./NAME (cc exit 0)". Then:
@@ -96,14 +99,15 @@ Standalone Mach-O (Phase 3.4)
     sh tcomarm64-build.sh
     ./tcomarm64 ; echo exit:$?
 
-  The .c embeds the A64 image (CALL sites inlined, same as .RUN-ANS-N) and a
-  small driver that mmap/mprotect/calls entry, returning X0 as exit status.
-  Apple's cc produces a normal arm64 Mach-O (hand-rolled headers rejected by
-  modern codesign strict validation).
+  The .c embeds the A64 image. Phase 3.5 default: CALL-ABS kept as BLR;
+  C main relocates each .quad (offset → buf+offset) before mprotect, then
+  sys_icache_invalidate. /INLINE-CALLS pastes leaves into the image instead.
+  Apple's cc produces a normal arm64 Mach-O.
 
 Not yet
 -------
-  Full ISA/NEON; true BL/BLR without inlining (host and/or standalone).
+  Full ISA/NEON; nested multi-level library calls stress-tested;
+  PC-relative BL imm (optional optimization).
 
 Files
 -----

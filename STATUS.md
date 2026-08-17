@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-06 (STATUS.md at project root; ARM64 assembler snapshot; SAVE-MACHO auto-build)
+**Last updated:** 2026-08-06 (Phase 3.5 true BLR default — native + Mach-O)
 
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
@@ -15,11 +15,13 @@
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
   Phase 3.2        DONE   — SAVE-IMAGE → tcomarm64.bin (+ optional .map/.hdr)
-  Phase 3.3        DONE   — .RUN-ANS-N => 5 (native; inline callees in copy)
+  Phase 3.3        DONE   — .RUN-ANS-N => 5 (native; inline path retained)
   Phase 3.4        DONE   — SAVE-MACHO → .c + build.sh → cc → Mach-O
                            (+ auto-cc via 64Forth SYSTEM when available)
-  Phase 3.5        OPEN   — optional true BL/BLR without inlining
+  Phase 3.5        DONE   — true BLR default: fixup .quad → base+taddr
+                           (/INLINE-CALLS restores paste-leaf path)
   Phase 4.0        OPEN   — utilities (listing, xref, debugger)
+  Next roadmap     B      — control flow (BRANCH/IF) for real programs
 ```
 
 **Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.1+**  
@@ -74,8 +76,11 @@ Output locals are returned automatically — do not push them before `;` :
 - [x] **3.3** Native ANS: `FLOAD TARGETARM64`; `ARM64-DEMO`; `.RUN-ANS`; `.RUN-ANS-N` => 5
 - [x] **3.4** `SAVE-MACHO-FILE` → `NAME.c` + `NAME-build.sh` → `cc` → arm64 Mach-O  
       (default: auto-run build via `SYSTEM` on 64Forth 1.0.5+; `/NOMACHO-BUILD` = sources only)
-- [ ] **3.5** Optional: true in-process BL/BLR without callee inlining  
-      → see [`64DESIGN/Phase 3.5 ARM64 notes.txt`](64DESIGN/Phase%203.5%20ARM64%20notes.txt)
+- [x] **3.5** True BL/BLR without callee inlining (default)  
+      Native: `(NAT-FIXUP-CALLS)` — `.quad` taddr → `base+taddr`, keep BLR  
+      Mach-O: C main fixup loop (same pattern) before `mprotect`  
+      Fallback: `/INLINE-CALLS` (old Phase 3.3 paste leaves)  
+      Detail: [`64DESIGN/Phase 3.5 ARM64 notes.txt`](64DESIGN/Phase%203.5%20ARM64%20notes.txt)
 - [ ] **4.0** Utilities (listing, xref, debugger) in `64TCOMUTILS`
 
 ---
@@ -101,17 +106,18 @@ No >R/R> in live 64TCOM source (locals only)
 FLOAD TARGETARM64.fth  (from 64TCOMARM64)
 ARM64-DEMO  .RUN-ANS  .RUN-ANS-N   \ both => 5
 
-Native path (64Forth 1.0.4+):
-  mmap RW code+DSP pages, mprotect code RX,
-  inline CALL-ABS callees into the copy (BLR into leaves was unreliable),
-  CALL-NATIVE with X0=0 and DSP on the RW page.
+Native path (64Forth 1.0.4+), Phase 3.5 default true BLR:
+  mmap RW code+DSP pages; fixup CALL-ABS .quad → base+taddr;
+  mprotect code RX; CALL-NATIVE with X0=0 and DSP on the RW page.
+  /INLINE-CALLS — paste leaf bodies (old 3.3 path).
 
 Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
   S" ANS" MACHO-ENTRY-SET  SAVE-MACHO-FILE
-  \ writes .c + -build.sh, runs sh NAME-build.sh
+  \ writes .c + -build.sh; C fixups BLR sites; runs sh NAME-build.sh
   S" ./tcomarm64" SYSTEM .     \ demo expects 5
   \ or manual:  sh tcomarm64-build.sh && ./tcomarm64 ; echo $?
   \ sources only:  /NOMACHO-BUILD SAVE-MACHO-FILE
+  \ old inline embed: /INLINE-CALLS SAVE-MACHO-FILE
 ```
 
 **Note:** Exit status **5** is the ANS demo contract (X0 after the sample), not a product UI. Real programs would define their own entry/runtime/exit policy; auto-run via `SYSTEM` is for smoke tests.
@@ -151,7 +157,7 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 | `64DESIGN/STATUS.txt` | Plain-text twin / historical living list |
 | `64DESIGN/Phase 1.3 notes.txt` | Director / forwards |
 | `64DESIGN/Phase 3 ARM64 notes.txt` | ARM64 pack goals |
-| `64DESIGN/Phase 3.5 ARM64 notes.txt` | True BL/BLR (optional; detailed analysis) |
+| `64DESIGN/Phase 3.5 ARM64 notes.txt` | True BL/BLR (done; design + implementation notes) |
 | `64DESIGN/TCOM to 64Forth Port Analysis.docx` | Difficulty / architecture |
 | `64DESIGN/TCOM on 64Forth Phase 0 Design.docx` | Locked Phase 0 decisions |
 | `64DESIGN/64TCOM Naming and Layout.docx` | Name + tree |
@@ -163,10 +169,11 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 
 ## Next step
 
-1. **Optional 3.5:** true in-process BL/BLR without inlining  
-   → [`64DESIGN/Phase 3.5 ARM64 notes.txt`](64DESIGN/Phase%203.5%20ARM64%20notes.txt)
-2. **Phase 4.0:** utilities (`64TCOMUTILS`)
-3. Grow assembler / library as real target programs need more ISA
+1. **Roadmap B** — real `BRANCH#`/`ZBRANCH#` + IF/THEN compile (control flow)  
+2. Nested colon demo under true BLR (roadmap E)  
+3. **Phase 4.0:** utilities (`64TCOMUTILS`) — after control flow works  
+4. Grow assembler / library **on demand** as programs need more ISA  
+5. Phase 3.5 detail (historical): [`64DESIGN/Phase 3.5 ARM64 notes.txt`](64DESIGN/Phase%203.5%20ARM64%20notes.txt)
 
 ---
 
@@ -180,9 +187,9 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 | **1** Host + director | **Done** | `64HOST`, `64DIR` on 64Forth |
 | **2** GEN tutorial pack | **Done** | Tags / demos / forwards |
 | **3.0–3.2** ARM64 emit + SAVE-IMAGE | **Done** | Prim bodies, SIM, BRANCH, `.bin` |
-| **3.3** Native in-process | **Done** | `.RUN-ANS-N` => 5 (inline callees) |
+| **3.3** Native in-process | **Done** | `.RUN-ANS-N` => 5 (inline path retained as fallback) |
 | **3.4** Standalone Mach-O | **Done** | `SAVE-MACHO` → C + `cc`; auto-build via `SYSTEM` |
-| **3.5** True BL/BLR (no inline) | **Optional / open** | Not required for green ANS |
+| **3.5** True BL/BLR (no inline) | **Done** | Default fixup; `/INLINE-CALLS` fallback |
 | **4.0** Utilities | **Open** | Listing, xref, debugger |
 
 ---
@@ -258,7 +265,7 @@ The assembler is the **instruction toolkit**; the high-level target compiler onl
 | NEON / FP / SVE | Explicit non-goal so far |
 | System / barriers / atomics | Not present |
 | Rich addressing | No full (reg,reg,extend), full LDP/STP suite, … |
-| True BL/BLR at runtime | Encoded; native/Mach-O still **inline** callees (Phase **3.5**) |
+| True BL/BLR at runtime | **Done (3.5)** — default fixup; `/INLINE-CALLS` fallback |
 | BTI | Word exists but is NOP |
 | Labels | Only 16 local labels; one pending forward per label |
 | COMP-* surface | Many director hooks still NOP at compile site |
@@ -268,11 +275,131 @@ The assembler is the **instruction toolkit**; the high-level target compiler onl
 
 **Solid Phase 3.1 working assembler for a small STC/Forth-ish ARM64 subset** — enough for demos, real stack prims, branches/labels, and the green ANS path. **Not** a general-purpose AArch64 assembler or a complete TCOM library emitter yet.
 
-### Natural growth paths
+---
 
-1. Widen emitters as library words need them (LDP/STP, more LDR modes, MUL, shifts).
-2. **Phase 3.5** — keep encodings; fix **runtime** so BLR is not inlined away.
-3. Fill `COMP-*` / control-flow library so high-level TARGET colon code uses more of the assembler without hand asm.
+## Roadmap: expand for real program generation
+
+Goal: move from **leaf demos** (ANS => 5) to code the **compiler** can generate for nested colon definitions, control flow, and real data—without finishing the entire ARM64 ISA first.
+
+### What we already have
+
+Enough for **leaf graphs**: stack ops, `+`/`-`, lit, `CALL-ABS` (with **inlining** for native/Mach-O), branches/labels in the **assembler**, sim + native + standalone.
+
+A **real** program needs more than leaves: nested calls, richer control, memory/locals, strings/I/O policy, and a library the **compiler** actually uses—not only hand asm.
+
+### Priority order (what blocks real programs)
+
+#### 1. Call model that scales — Phase 3.5 (runtime) — **DONE**
+
+Native and Mach-O default to true BLR (fixup `.quad` → base+taddr).  
+`/INLINE-CALLS` restores the ≤5-insn paste path. Nested multi-level colon trees still need stress testing (roadmap E) and may need LR discipline for non-leaf callees.
+
+**Detail:** [`64DESIGN/Phase 3.5 ARM64 notes.txt`](64DESIGN/Phase%203.5%20ARM64%20notes.txt)
+
+#### 2. Control-flow library the compiler can use
+
+**Why:** Real Forth is mostly `IF`/`THEN`, loops, exits—not `6 + 1`.
+
+| Grow | Assembler pieces (many exist) |
+|------|--------------------------------|
+| Real `BRANCH#` / `ZBRANCH#` bodies | `B` / `CBZ` / `B.cond` + patch |
+| `COMP-IF` / `THEN` / `ELSE` (or pack hooks) | Same as `AIF,`/`ATHEN,` but via director |
+| `BEGIN`/`UNTIL`/`AGAIN`/`WHILE`/`REPEAT` | Back branches + labels |
+| Later: `DO`/`LOOP` | Compare + branch; may need return-stack or index regs |
+
+Assembler already has `B.COND`, `CBZ`, `AHEAD`/`THEN,`, `L:`/`BR>L`. Gap is **wiring them into OPT/LIB and high-level `T:`**, not inventing B.
+
+#### 3. Memory model for real data
+
+**Why:** Programs use variables, arrays, structs—not only the data stack.
+
+| Need | Assembler / ABI |
+|------|------------------|
+| `@` `!` already in lib | Confirm/use widely from compiled code |
+| `C@` `C!` `2@` `2!` or cell helpers | Narrow LDR/STR sizes |
+| PC-relative / absolute data | `ADRP`+`ADD` or lit pool + LDR (**new emitters**) |
+| Locals / frame (optional) | `STP`/`LDP` X29/X30, `SUB SP` — high leverage for non-leaf |
+
+Worth adding next in the **assembler**: **`LDP`/`STP` (pre/post), `LDRB`/`STRB`, `ADRP`/`ADD` page**, more `LDR`/`STR` modes.
+
+#### 4. Widen the library (compiler-visible), not the full ISA
+
+Real generation uses **cookies / LIB prims**, not every encoding.
+
+**First wave of useful prims** (after call + control work):
+
+| Class | Examples |
+|-------|----------|
+| Stack | `ROT` `NIP` `TUCK` `2DUP` `2DROP` `?DUP` |
+| Logic/compare | `AND` `OR` `XOR` `0=` `0<` `=` `<` (flags → TOS) |
+| Multiply/div (as needed) | `MUL` then later div |
+| Memory | `C@` `C!` `+!` |
+| Control | `EXIT` already; real branch prims |
+| Call | `EXECUTE` / `EXEC#` if not solid |
+
+Each prim is a few emitters you mostly already have (`AND-X,`, `SUBS`, `CBNZ`, …).
+
+#### 5. Fill COMP-* stubs that still NOP
+
+Director hooks that no-op today mean high-level target syntax doesn’t emit real code.
+
+Prioritize whatever the `T:` / colon path actually hits:
+
+- lit / call / `;T` — **done**
+- branch / zbranch compile — **next**
+- `@` `!` at compile sites if used  
+- leave exotic `COMP-ON`/`COMP-SAVE` until needed
+
+#### 6. Only then: “assembler completeness”
+
+Once calls + control + memory work, expand emitters **on demand**:
+
+| Later | When needed |
+|-------|-------------|
+| Shifts / extends / bitfield | Masks, scaled indexing |
+| `W` register forms | 32-bit ABI bits |
+| Full cond select (`CSEL`) | Branchless |
+| NEON / FP | Not for classic Forth core |
+| Syscalls / libc | Only for “real OS program” I/O |
+
+Avoid full-ISA tourism before steps 1–4.
+
+### Concrete roadmap (checklist)
+
+- [x] **A.** Phase 3.5 — true BLR (no inline) — *runtime* (default; `/INLINE-CALLS` fallback)
+- [ ] **B.** Real `BRANCH#`/`ZBRANCH#` + IF/THEN compile — *lib + OPT*
+- [ ] **C.** `LDP`/`STP` + `ADRP` (or lit-pool) for frames/data — *asm*
+- [ ] **D.** Library wave: `ROT`, logic, compares, `C@`/`C!` — *lib*
+- [ ] **E.** Nested colon demo (true BLR, multi-level calls) — *proof*
+- [ ] **F.** Optional: strings / `TYPE` if host I/O model exists
+- [ ] **G.** More ISA as programs demand
+
+### Success test for “useful for real generation”
+
+```text
+T: FOO  ... nested calls, IF/THEN, @/! ... ;T
+.RUN-ANS-N => expected
+SAVE-MACHO-FILE  → binary behaves the same
+without relying on 5-insn inlining
+```
+
+### What not to do next
+
+- Full NEON / system register set  
+- Hand-rolled perfect Mach-O (already use `cc`)  
+- Phase 4 utilities (listing/xref) **before** the compiler can emit nested control  
+- Polishing `ASM-DEMO` alone without compiler/library path  
+
+### Short answer
+
+**Next for real programs:**
+
+1. ~~**True calls (3.5)**~~ — **done** (default true BLR)  
+2. **Control flow through LIB + COMP-*** — IF/THEN/loops  
+3. **Memory + frames** — ADRP/LDP/STP, more loads/stores  
+4. **Library breadth** — what colon definitions actually call  
+5. **Assembler opcodes only when a prim needs them**  
+6. Nested colon demo under true BLR (roadmap E)
 
 ---
 
@@ -281,8 +408,8 @@ The assembler is the **instruction toolkit**; the high-level target compiler onl
 | Path | Word / flow | Needs | Result (ANS demo) |
 |------|-------------|-------|-------------------|
 | Software sim | `.RUN-ANS` | host only | => 5 |
-| In-process native | `.RUN-ANS-N` | 64Forth 1.0.4+ native helpers | => 5 (calls inlined in copy) |
-| Standalone Mach-O | `SAVE-MACHO-FILE` | 1.0.5+ `SYSTEM` for auto-`cc` | binary; demo exit 5 |
+| In-process native | `.RUN-ANS-N` | 64Forth 1.0.4+ native helpers | => 5 (true BLR; or `/INLINE-CALLS`) |
+| Standalone Mach-O | `SAVE-MACHO-FILE` | 1.0.5+ `SYSTEM` for auto-`cc` | binary; demo exit 5 (C fixup BLR) |
 | Raw image | `SAVE-IMAGE-FILE` | — | `tcomarm64.bin` (+ optional map/hdr) |
 
 ---

@@ -239,18 +239,33 @@ VARIABLE A64-T
   $B4000000 A64-I @ $7FFFF AND 5 LSHIFT OR A64-D @ (REG) OR W,
   ;
 
-\ In-image call: LDR X16,[PC+12]; BLR X16; B +3; .quad taddr
-\ .quad holds TARGET OFFSET (not host address). SIM uses it as PC.
-\ Native: after copy, add image base to each such .quad.
-\ Chain cell for SYM-COMPILE-REF is that same .quad (HERE-T T-CELL -).
+\ In-image call (Phase 3.5 — preserves LR so colon RET works after BLR):
+\   STP X30,XZR,[SP,#-16]!
+\   LDR X16,[PC+16]     ; .quad at +20 from LDR (= +16 from this LDR)
+\   BLR X16
+\   LDP X30,XZR,[SP],#16
+\   B +3                ; skip 8-byte .quad (from B: +1=quad, +2=mid, +3=after)
+\   .quad taddr         ; TARGET OFFSET (not host). Native/Mach-O fixup adds base.
+\
+\ Why STP/LDP: bare BLR overwrites X30; a following RET then jumps to the
+\ instruction after BLR forever (SIM OK because it uses a separate R-stack).
+\ Why B+3 not B+2: imm is in instructions from B itself; .quad is 2 words,
+\ so landing after it is +3 from B (B+2 lands mid-quad → SIGILL).
+\ Chain cell for SYM-COMPILE-REF is the .quad (HERE-T T-CELL -).
+
+$A9BF7FFE CONSTANT (A64-STP-X30-XZR-SP)   \ STP X30, XZR, [SP, #-16]!
+$A8C17FFE CONSTANT (A64-LDP-X30-XZR-SP)   \ LDP X30, XZR, [SP], #16
 
 : CALL-ABS,  ( taddr -- )
   ALIGN4-T
-  HERE-T 7 AND 0= IF  NOP,  THEN     \ keep .quad 8-aligned when possible
-  X16 LDR64-PC+12,
+  \ .quad at HERE+20 must be 8-aligned → HERE ≡ 4 (mod 8)
+  HERE-T 7 AND 0= IF  NOP,  THEN
+  (A64-STP-X30-XZR-SP) W,
+  X16 4 LDR64-LIT,                 \ imm19=4 → PC+16 → .quad
   X16 BLR-X,
-  3 B-IMM,
-  ,-T                                 \ taddr offset (NOT THERE host addr)
+  (A64-LDP-X30-XZR-SP) W,
+  3 B-IMM,                         \ skip .quad (must be +3, not +2)
+  ,-T                              \ taddr offset (NOT THERE host addr)
   ;
 
 : JMP-ABS,  ( taddr -- )
