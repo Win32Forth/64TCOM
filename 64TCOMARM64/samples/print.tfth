@@ -1,0 +1,9 @@
+\ print.tfth — Layer 2 print (S" + TYPE)
+\ Expect: stdout "Hello, 64TCOM\n" and MAIN => 0
+
+: MAIN
+  S" Hello, 64TCOM
+"
+  TYPE
+  0
+;

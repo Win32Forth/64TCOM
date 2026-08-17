@@ -327,6 +327,20 @@ VARIABLE SM
     DROP EXIT
   THEN
 
+  \ SVC #imm16  — Layer 2: Darwin write when imm=#0x80 and X16=4
+  DUP $FFE0001F AND $D4000001 = IF
+    DUP 5 RSHIFT $FFFF AND $80 = IF
+      16 SIM-X@ 4 = IF
+        \ write(fd=X0, buf=X1, n=X2) → host TYPE; X0 := n
+        1 SIM-X@  2 SIM-X@  TYPE
+        2 SIM-X@  0 SIM-X!
+        DROP EXIT
+      THEN
+    THEN
+    S" SIM: unsupported SVC " TYPE DUP SYM-HEX. CR
+    TRUE SIM-HALT ! DROP EXIT
+  THEN
+
   S" SIM: unknown " TYPE DUP SYM-HEX. S" PC=" TYPE SIM-PC @ 4 - . CR
   TRUE SIM-HALT !
   DROP

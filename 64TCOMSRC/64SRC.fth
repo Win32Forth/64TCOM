@@ -5,16 +5,17 @@
 \
 \ Pack must provide before TSRC-INCLUDE (ARM64 does):
 \   TIF TELSE TTHEN TBEGIN TUNTIL TAGAIN TWHILE TREPEAT
-\   G@ G!
-\   Library: PLUS# MINUS# DUP# DROP# SWAP# OVER# FETCH# STORE#
+\   G@ G!  COMP-DATA-ADDR  (for VARIABLE and S" strings)
+\   Library: PLUS# MINUS# DUP# DROP# SWAP# OVER# FETCH# STORE# TYPE#
 \
-\ Dialect (.tfth):
+\ Dialect (.tfth) — extension distinguishes target source from host .fth:
 \   \ comment   ( comment )
 \   VARIABLE name
 \   : name … ;
 \   decimal | $hex
 \   IF ELSE THEN BEGIN UNTIL AGAIN WHILE REPEAT
 \   @ ! + - DUP DROP SWAP OVER
+\   S-quote text quote   TYPE   dot-quote text quote  (Layer 2 print)
 \   other names → SYM-COMPILE-REF (call or data addr)
 \
 \ API (caller does TARGET-INIT / finish):
@@ -194,6 +195,45 @@ VARIABLE TSRC-FID
   THEN
   ;
 
+\ ASCII double-quote — avoid [CHAR] " inside definitions (breaks some 64Forth parses)
+34 CONSTANT TSRC-QUOT
+
+\ After S" or ." — copy chars until " into T-DATA; compile addr + len
+: TSRC-COMPILE-STRING  ( -- )
+  TSRC-IN-COLON @ 0= IF  S" string outside :" TSRC-ERR  THEN
+  \ skip one blank after S" / ." if present (classic Forth style)
+  TSRC-PEEK BL = IF  TSRC-GETC DROP  THEN
+  HERE-D >R
+  BEGIN
+    TSRC-GETC DUP 0< IF
+      DROP R> DROP S" unclosed string" TSRC-ERR
+    THEN
+    DUP TSRC-QUOT = IF
+      DROP
+      R@ COMP-DATA-ADDR          \ runtime address of string bytes
+      HERE-D R> - G,             \ length
+      EXIT
+    THEN
+    C,-D
+  AGAIN
+  ;
+
+\ True if (ca u) is the two-char token S"
+: TSRC-SQUOT?  ( ca u -- f )
+  2 <> IF  DROP FALSE EXIT  THEN
+  DUP C@ [CHAR] S = IF
+    1+ C@ TSRC-QUOT =
+  ELSE  DROP FALSE  THEN
+  ;
+
+\ True if (ca u) is the two-char token ."
+: TSRC-DOTQUOT?  ( ca u -- f )
+  2 <> IF  DROP FALSE EXIT  THEN
+  DUP C@ [CHAR] . = IF
+    1+ C@ TSRC-QUOT =
+  ELSE  DROP FALSE  THEN
+  ;
+
 : TSRC-PRIM?  ( ca u -- f )
   2DUP S" +" TSRC-EQ IF  2DROP S" PLUS#" TSRC-LIB-CALL TRUE EXIT  THEN
   2DUP S" -" TSRC-EQ IF  2DROP S" MINUS#" TSRC-LIB-CALL TRUE EXIT  THEN
@@ -203,6 +243,11 @@ VARIABLE TSRC-FID
   2DUP S" OVER" TSRC-EQ IF  2DROP S" OVER#" TSRC-LIB-CALL TRUE EXIT  THEN
   2DUP S" @" TSRC-EQ IF  2DROP S" G@" TSRC-HOST-EXEC TRUE EXIT  THEN
   2DUP S" !" TSRC-EQ IF  2DROP S" G!" TSRC-HOST-EXEC TRUE EXIT  THEN
+  2DUP S" TYPE" TSRC-EQ IF  2DROP S" TYPE#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP TSRC-SQUOT? IF  2DROP TSRC-COMPILE-STRING TRUE EXIT  THEN
+  2DUP TSRC-DOTQUOT? IF
+    2DROP TSRC-COMPILE-STRING S" TYPE#" TSRC-LIB-CALL TRUE EXIT
+  THEN
   2DROP FALSE
   ;
 

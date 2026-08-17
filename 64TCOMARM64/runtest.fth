@@ -42,6 +42,9 @@ VAR-DEMO
 S" --- SRC-DEMO (TSRC-INCLUDE hello.tfth) ---" TYPE CR
 SRC-DEMO
 
+S" --- PRINT-DEMO (Layer 2 S-quote + TYPE) ---" TYPE CR
+PRINT-DEMO
+
 \ Re-run ANS path after demos (TARGET-INIT cleared app)
 S" --- ARM64-DEMO again + native after nest ---" TYPE CR
 ARM64-DEMO

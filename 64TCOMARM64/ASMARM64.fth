@@ -77,6 +77,12 @@ VARIABLE A64-T
 : BLR-X, ( xn -- )  (REG) 5 LSHIFT $D63F0000 OR W, ;
 : BR-X,  ( xn -- )  (REG) 5 LSHIFT $D61F0000 OR W, ;
 
+\ SVC #imm16  — encoding 0xD4000001 | (imm16 << 5)
+\ Darwin/macOS user SVC uses #0x80 with X16 = BSD syscall number.
+: SVC,  ( imm16 -- )
+  $FFFF AND 5 LSHIFT $D4000001 OR W,
+  ;
+
 \ ----- move / logic / arith -----
 : MOVZ-X,  ( imm16 xd hw -- )
   A64-H ! A64-D ! A64-I !

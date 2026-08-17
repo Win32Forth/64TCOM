@@ -100,6 +100,18 @@ VARIABLE LIB-BODY-XT
   X0 X19 8 LDR-POST,
   ;
 
+\ TYPE# ( c-addr u -- )  write(1, c-addr, u) via Darwin write syscall
+\ Entry: X0=u, [X19]=c-addr. Exit: both consumed; new TOS from under.
+: BODY-TYPE  ( -- )
+  BTI,
+  X0 X2 MOV-X-X,              \ X2 = length
+  X1 X19 8 LDR-POST,          \ X1 = c-addr
+  1 X0 MOV-X-IMM64,           \ X0 = STDOUT_FILENO
+  4 X16 MOV-X-IMM64,          \ X16 = SYS_write (BSD/Darwin)
+  $80 SVC,                    \ svc #0x80
+  X0 X19 8 LDR-POST,          \ restore previous TOS
+  ;
+
 \ BRANCH# ( taddr -- ) tail BR to image_base+taddr (relocatable; no host bake-in)
 : BODY-BRANCH  ( -- )
   BTI,
@@ -130,6 +142,7 @@ VARIABLE LIB-BODY-XT
 ' BODY-OVER    LIB-PRIM-XT OVER#
 ' BODY-PLUS    LIB-PRIM-XT PLUS#
 ' BODY-MINUS   LIB-PRIM-XT MINUS#
+' BODY-TYPE    LIB-PRIM-XT TYPE#
 ' BODY-STUB    LIB-PRIM-XT EXEC#
 ' BODY-NOOP    LIB-PRIM-XT NOOP#
 
