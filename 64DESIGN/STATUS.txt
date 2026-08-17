@@ -1,7 +1,12 @@
-64TCOM — Project status (living document)
+64TCOM — Project status (plain-text twin)
 ==========================================
-Update this file when phase boundaries move.
-Last updated: 2026-08-05 (Phase 3.3 native ANS green)
+Canonical living status is now at project root:
+
+  STATUS.md   ← start here for “where are we?”
+
+Update STATUS.md when phase boundaries move; keep this file
+aligned at a high level (or treat it as a short checklist).
+Last updated: 2026-08-06 (pointer + 3.4 SYSTEM auto-build note)
 
 YOU ARE HERE
 ------------
@@ -10,7 +15,8 @@ YOU ARE HERE
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
   Phase 3.2        DONE   — SAVE-IMAGE → tcomarm64.bin (+ optional .map/.hdr)
   Phase 3.3        DONE   — .RUN-ANS-N => 5 (native; inline callees in copy)
-  Phase 3.4        DONE   — SAVE-MACHO → .c + build.sh → cc → Mach-O executable
+  Phase 3.4        DONE   — SAVE-MACHO → .c + build.sh → cc → Mach-O
+                           (+ auto-cc via 64Forth SYSTEM when available)
 
 Coding style (host/director/GEN)
 --------------------------------
@@ -75,35 +81,36 @@ What works today
   CALL-NATIVE with X0=0 and DSP on the RW page.
 
   Standalone: S" ANS" MACHO-ENTRY-SET  SAVE-MACHO-FILE
-              sh tcomarm64-build.sh   &&  ./tcomarm64 ; echo $?
+              (auto-cc via SYSTEM on 64Forth 1.0.5+; or sh *-build.sh)
 
 
 Key source files
 ----------------
+  STATUS.md                Canonical living status (project root)
   64TCOMSRC/64HOST.fth     Host layer + options
   64TCOMSRC/64DIR.fth      Symbol table + director (Phase 1.3) ✅
   64TCOMGEN/               GEN pack (tutorial tags) — DONE for demos
-  64TCOMARM64/             ARM64 pack v0.1 — FLOAD TARGETARM64.fth
+  64TCOMARM64/             ARM64 pack — FLOAD TARGETARM64.fth
   REFERENCE_FILES/         Classic F-PC 3.6 + TCOM 2.5
 
 
 Design docs (background)
 ------------------------
-  STATUS.txt  ← start here for “where are we?”
+  ../STATUS.md  ← start here for “where are we?”
+  STATUS.txt    (this file — plain-text twin)
   Phase 1.3 notes.txt
   Phase 3 ARM64 notes.txt
+  Phase 3.5 ARM64 notes.txt   ← true BL/BLR (optional; detailed analysis)
   TCOM to 64Forth Port Analysis.docx
   TCOM on 64Forth Phase 0 Design.docx
   64TCOM Naming and Layout.docx
   64HOST notes.txt
   GEN load notes.txt
   Library cookies explained.txt
-  Phase 3 ARM64 notes.txt
-  Phase 3.5 ARM64 notes.txt   ← true BL/BLR (optional; detailed analysis)
 
 
 Next step
 ---------
   Optional 3.5: true in-process BL/BLR without inlining
-    → see Phase 3.5 ARM64 notes.txt
+    → see Phase 3.5 ARM64 notes.txt  and  ../STATUS.md
   Phase 4.0 utilities.

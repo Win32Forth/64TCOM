@@ -80,11 +80,13 @@ S" ./tcomarm64" SYSTEM .   \ => 5
 
 Requires **64Forth 1.0.4+** for native helpers (`CALL-NATIVE`, `MPROTECT`, JIT entitlements); **1.0.5+** for `SYSTEM` auto-build after `SAVE-MACHO`.
 
-### Design documents (`64DESIGN/`)
+### Design documents
 
-- *TCOM to 64Forth Port Analysis* — difficulty and architecture assessment  
+- **[`STATUS.md`](STATUS.md)** — living project status (start here)  
+- *TCOM to 64Forth Port Analysis* — difficulty and architecture assessment (`64DESIGN/`)  
 - *TCOM on 64Forth Phase 0 Design* — locked decisions and phases  
 - *64TCOM Naming and Layout* — product name and folder layout  
+- *Phase 3.5 ARM64 notes* — optional true BL/BLR analysis
 
 ---
 
@@ -96,7 +98,7 @@ Requires **64Forth 1.0.4+** for native helpers (`CALL-NATIVE`, `MPROTECT`, JIT e
 | Director (`64TCOMSRC`) | **`64HOST` + `64DIR`** (symbols, T:/L:/G', forwards) |
 | GEN pack | **Done for demos** (`GEN-DEMO`, `FWD-DEMO`) |
 | ARM64 pack | **Phase 3.0–3.4 done** — sim, native, SAVE-IMAGE, SAVE-MACHO |
-| Living status | **`64DESIGN/STATUS.txt`** (last: 2026-08-05) |
+| Living status | **[`STATUS.md`](STATUS.md)** (project root; twin: `64DESIGN/STATUS.txt`) |
 | Reference F-PC / TCOM | **`REFERENCE_FILES/`** |
 
 ### Phases (summary)
