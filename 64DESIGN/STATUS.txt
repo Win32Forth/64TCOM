@@ -6,10 +6,11 @@ Canonical living status is now at project root:
 
 Update STATUS.md when phase boundaries move; keep this file
 aligned at a high level (or treat it as a short checklist).
-Last updated: 2026-08-17 (agent channel + product destination; IF-DEMO sim; see STATUS.md)
+Last updated: 2026-08-17 (ARM64 pack Version 0.2; see STATUS.md)
 
 YOU ARE HERE
 ------------
+  Pack version     0.2    — 64TCOM ARM64 (TVERSION)
   Phase 0–2        DONE
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO

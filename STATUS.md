@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-17 (how to re-run demos; VAR/NEST/IF green; agent 1.1.2)
+**Last updated:** 2026-08-17 (ARM64 pack **Version 0.2**; VAR/NEST/IF green; agent 1.1.2)
 
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
@@ -41,6 +41,7 @@ Debugging capability comes at some point (listing, symbol map, SIM step, crash P
 ## YOU ARE HERE
 
 ```text
+  Pack version     0.2    — 64TCOM ARM64 (TVERSION in OPTARM64)
   Phase 0–2        DONE
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
@@ -58,6 +59,13 @@ Debugging capability comes at some point (listing, symbol map, SIM step, crash P
   Roadmap E        DONE   — NEST-DEMO nested colon + IF, sim + native true BLR
   Roadmap C/D partial — TVARIABLE + FETCH#/STORE# (VAR-DEMO sim+native)
 ```
+
+**Pack version history**
+
+| Version | Notes |
+|---------|--------|
+| **0.1** | First ARM64 pack: prims, SIM, native, SAVE-MACHO, true BLR, IF demos |
+| **0.2** | NEST-DEMO (nested colon true BLR), VAR-DEMO (`TVARIABLE`/`G@`/`G!`), IF-DEMO native subset, agent re-run docs; next: source loader / Layer 1 |
 
 **Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2** (agent channel shipped; ANS/Hayes + agent green on install).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  
