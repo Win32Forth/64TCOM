@@ -167,14 +167,13 @@ VARIABLE TSRC-FID
   ;
 
 : TSRC-VARIABLE  ( ca u -- )
-  \ ( ca u ) name — allocate one cell in target DATA, SYM-DATA with host addr
+  \ ( ca u ) name — one cell in target DATA; SYM-DATA holds daddr (not host)
   TSRC-IN-COLON @ IF  2DROP S" VARIABLE inside :" TSRC-ERR  THEN
   CELL-ALIGN-D
   HERE-D                       ( ca u daddr )
-  0 OVER !-D                   \ zero cell
+  0 OVER !-D
   T-CELL ALLOT-D
-  DTHERE                       ( ca u host )
-  >R  SYM-DATA R> SYM-ADD DROP
+  SYM-DATA SWAP SYM-ADD DROP   \ ( ca u type daddr )
   ;
 
 : TSRC-HOST-EXEC  ( ca u -- )

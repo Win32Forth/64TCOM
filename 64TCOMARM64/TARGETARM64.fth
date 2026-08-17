@@ -41,6 +41,16 @@ INCLUDE MACHOARM64.fth
 \ Generic .tfth loader (compiler) — after pack hooks/prims exist
 INCLUDE ../64TCOMSRC/64SRC.fth
 
+\ Pack wrapper: .tfth → image → Mach-O entry MAIN (after 64SRC is loaded)
+: TSRC-BUILD  ( ca u -- )
+  TARGET-INIT
+  LL-INIT
+  TSRC-INCLUDE
+  ARM64-FINISH
+  S" MAIN" MACHO-ENTRY-SET
+  SAVE-MACHO-FILE
+  ;
+
 TCOM-ORDER
 TCOM-WARN-ON
 
@@ -52,4 +62,4 @@ TCOM-WARN-ON
 S" 64TCOM ARM64 ready — " TYPE TVERSION CR
 S" HERE-T=" TYPE HERE-T . S"  LIB-CODE-END=" TYPE LIB-CODE-END @ . CR
 S" Native: .RUN-ANS-N   Standalone: SAVE-MACHO-FILE (see .MACHOARM64)" TYPE CR
-S" Try:  .ARM64  ARM64-DEMO  .RUN-ANS  .RUN-ANS-N  SAVE-MACHO-FILE" TYPE CR
+S" Try: SRC-DEMO  (or path TSRC-BUILD for .tfth → MAIN Mach-O)" TYPE CR

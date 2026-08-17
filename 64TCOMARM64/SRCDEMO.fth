@@ -1,5 +1,5 @@
-\ SRCDEMO.fth — Load samples/hello.tfth via generic TSRC-INCLUDE
-\ Public domain. Pack-specific wrapper; loader is 64TCOMSRC/64SRC.fth.
+\ SRCDEMO.fth — samples/hello.tfth via TSRC-INCLUDE + full CLI loop
+\ Public domain. Loader: 64TCOMSRC/64SRC.fth. Build helper: TSRC-BUILD (OPTARM64).
 
 TARGET-INIT
 /SHOW
@@ -23,7 +23,20 @@ VARIABLE RX
     S" MAIN native => " TYPE RX @ . CR
     RX @ 42 <> IF S" SRC-DEMO fail MAIN native" TYPE CR ABORT THEN
   [THEN]
-  S" SRC-DEMO: OK (TSRC-INCLUDE samples/hello.tfth => 42)" TYPE CR
+  [DEFINED] SAVE-MACHO-FILE [IF]
+    S" --- SRC-DEMO Mach-O MAIN ---" TYPE CR
+    S" MAIN" MACHO-ENTRY-SET
+    SAVE-MACHO-FILE
+    [DEFINED] SYSTEM [IF]
+      S" ./tcomarm64" SYSTEM
+      S" Mach-O MAIN exit (want 42) = " TYPE DUP . CR
+      42 <> IF S" SRC-DEMO fail Mach-O MAIN" TYPE CR ABORT THEN
+      S" SRC-DEMO: OK (Mach-O MAIN => 42)" TYPE CR
+    [ELSE]
+      S" SRC-DEMO: Mach-O written; no SYSTEM" TYPE CR
+    [THEN]
+  [THEN]
+  S" SRC-DEMO: OK (source → sim/native/Mach-O => 42)" TYPE CR
   ;
 
 SRC-DEMO-CHECK

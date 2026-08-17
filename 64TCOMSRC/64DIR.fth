@@ -245,7 +245,7 @@ VARIABLE M-TMP
     THEN
   ELSE
     DUP SYM-TYPE@ SYM-DATA = IF
-      SYM-ADDR@ COMP-SINGLE          \ push host addr of data cell
+      SYM-ADDR@ COMP-DATA-ADDR       \ daddr → pack emits runtime address
     ELSE
       SYM-ADDR@ COMP-CALL
     THEN

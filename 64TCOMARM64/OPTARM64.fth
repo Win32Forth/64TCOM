@@ -317,6 +317,43 @@ VARIABLE MAP-FID
   LIB-SYM-N @ SYM-N !
   ;
 
+\ Data-address relocs for Mach-O (daddr in SYM-DATA; emit host via DTHERE + record)
+64 CONSTANT #DATA-RELOC
+CREATE DATA-RELOC-OFF  #DATA-RELOC CELLS ALLOT   \ taddr of MOVZ of lit sequence
+CREATE DATA-RELOC-D    #DATA-RELOC CELLS ALLOT   \ daddr
+VARIABLE DATA-RELOC-N
+0 DATA-RELOC-N !
+
+: DATA-RELOC-CLEAR  ( -- )  0 DATA-RELOC-N ! ;
+
+: (COMP-DATA-ADDR-A64)  ( daddr -- )
+  \ LIT-PUSH = STR-PRE + MOVZ/MOVK×3; reloc points at MOVZ (HERE+4).
+  DATA-RELOC-N @ #DATA-RELOC U>= IF
+    S" too many data address relocs" TCOM-ABORT
+  THEN
+  HERE-T 4 + DATA-RELOC-N @ CELLS DATA-RELOC-OFF + !
+  DUP  DATA-RELOC-N @ CELLS DATA-RELOC-D + !
+  1 DATA-RELOC-N +!
+  DTHERE COMP-SINGLE
+  ;
+' (COMP-DATA-ADDR-A64) IS COMP-DATA-ADDR
+
+\ Target VARIABLE: one cell in T-DATA; SYM-DATA = daddr.
+: TVARIABLE  ( "<spaces>name" -- )
+  CELL-ALIGN-D
+  HERE-D
+  0 OVER !-D
+  T-CELL ALLOT-D
+  >R
+  BL WORD COUNT
+  SYM-DATA R@ SYM-ADD DROP
+  ?QUIET 0= IF  S" TVARIABLE daddr=" TYPE R@ . CR  THEN
+  R> DROP
+  ;
+
+: G@  ( -- )  COMP-FETCH ;
+: G!  ( -- )  COMP-STORE ;
+
 : TARGET-INIT  ( -- )
   ?LIB IF  S" Can't use TARGET-INIT in a library routine" TCOM-ABORT  THEN
   LIB-CODE-END @ 0= IF
@@ -326,8 +363,9 @@ VARIABLE MAP-FID
   T-CODE-BASE 0= IF  TCOM-INIT-MEM-DEFAULT  THEN
   SYM-CLEAR-APP
   LIB-CODE-END @ DUP A64-CODE-START ! DP-T !
-  DATA-START DP-D !                  \ data grows up from DATA-START
-  T-DATA-BASE T-DATA-MAX ERASE       \ clear data image each app build
+  DATA-START DP-D !
+  T-DATA-BASE T-DATA-MAX ERASE
+  DATA-RELOC-CLEAR
   TCOM-ORDER
   >TARGET
   [DEFINED] DIR-ON-TARGET-INIT [IF] DIR-ON-TARGET-INIT [THEN]
@@ -335,28 +373,9 @@ VARIABLE MAP-FID
     ." TARGET-INIT: ARM64 app CODE at " A64-CODE-START @ . CR
   THEN
   SET-COLD-ENTRY
-  \ Cold prologue: X19 = data stack top (host), X0 = 0
-  \ DSP at high end of data buffer; variables use low daddrs (no clash).
   T-DATA-BASE T-DATA-MAX + 64 -
   DSP-INIT,
   ;
-
-\ Target VARIABLE: one cell in T-DATA, symbol SYM-DATA with host address.
-\ Use:  TVARIABLE X   then in T:  G' X  ' FETCH# LIB,   /  G' X  ' STORE# LIB,
-\ Also: G' X G@   /  G' X G!   (sugar below)
-: TVARIABLE  ( "<spaces>name" -- )
-  CELL-ALIGN-D
-  HERE-D DUP 0 ,-D DTHERE >R       ( R: host-addr of cell )
-  BL WORD COUNT                    ( ca u )
-  SYM-DATA R@ SYM-ADD DROP         ( ca u type host → SYM-ADD )
-  ?QUIET 0= IF
-    S" TVARIABLE host=" TYPE R@ SYM-HEX. CR
-  THEN
-  R> DROP
-  ;
-
-: G@  ( -- )  COMP-FETCH ;
-: G!  ( -- )  COMP-STORE ;
 
 : ARM64-FINISH  ( -- )
   TARGET-FINISH

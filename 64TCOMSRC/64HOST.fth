@@ -649,6 +649,7 @@ DEFER SET-COLD-ENTRY
 DEFER COMP-CALL       \ ( sym -- ) compile call/reference to symbol
 DEFER COMP-JMP-IMM    \ ( addr -- )
 DEFER COMP-SINGLE     \ ( n -- ) compile literal
+DEFER COMP-DATA-ADDR  \ ( daddr -- ) compile push of runtime data-cell address
 DEFER COMP-FETCH
 DEFER COMP-STORE
 DEFER COMP-PERFORM
@@ -695,6 +696,9 @@ DEFER END-CODE
 ' (STUB-SYM)   IS COMP-CALL
 ' (STUB-DROP)  IS COMP-JMP-IMM
 ' (STUB-DROP)  IS COMP-SINGLE
+\ Default: treat daddr as host pointer via DTHERE (flat image / in-process)
+: (COMP-DATA-ADDR-DEFAULT)  ( daddr -- )  DTHERE COMP-SINGLE ;
+' (COMP-DATA-ADDR-DEFAULT) IS COMP-DATA-ADDR
 ' (STUB-NOOP)  IS COMP-FETCH
 ' (STUB-NOOP)  IS COMP-STORE
 ' (STUB-NOOP)  IS COMP-PERFORM

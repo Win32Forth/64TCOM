@@ -18,3 +18,11 @@ node_modules/
 # Optional local scratch
 *.tmp
 *.bak
+
+# 64TCOM ARM64 generated image / Mach-O outputs (recreated by SAVE-*)
+64TCOMARM64/tcomarm64
+64TCOMARM64/tcomarm64.bin
+64TCOMARM64/tcomarm64.c
+64TCOMARM64/tcomarm64.map
+64TCOMARM64/tcomarm64-build.sh
+64TCOMARM64/*.bin

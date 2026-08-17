@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-17 (TSRC-INCLUDE source loader in **64TCOMSRC**; Roadmap B done; pack **0.2**)
+**Last updated:** 2026-08-17 (**Layer 1 closed**: `.tfth` → sim + native + Mach-O `MAIN` exit **42**; pack **0.2**)
 
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
@@ -14,27 +14,44 @@
 
 | Stage | What | Status |
 |-------|------|--------|
-| **Now** | Codegen foundation: calls, control demos, lib leaves, sim / native / Mach-O | **Layer 0** — largely done |
-| **Next** | Compile a **Forth source file** into a complete image + entry | **Layer 1** — not yet |
-| **Then** | Useful **CLI** tools (args, print, exit code) in Terminal | **Layer 2** — thin (ANS exit 5 only) |
+| **Layer 0** | Codegen foundation: calls, control demos, lib leaves, sim / native / Mach-O | **Done** |
+| **Layer 1** | Compile a **Forth source file** into a complete image + entry + standalone | **Done** (restricted dialect; `hello.tfth` MAIN=>42 all paths) |
+| **Next** | Useful **CLI** tools (args, print, richer exit policy) in Terminal | **Layer 2** — thin (exit code works; no `write`/args yet) |
 | **Later** | Real I/O, files, strings, runtime services | **Layer 3** |
 | **Eventually** | Finder double-clickable apps with their own window(s), like 64Forth | **Layer 4** |
 
 ```text
   Layer 4  Finder double-click + own windows  (64Forth-class app)
   Layer 3  Real I/O, files, strings, runtime services
-  Layer 2  CLI Mach-O that does something useful (args, print, exit code)
-  Layer 1  Compile a Forth source file into a complete image + entry
-  Layer 0  Codegen foundation (calls, control, lib, sim/native/Mach-O)  ← you are here
+  Layer 2  CLI Mach-O that does something useful (args, print, exit code)  ← next
+  Layer 1  Compile a Forth source file into a complete image + entry     DONE
+  Layer 0  Codegen foundation (calls, control, lib, sim/native/Mach-O)   DONE
 ```
 
 **Product story** (not “finish the ARM64 ISA”):
 
 > Host 64Forth runs 64TCOM → reads target source → emits ARM64 image → `SAVE-MACHO` → terminal binary.
 
+**Proven today (Layer 1):**
+
+```text
+FLOAD TARGETARM64.fth
+SRC-DEMO
+\ → MAIN => 42 (sim)
+\ → MAIN native => 42
+\ → ./tcomarm64 exit 42
+```
+
+Or one-shot:
+
+```text
+S" samples/hello.tfth" TSRC-BUILD   \ image + SAVE-MACHO entry MAIN
+S" ./tcomarm64" SYSTEM .            \ prints 42
+```
+
 Eventually that binary *is* the app (or is linked into one), with a small C/runtime shell only where the OS forces it (Mach-O, windowing, etc.).
 
-Debugging capability comes at some point (listing, symbol map, SIM step, crash PC→name). **First need:** compile a Forth source file end-to-end. GUI/Finder apps come last.
+Debugging capability comes at some point (listing, symbol map, SIM step, crash PC→name). **First need met:** compile a Forth source file end-to-end (restricted dialect). GUI/Finder apps come last.
 
 ---
 
@@ -54,11 +71,13 @@ Debugging capability comes at some point (listing, symbol map, SIM step, crash P
   Phase 4.0        OPEN   — utilities (listing, xref, debugger) — after source compile
   Roadmap B        DONE   — TIF/TELSE/TTHEN, TBEGIN/TUNTIL/TAGAIN/TWHILE/TREPEAT,
                            IF-DEMO sim+native+Mach-O LOOP3, BRANCH#/ZBRANCH#
-  Product path     OPEN   — source file → image → CLI → (later) GUI apps
-  Host automation  DONE   — 64Forth **1.1.2** agent channel (validated on Applications install)
   Roadmap E        DONE   — NEST-DEMO nested colon + IF, sim + native true BLR
-  Roadmap C/D partial — TVARIABLE + FETCH#/STORE# (VAR-DEMO sim+native)
-  Layer 1 start     DONE   — `64TCOMSRC/64SRC.fth` TSRC-INCLUDE + samples/hello.tfth
+  Roadmap C/D      DONE   — TVARIABLE + FETCH#/STORE#; SYM-DATA = daddr;
+                           COMP-DATA-ADDR + DATA-RELOC; Mach-O tcom_data[] + MOV fixup
+  Host automation  DONE   — 64Forth **1.1.2** agent channel (validated on Applications install)
+  Layer 1          DONE   — TSRC-INCLUDE + TSRC-BUILD + SRC-DEMO:
+                           samples/hello.tfth → MAIN => 42 (sim + native + Mach-O)
+  Product path     OPEN   — Layer 2+ (CLI I/O, grow dialect, multi-file, GUI last)
 ```
 
 **Pack version history**
@@ -66,7 +85,7 @@ Debugging capability comes at some point (listing, symbol map, SIM step, crash P
 | Version | Notes |
 |---------|--------|
 | **0.1** | First ARM64 pack: prims, SIM, native, SAVE-MACHO, true BLR, IF demos |
-| **0.2** | NEST/VAR; Roadmap B complete; **TSRC-INCLUDE** generic `.tfth` loader (`64SRC.fth`); `samples/hello.tfth` => 42 |
+| **0.2** | NEST/VAR; Roadmap B complete; **TSRC-INCLUDE** + **Mach-O data page**; `hello.tfth` MAIN=>42 sim/native/Mach-O |
 
 **Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2** (agent channel shipped; ANS/Hayes + agent green on install).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  
@@ -121,14 +140,20 @@ $FORTH --agent -c "$(pwd)" \
   -e 'VAR-DEMO' \
   -o /tmp/var.txt
 
-# IF / LOOP (sim + native subset)
+# IF / LOOP (sim + native + Mach-O LOOP3)
 $FORTH --agent -c "$(pwd)" \
   -e 'FLOAD TARGETARM64.fth' \
   -e 'IF-DEMO' \
   -o /tmp/if.txt
+
+# Layer 1: .tfth source → sim + native + Mach-O MAIN => 42
+$FORTH --agent -c "$(pwd)" \
+  -e 'FLOAD TARGETARM64.fth' \
+  -e 'SRC-DEMO' \
+  -o /tmp/src.txt
 ```
 
-### All three in one agent process
+### All demos in one agent process
 
 ```bash
 $FORTH --agent -c "$(pwd)" \
@@ -136,6 +161,7 @@ $FORTH --agent -c "$(pwd)" \
   -e 'NEST-DEMO' \
   -e 'VAR-DEMO' \
   -e 'IF-DEMO' \
+  -e 'SRC-DEMO' \
   -o /tmp/64tcom-demos.txt
 ```
 
@@ -145,7 +171,7 @@ $FORTH --agent -c "$(pwd)" \
 $FORTH --agent -c "$(pwd)" -f runtest.fth -o /tmp/runtest.txt
 ```
 
-Loads the pack and runs ARM64-DEMO, ANS sim/native, IF-DEMO, NEST-DEMO, VAR-DEMO, SAVE-MACHO, standalone, etc.
+Loads the pack and runs ARM64-DEMO, ANS sim/native, IF-DEMO, NEST-DEMO, VAR-DEMO, SRC-DEMO, SAVE-MACHO, standalone, etc.
 
 ### Interactive GUI (optional)
 
@@ -156,7 +182,9 @@ FLOAD TARGETARM64.fth
 NEST-DEMO
 VAR-DEMO
 IF-DEMO
+SRC-DEMO
 \ or:  ARM64-DEMO  .RUN-ANS  .RUN-ANS-N
+\ or:  S" samples/hello.tfth" TSRC-BUILD
 ```
 
 ### Success markers
@@ -175,11 +203,14 @@ IF-DEMO
 | | | `VAR-DEMO: OK (sim)` and `VAR-DEMO: OK (native)` |
 | **IF-DEMO** | `IFT`…`LOOP3`, `WONCE` | `LOOP3 => 3`, `WONCE => 7`, etc. |
 | | | `IF-DEMO: OK (sim)`, `OK (native)`, `OK (Mach-O LOOP3 => 3)` |
+| **SRC-DEMO** | `MAIN` | `MAIN => 42`, `MAIN native => 42` |
+| | | `Mach-O MAIN exit (want 42) = 42` |
+| | | `SRC-DEMO: OK (source → sim/native/Mach-O => 42)` |
 
 Quick check:
 
 ```bash
-grep -E 'OK|fail|ABORT|undefined' /tmp/nest.txt /tmp/var.txt /tmp/if.txt
+grep -E 'OK|fail|ABORT|undefined' /tmp/nest.txt /tmp/var.txt /tmp/if.txt /tmp/src.txt
 ```
 
 ### Demo inventory (what each proves)
@@ -187,12 +218,13 @@ grep -E 'OK|fail|ABORT|undefined' /tmp/nest.txt /tmp/var.txt /tmp/if.txt
 | Word / file | Proves |
 |-------------|--------|
 | `NEST-DEMO` / `NESTDEMO.fth` | Multi-level `G'` → `CALL-ABS` / true BLR; forward call; IF + nested calls |
-| `VAR-DEMO` / `VARDEMO.fth` | `TVARIABLE`, `SYM-DATA`, `G'`, `G@`/`G!`, `FETCH#`/`STORE#`, data in `T-DATA` |
+| `VAR-DEMO` / `VARDEMO.fth` | `TVARIABLE`, `SYM-DATA` (daddr), `G'`, `G@`/`G!`, `FETCH#`/`STORE#`, data in `T-DATA` |
 | `IF-DEMO` / `IFDEMO.fth` | Full Roadmap B: IF/loops/WHILE, sim+native+Mach-O LOOP3 |
+| `SRC-DEMO` / `SRCDEMO.fth` | **Layer 1:** `TSRC-INCLUDE` + data reloc; `hello.tfth` MAIN=>42 sim/native/Mach-O |
 | `ARM64-DEMO` | Lit + `PLUS#` → ANS => 5 (sim/native/Mach-O) |
 | `runtest.fth` | End-to-end pack smoke including demos above |
 
-### Target VARIABLE usage pattern
+### Target VARIABLE / data model
 
 ```forth
 TVARIABLE X
@@ -202,25 +234,40 @@ T: BUMP
 ;T
 ```
 
-- **`TVARIABLE name`** — one cell in target data; symbol type `SYM-DATA` (host address of cell).  
-- **`G' name`** — for DATA: push host addr (`COMP-SINGLE`), not a call.  
-- **`G@` / `G!`** — compile `FETCH#` / `STORE#`.  
-- In-process **sim and native** use absolute host `T-DATA` pointers (same process). **Standalone Mach-O** still needs data embed (open item 2c).
+| Piece | Role |
+|-------|------|
+| **`TVARIABLE name`** | One cell in `T-DATA`; symbol type `SYM-DATA` holds **daddr** (offset), not a host pointer |
+| **`G' name`** (DATA) | `COMP-DATA-ADDR` — emit lit of runtime address; record reloc (MOVZ site + daddr) |
+| **`G@` / `G!`** | Compile `FETCH#` / `STORE#` |
+| **In-process** (sim / native) | `COMP-DATA-ADDR` uses `DTHERE` → absolute host `T-DATA` pointer |
+| **Standalone Mach-O** | `tcom_data[]` embedded; C runtime copies data page; `MH-EMIT-DATA-FIXUP-C` rewrites MOVZ/MOVK×3 to `data + daddr` |
 
-### Source loader (Layer 1 start) — pack-independent
+### Source loader (Layer 1) — pack-independent — **DONE**
 
-**Architecture:** the restricted interpreter / token scanner lives in **`64TCOMSRC/64SRC.fth`** (compiler). Target packs only supply emitters (`TIF`, `G@`, prims). Do **not** put a special interpreter in `64TCOMARM64/`.
+**Architecture:** the restricted interpreter / token scanner lives in **`64TCOMSRC/64SRC.fth`** (compiler). Target packs only supply emitters (`TIF`, `G@`, prims, `COMP-DATA-ADDR`, SAVE-MACHO data). Do **not** put a special interpreter in `64TCOMARM64/`.
 
 | Piece | Location |
 |-------|----------|
 | `TSRC-INCLUDE` token scanner + dialect | `64TCOMSRC/64SRC.fth` |
-| Control/data emitters | Pack (`ASMARM64` / `OPTARM64`) |
+| `COMP-DATA-ADDR` default (`DTHERE`) | `64TCOMSRC/64HOST.fth` |
+| `SYM-COMPILE-REF` → `COMP-DATA-ADDR` for `SYM-DATA` | `64TCOMSRC/64DIR.fth` |
+| Control/data emitters + DATA-RELOC | Pack (`ASMARM64` / `OPTARM64`) |
+| Mach-O `tcom_data[]` + data MOV fixup | `MACHOARM64.fth` |
 | Sample source | `64TCOMARM64/samples/hello.tfth` |
-| Pack demo wrapper | `SRC-DEMO` / `SRCDEMO.fth` |
+| Pack demo | `SRC-DEMO` → `SRCDEMO.fth` |
+| One-shot build helper | `TSRC-BUILD` (ca u — path) in `TARGETARM64.fth` |
 
 **Dialect:** `VARIABLE`, `: … ;`, numbers/`$hex`, `IF ELSE THEN`, `BEGIN UNTIL AGAIN WHILE REPEAT`, `@ ! + - DUP DROP SWAP OVER`, other names → symbol compile.
 
-**Re-run:**
+**Sample `samples/hello.tfth`:**
+
+```forth
+VARIABLE X
+: DOUBLE  DUP + ;
+: MAIN    21 DOUBLE  X !  X @ ;
+```
+
+**Re-run (agent):**
 
 ```bash
 cd ~/Documents/64TCOM/64TCOMARM64
@@ -229,17 +276,37 @@ $FORTH --agent -c "$(pwd)" \
   -e 'FLOAD TARGETARM64.fth' \
   -e 'SRC-DEMO' \
   -o /tmp/src.txt
-# Expect: MAIN => 42  and  SRC-DEMO: OK
+# Expect:
+#   MAIN => 42
+#   MAIN native => 42
+#   Mach-O MAIN exit (want 42) = 42
+#   SRC-DEMO: OK (source → sim/native/Mach-O => 42)
 ```
 
-Or after pack load:
+**One-shot TSRC-BUILD:**
+
+```bash
+$FORTH --agent -c "$(pwd)" \
+  -e 'FLOAD TARGETARM64.fth' \
+  -e 'S" samples/hello.tfth" TSRC-BUILD' \
+  -e 'S" ./tcomarm64" SYSTEM .' \
+  -o /tmp/tsrc-build.txt
+# Expect: 42 on SYSTEM line; ./tcomarm64 exits 42
+```
+
+Or after pack load (interactive):
 
 ```forth
 TARGET-INIT
 S" samples/hello.tfth" TSRC-INCLUDE
 ARM64-FINISH
-S" MAIN" RUN-SYM .
+S" MAIN" RUN-SYM .          \ => 42
+S" MAIN" MACHO-ENTRY-SET SAVE-MACHO-FILE
+S" ./tcomarm64" SYSTEM .    \ => 42
+\ or:  S" samples/hello.tfth" TSRC-BUILD
 ```
+
+**Agent verify (2026-08-17):** SRC-DEMO and TSRC-BUILD green on 64Forth 1.1.2 `/Applications` — all three runners MAIN=>42.
 
 ---
 
@@ -344,9 +411,9 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 | True BLR, nested colon calls | **Done** — `NEST-DEMO` sim+native (OUTER/GO/NIF/FWDN) |
 | IF / BEGIN–UNTIL / WHILE / loops | **Done** — Roadmap B (`IF-DEMO` sim+native+Mach-O) |
 | Sim + in-process native run | Working |
-| Standalone CLI Mach-O via `cc` | Working for tiny entry words (e.g. ANS → exit 5) |
-| **Parse a `.tfth` and compile colon defs** | **Started** — `TSRC-INCLUDE` (restricted dialect); expand as needed |
-| Target `TVARIABLE` + `@`/`!` | **Done** in-process — `VAR-DEMO`; Mach-O data embed later |
+| Standalone CLI Mach-O via `cc` | Working — ANS exit 5; **hello MAIN exit 42** |
+| **Parse a `.tfth` and compile colon defs** | **Done (restricted)** — `TSRC-INCLUDE` / `TSRC-BUILD` / `SRC-DEMO` |
+| Target `TVARIABLE` + `@`/`!` + data | **Done** — daddr + DATA-RELOC; sim/native/`tcom_data[]` Mach-O |
 | Strings, I/O, argc/argv, GUI apps | Not yet |
 | **Host agent: headless load + transcript** | **Done** — 64Forth 1.1.2 `/Applications` |
 
@@ -391,7 +458,7 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 | `IFDEMO.fth` | Control-flow smoke (sim+native subset) |
 | `NESTDEMO.fth` | Nested `G'` / true BLR + IF + forward call |
 | `VARDEMO.fth` | `TVARIABLE` + `G@`/`G!` data cells |
-| `SRCDEMO.fth` / `samples/hello.tfth` | Source loader smoke (MAIN => 42) |
+| `SRCDEMO.fth` / `samples/hello.tfth` | Layer 1: source → sim/native/Mach-O MAIN => 42 |
 | `runtest.fth` | Full pack smoke (agent: `-f runtest.fth`) |
 
 ---
@@ -416,29 +483,42 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 
 ## Next step
 
-**Strategic priority:** shortest path to “I can compile a Forth source file” (Layer 1), then useful CLI (Layer 2). GUI is last.
+**Strategic priority:** Layer 1 is **closed**. Next is grow the dialect / second sources (still Layer 1 depth), then useful CLI I/O (Layer 2). GUI is last.
+
+### Closed this batch (2026-08-17)
+
+| Deliverable | Proof |
+|-------------|--------|
+| Nested colon + IF/loop | `NEST-DEMO` sim+native; `IF-DEMO` sim+native+Mach-O LOOP3 |
+| `VARIABLE` + `@`/`!` + data | `TVARIABLE` / daddr / DATA-RELOC; `VAR-DEMO` + Mach-O data page |
+| Restricted `.tfth` loader | `64TCOMSRC/64SRC.fth` `TSRC-INCLUDE` (not in pack) |
+| Source → sim + native + Mach-O | **`SRC-DEMO` / `TSRC-BUILD`**: `hello.tfth` MAIN **exit 42** all three paths |
+
+### Milestone table
 
 | Step | Deliverable | Gate |
 |------|-------------|------|
-| 1 | Nested colon + IF/loop **via compiled words**, sim+native (+Mach-O later) | **Done sim+native** — `NEST-DEMO`; Mach-O entry optional B4 |
-| 2 | `VARIABLE` + `@`/`!` + data area (in-process host ptrs) | **Done** — `TVARIABLE` / `VAR-DEMO`; Mach-O embed later |
-| 3 | Target subset parser: `: … ;` `IF`… numbers, word calls | **Started** — `64SRC` + `hello.tfth` => 42 sim+native |
-| 4 | `MAIN` + `SAVE-MACHO` exit code / `write` | `./prog ; echo $?` |
-| 5 | Second, messier source (two files, deeper control) | Still green on three runners |
-| 6 | I/O and strings | Useful CLI tools |
-| 7 | App bundle + windows | 64Forth-class apps |
+| 1 | Nested colon + IF/loop **via compiled words** | **Done** — `NEST-DEMO`; IF-DEMO Mach-O LOOP3 |
+| 2 | `VARIABLE` + `@`/`!` + data area | **Done** — daddr + reloc + `tcom_data[]` |
+| 3 | Target subset parser: `: … ;` `IF`… numbers, word calls | **Done** — `64SRC` + `hello.tfth` |
+| 4 | `MAIN` + `SAVE-MACHO` exit code | **Done** — `./tcomarm64` exit **42** |
+| 5 | Second, messier source (two files, deeper control) | **Next** — still green on three runners |
+| 6 | I/O and strings (`write`, args) | Useful CLI tools (Layer 2) |
+| 7 | App bundle + windows | 64Forth-class apps (Layer 4) |
 
-Immediate engineering queue:
+### Immediate engineering queue
 
 0. ~~**Host agent**~~ — **done** (64Forth 1.1.2)  
 1. ~~**Roadmap E nested colon**~~ — **done** (`NEST-DEMO` sim+native)  
-2. ~~**VARIABLE + @/!**~~ — **done** (`TVARIABLE`, `G@`/`G!`, `VAR-DEMO` sim+native)  
-2b. ~~**Roadmap B**~~ — **done** (WHILE/REPEAT, full native IF-DEMO, Mach-O LOOP3)  
-2c. Data embed for standalone VAR (Mach-O) if needed  
-3. ~~**Source loader**~~ — **started** (`64TCOMSRC/64SRC.fth`, `SRC-DEMO`); grow dialect as needed  
-4. Library wave (compares, `ROT`, …) as demos need  
-5. Grow assembler / library **on demand**  
-6. **Phase 4.0** utilities — *after* source compile  
+2. ~~**VARIABLE + @/!**~~ — **done** (`TVARIABLE`, `G@`/`G!`, `VAR-DEMO`)  
+2b. ~~**Roadmap B**~~ — **done** (WHILE/REPEAT, full IF-DEMO, Mach-O LOOP3)  
+2c. ~~**Data embed for standalone VAR (Mach-O)**~~ — **done** (`tcom_data[]` + MOV fixup)  
+3. ~~**Source loader + closed loop**~~ — **done** (`TSRC-INCLUDE`, `TSRC-BUILD`, `SRC-DEMO` MAIN=>42)  
+4. **Grow dialect + second `.tfth`** (control-heavy, multi-def; keep three runners green)  
+5. Library wave (compares, `ROT`, …) as demos need  
+6. Layer 2: CLI runtime (`write`/print, argc/argv, documented exit policy)  
+7. Grow assembler / library **on demand**  
+8. **Phase 4.0** utilities — listing/xref after richer sources exist  
 
 ## Assembler completeness policy
 
@@ -471,8 +551,9 @@ requires them.
 | **3.4** Standalone Mach-O | **Done** | `SAVE-MACHO` → C + `cc`; auto-build via `SYSTEM` |
 | **3.5** True BL/BLR (no inline) | **Done** | Default fixup; `/INLINE-CALLS` fallback |
 | **Control demos** | **Roadmap B done** | `IF-DEMO` sim+native+Mach-O LOOP3; WHILE/REPEAT |
-| **Source→CLI→app** | **Open** | Layers 1–4 (see Product destination) |
-| **4.0** Utilities | **Open** | Listing, xref, debugger — after source compile |
+| **Source→image→Mach-O** | **Layer 1 done** | `hello.tfth` MAIN=>42 sim/native/Mach-O |
+| **CLI I/O → app** | **Open** | Layers 2–4 (see Product destination) |
+| **4.0** Utilities | **Open** | Listing, xref, debugger — after richer sources |
 
 ---
 
@@ -659,44 +740,35 @@ Do **not** design windowing into the compiler until CLI source→binary is borin
 
 ### What we already have
 
-Enough for **leaf graphs**: stack ops, `+`/`-`, lit, `CALL-ABS` (true BLR default; `/INLINE-CALLS` fallback), branches/labels in the **assembler**, control demos (`IF-DEMO` sim incl. `LOOP3`), sim + native + standalone.
+**Layer 0 + Layer 1 MVP:** stack ops, `+`/`-`, lit, `CALL-ABS` (true BLR; `/INLINE-CALLS` fallback), control via `TIF`/loops and dialect, nested colon (`NEST-DEMO`), `VARIABLE` with daddr + Mach-O data page, restricted `.tfth` loader → sim/native/standalone (`hello.tfth` MAIN=>42).
 
-A **real** program needs more than leaves: nested calls, richer control **through the compiler**, memory/locals, strings/I/O policy, a library the **compiler** actually uses—not only hand asm—and eventually a **source loader**.
+Still needed for **useful** programs: broader dialect/lib, multi-file sources, strings/I/O policy, richer CLI runtime — then GUI.
 
 ### Priority order (what blocks real programs)
 
 #### 1. Call model that scales — Phase 3.5 (runtime) — **DONE**
 
 Native and Mach-O default to true BLR (fixup `.quad` → base+taddr).  
-`/INLINE-CALLS` restores the ≤5-insn paste path. Nested multi-level colon trees still need stress testing (roadmap E) and may need LR discipline for non-leaf callees.
+`/INLINE-CALLS` restores the ≤5-insn paste path. Nested multi-level colon proven by `NEST-DEMO`; deeper recursion may need more LR discipline later.
 
 **Detail:** [`64DESIGN/Phase 3.5 ARM64 notes.txt`](64DESIGN/Phase%203.5%20ARM64%20notes.txt)
 
-#### 2. Control-flow library the compiler can use
+#### 2. Control-flow library the compiler can use — **DONE for pack + dialect**
 
-**Why:** Real Forth is mostly `IF`/`THEN`, loops, exits—not `6 + 1`.
+| Grow | Status |
+|------|--------|
+| `BRANCH#` / `ZBRANCH#` | Done (relocatable) |
+| `TIF`/`TELSE`/`TTHEN` + loops | Done (`IF-DEMO`) |
+| Dialect `IF`…`REPEAT` via `TSRC` | Done (maps to pack emitters) |
+| Later: `DO`/`LOOP` | Open when a source needs it |
 
-| Grow | Assembler pieces (many exist) |
-|------|--------------------------------|
-| Real `BRANCH#` / `ZBRANCH#` bodies | `B` / `CBZ` / `B.cond` + patch |
-| `COMP-IF` / `THEN` / `ELSE` (or pack hooks) | Same as `AIF,`/`ATHEN,` but via director |
-| `BEGIN`/`UNTIL`/`AGAIN`/`WHILE`/`REPEAT` | Back branches + labels |
-| Later: `DO`/`LOOP` | Compare + branch; may need return-stack or index regs |
+#### 3. Memory model for real data — **VARIABLE done; frames open**
 
-Assembler already has `B.COND`, `CBZ`, `AHEAD`/`THEN,`, `L:`/`BR>L`. Gap is **wiring them into OPT/LIB and high-level `T:`**, not inventing B.
-
-#### 3. Memory model for real data
-
-**Why:** Programs use variables, arrays, structs—not only the data stack.
-
-| Need | Assembler / ABI |
-|------|------------------|
-| `@` `!` already in lib | Confirm/use widely from compiled code |
-| `C@` `C!` `2@` `2!` or cell helpers | Narrow LDR/STR sizes |
-| PC-relative / absolute data | `ADRP`+`ADD` or lit pool + LDR (**new emitters**) |
-| Locals / frame (optional) | `STP`/`LDP` X29/X30, `SUB SP` — high leverage for non-leaf |
-
-Worth adding next in the **assembler**: **`LDP`/`STP` (pre/post), `LDRB`/`STRB`, `ADRP`/`ADD` page**, more `LDR`/`STR` modes.
+| Need | Status |
+|------|--------|
+| `@` `!` + `VARIABLE` | **Done** — daddr, `COMP-DATA-ADDR`, Mach-O `tcom_data[]` |
+| `C@` `C!` `2@` `2!` | Open when sources need them |
+| Locals / frame | Open — `STP`/`LDP` when non-leaf needs it |
 
 #### 4. Widen the library (compiler-visible), not the full ISA
 
@@ -750,20 +822,21 @@ Avoid full-ISA tourism before steps 1–4.
   - [x] B2b. Full suite on **native** + Mach-O entry `LOOP3` => exit 3
   - [x] B3. `BRANCH#`/`ZBRANCH#` relocatable via ADR−taddr base (no host bake-in)
   - [x] B4. `TAGAIN` / `TWHILE` / `TREPEAT`; `WONCE` demo; Mach-O LOOP3 in IF-DEMO
-  - Pack IF remains `TIF`/`TELSE`/`TTHEN` (host `IF` left alone; source-loader sugar later)
-- [ ] **C.** `LDP`/`STP` + `ADRP` (or lit-pool) for frames/data — *asm*
+  - Pack IF remains `TIF`/`TELSE`/`TTHEN` (host `IF` left alone; source loader maps IF…)
+- [x] **C (data path).** `SYM-DATA` = daddr; `COMP-DATA-ADDR` + DATA-RELOC; Mach-O `tcom_data[]` + MOV fixup
+- [ ] **C (frames).** `LDP`/`STP` + `ADRP` for call frames — *asm* when non-leaf needs it
 - [ ] **D.** Library wave: `ROT`, logic, compares, `C@`/`C!` — *lib*
-- [ ] **E.** Nested colon demo (true BLR, multi-level calls) — *proof*
+- [x] **E.** Nested colon demo (true BLR, multi-level calls) — `NEST-DEMO`
 - [ ] **F.** Optional: strings / `TYPE` if host I/O model exists
 - [ ] **G.** More ISA as programs demand
 
 **Source → CLI → app (Layers 1–4):**
 
-- [ ] **P1** Compiler surface: high-level IF/loops, calls, `VARIABLE`, target source loader
-- [ ] **P2** Library breadth driven by first real sources
-- [ ] **P3** Standalone CLI runtime (`MAIN`/`COLD`, write/exit, optional argc/argv)
+- [x] **P1 (MVP)** Compiler surface: IF/loops via dialect, calls, `VARIABLE`, `TSRC-INCLUDE` / `TSRC-BUILD`
+- [ ] **P2** Library breadth driven by next real sources
+- [ ] **P3** Standalone CLI runtime beyond exit code (`write`, argc/argv)
 - [ ] **P4** Fairly complicated multi-file Forth (stress compiler; three runners)
-- [ ] **P5** Debuggability (listing, map, SIM step) — after P1
+- [ ] **P5** Debuggability (listing, map, SIM step) — after richer sources
 - [ ] **P6** Finder double-click + windows (app bundle + UI prims) — last
 
 ### Success tests
@@ -777,16 +850,17 @@ SAVE-MACHO-FILE  → binary behaves the same
 without relying on 5-insn inlining
 ```
 
-**Source compile (Layer 1):**
+**Source compile (Layer 1) — achieved:**
 
 ```text
 FLOAD TARGETARM64.fth
-S" hello.tfth" TCOM-COMPILE   \ or equivalent
-MAIN  (sim + native) => expected
-SAVE-MACHO-FILE → ./hello behaves the same
+SRC-DEMO
+\ or:  S" samples/hello.tfth" TSRC-BUILD
+MAIN  (sim + native) => 42
+./tcomarm64 exit 42
 ```
 
-**CLI useful (Layer 2):** same, plus print/args/exit policy that a Terminal user cares about.
+**CLI useful (Layer 2):** same, plus print/args beyond bare exit code.
 
 **GUI (Layer 4):** double-clickable bundle with its own window(s); same image model as CLI.
 
@@ -795,9 +869,9 @@ SAVE-MACHO-FILE → ./hello behaves the same
 - Full NEON / system register set  
 - Full ANS Forth compatibility on day one  
 - Hand-rolled perfect Mach-O (already use `cc`)  
-- Phase 4 utilities (listing/xref) **before** the compiler can emit nested control / source  
-- Interactive debugger inside the standalone app (before source→CLI works)  
-- Finder/GUI shells (before CLI source→binary is reliable)  
+- Phase 4 utilities (listing/xref) **before** a second real source stresses the dialect  
+- Interactive debugger inside the standalone app (before CLI I/O is useful)  
+- Finder/GUI shells (before CLI source→binary + I/O is reliable)  
 - Polishing `ASM-DEMO` alone without compiler/library/source path  
 
 ### Short answer
@@ -805,14 +879,15 @@ SAVE-MACHO-FILE → ./hello behaves the same
 **Next for real programs / apps:**
 
 1. ~~**True calls (3.5)**~~ — **done** (default true BLR)  
-2. ~~**Control demos (IF-DEMO sim)**~~ — **done** (incl. `LOOP3`)  
-3. **Control flow through LIB + COMP-*** + nested colon (E) — still open  
-4. **Memory + frames** — ADRP/LDP/STP, more loads/stores  
-5. **Library breadth** — what colon definitions actually call  
-6. **Source loader (P1)** — restricted Forth `.tfth` → image  
-7. **CLI runtime (P3)** — `MAIN` + write/exit  
-8. **Assembler opcodes only when a prim needs them**  
-9. **GUI (P6)** only after CLI source→binary is boring  
+2. ~~**Control demos (IF-DEMO)**~~ — **done** (sim+native+Mach-O LOOP3)  
+3. ~~**Nested colon (E)**~~ — **done** (`NEST-DEMO`)  
+4. ~~**Memory model for VARIABLE**~~ — **done** (daddr + Mach-O data page)  
+5. ~~**Source loader (P1 MVP)**~~ — **done** (`TSRC-INCLUDE` / `TSRC-BUILD` / MAIN=>42)  
+6. **Second messier `.tfth` + dialect growth** — keep three runners green  
+7. **Library breadth** — what next sources actually call  
+8. **CLI runtime (P3)** — `write` / print / argc/argv  
+9. **Assembler opcodes only when a prim needs them**  
+10. **GUI (P6)** only after CLI source→binary + I/O is boring  
 
 ---
 
