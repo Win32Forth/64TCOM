@@ -51,14 +51,11 @@ INCLUDE ../64TCOMSRC/64SRC.fth
   SAVE-MACHO-FILE
   ;
 
-\ ----- TCOM path …  — parse filename, build ./leaf (MAIN entry) -----
-\   TCOM samples/print.tfth     → ./print
-\   TCOM "path with spaces/x.tfth"  → ./x
+\ ----- TCOM path …  — parse filename, build next to source (MAIN entry) -----
+\   TCOM samples/print.tfth     → samples/print  (+ .c .bin -build.sh)
+\   TCOM "path with spaces/x.tfth"  → path with spaces/x
 CREATE TCOM-SRC   256 ALLOT
-CREATE TCOM-OUT   128 ALLOT
-VARIABLE TCOM-I
-VARIABLE TCOM-N
-VARIABLE TCOM-BASE
+CREATE TCOM-OUT   256 ALLOT
 34 CONSTANT TCOM-QUOT
 
 \ Skip blanks in the input stream
@@ -87,17 +84,6 @@ VARIABLE TCOM-BASE
   DUP 0= IF 2DROP S" TCOM needs a source filename" TCOM-ABORT THEN
   ;
 
-\ Index of last '/' in (ca u), or -1 if none
-: TCOM-LAST-SLASH  ( c-addr u -- n )
-  -1 TCOM-N !
-  0 TCOM-I !
-  BEGIN TCOM-I @ OVER < WHILE
-    OVER TCOM-I @ + C@ [CHAR] / = IF TCOM-I @ TCOM-N ! THEN
-    1 TCOM-I +!
-  REPEAT
-  2DROP TCOM-N @
-  ;
-
 \ True if (ca u) ends with .tfth or .TFTH (5 chars)
 : TCOM-HAS-TFTH  ( c-addr u -- f )
   DUP 5 < IF 2DROP FALSE EXIT THEN
@@ -109,23 +95,17 @@ VARIABLE TCOM-BASE
   1+     C@ 32 OR [CHAR] h =
   ;
 
-\ Path → leaf name without directory or .tfth (into TCOM-OUT as counted)
+\ Path → same dir, strip .tfth only (keep folder prefix; into TCOM-OUT)
 : TCOM-MAKE-OUT-NAME  ( c-addr u -- )
-  2DUP TCOM-LAST-SLASH  ( ca u slash| -1 )
-  DUP 0< IF
-    DROP
-  ELSE
-    1+ /STRING
-  THEN
   2DUP TCOM-HAS-TFTH IF 5 - THEN
   DUP 0= IF 2DROP S" TCOM: empty output name" TCOM-ABORT THEN
-  120 UMIN TCOM-OUT PLACE
+  250 UMIN TCOM-OUT PLACE
   ;
 
-\ Set MACHO-FILENAME and IMAGE-FILENAME (.bin) from TCOM-OUT leaf
+\ Set MACHO-FILENAME and IMAGE-FILENAME (.bin) from TCOM-OUT base path
 : TCOM-SET-OUTPUT-NAMES  ( -- )
   TCOM-OUT COUNT MACHO-FILENAME PLACE
-  TCOM-OUT COUNT 120 UMIN PAD PLACE
+  TCOM-OUT COUNT 250 UMIN PAD PLACE
   PAD COUNT +
   [CHAR] . OVER C! 1+
   [CHAR] b OVER C! 1+
@@ -135,7 +115,7 @@ VARIABLE TCOM-BASE
   PAD COUNT IMAGE-FILENAME PLACE
   ;
 
-\ Compile path → MAIN Mach-O named after leaf (cwd / target folder)
+\ Compile path → MAIN Mach-O beside the .tfth (same directory)
 : (TCOM)  ( c-addr u -- )
   DUP 250 U> IF 2DROP S" TCOM: path too long" TCOM-ABORT THEN
   2DUP TCOM-SRC PLACE
@@ -143,7 +123,7 @@ VARIABLE TCOM-BASE
   TCOM-SET-OUTPUT-NAMES
   ?QUIET 0= IF
     S" TCOM: " TYPE TCOM-SRC COUNT TYPE
-    S"  → ./" TYPE TCOM-OUT COUNT TYPE CR
+    S"  → " TYPE TCOM-OUT COUNT TYPE CR
   THEN
   TARGET-INIT
   LL-INIT
@@ -168,4 +148,4 @@ TCOM-WARN-ON
 S" 64TCOM ARM64 ready — " TYPE TVERSION CR
 S" HERE-T=" TYPE HERE-T . S"  LIB-CODE-END=" TYPE LIB-CODE-END @ . CR
 S" Native: .RUN-ANS-N   Standalone: SAVE-MACHO-FILE (see .MACHOARM64)" TYPE CR
-S" Try: TCOM samples/print.tfth   (→ ./print)  or  SRC-DEMO PRINT-DEMO" TYPE CR
+S" Try: TCOM samples/print.tfth   (→ samples/print)  or  SRC-DEMO PRINT-DEMO" TYPE CR

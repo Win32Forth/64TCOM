@@ -33,4 +33,13 @@ node_modules/
 64TCOMARM64/hello.bin
 64TCOMARM64/hello.c
 64TCOMARM64/hello-build.sh
+64TCOMARM64/samples/print
+64TCOMARM64/samples/print.bin
+64TCOMARM64/samples/print.c
+64TCOMARM64/samples/print-build.sh
+64TCOMARM64/samples/hello
+64TCOMARM64/samples/hello.bin
+64TCOMARM64/samples/hello.c
+64TCOMARM64/samples/hello-build.sh
 64TCOMARM64/*.bin
+64TCOMARM64/samples/*.bin
