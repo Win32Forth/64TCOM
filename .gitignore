@@ -45,5 +45,9 @@ node_modules/
 64TCOMARM64/samples/args.bin
 64TCOMARM64/samples/args.c
 64TCOMARM64/samples/args-build.sh
+64TCOMARM64/samples/add
+64TCOMARM64/samples/add.bin
+64TCOMARM64/samples/add.c
+64TCOMARM64/samples/add-build.sh
 64TCOMARM64/*.bin
 64TCOMARM64/samples/*.bin

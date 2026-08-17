@@ -26,6 +26,7 @@ VARIABLE A64-H
 VARIABLE A64-N
 VARIABLE A64-M
 VARIABLE A64-T
+VARIABLE A64-A
 
 : (REG)  ( n -- n )  $1F AND ;
 
@@ -161,6 +162,15 @@ VARIABLE A64-T
 $EB1F003F CONSTANT (A64-CMP-X1-XZR)   \ CMP X1, XZR
 $9A9F17E0 CONSTANT (A64-CSET-X0-EQ)   \ CSET X0, EQ
 
+\ CSET Xd, cond  = CSINC Xd,XZR,XZR, invert(cond)
+\ CSINC encoding needs bits[11:10]=01 (not CSEL's 00).
+: CSET-X,  ( cond xd -- )
+  A64-D !
+  1 XOR $F AND 12 LSHIFT
+  $9A9F07E0 OR
+  A64-D @ (REG) OR W,
+  ;
+
 : T0=,  ( -- )
   X0 X1 MOV-X-X,
   (A64-CMP-X1-XZR) W,
@@ -195,6 +205,21 @@ $9A9F17E0 CONSTANT (A64-CSET-X0-EQ)   \ CSET X0, EQ
 : LDRB-X,  ( xt xn -- )
   A64-N ! A64-D !
   $39400000 A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
+\ UDIV Xd, Xn, Xm  — unsigned divide
+: UDIV-X,  ( xm xn xd -- )
+  A64-D ! A64-N ! A64-M !
+  $9AC00800 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
+\ MSUB Xd, Xn, Xm, Xa  — Xd = Xa - Xn*Xm
+: MSUB-X,  ( xm xa xn xd -- )
+  A64-D ! A64-N ! A64-A ! A64-M !
+  $9B008000 A64-M @ (REG) 16 LSHIFT OR
+  A64-A @ (REG) 10 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
   ;
 
 \ ADR Xd, #0 — Xd := address of this instruction (relocatable base recovery)
@@ -390,20 +415,36 @@ $A8C17FFE CONSTANT (A64-LDP-X30-XZR-SP)   \ LDP X30, XZR, [SP], #16
   ;
 
 \ ----- Forth-ABI control (TOS = flag in X0) — for T: … ;T graphs -----
-\ TIF: drop flag; if it was 0, branch to unresolved (ELSE/THEN)
-\ TELSE / TTHEN: resolve like classic structured Forth
+\ TIF/TELSE/TTHEN use a private control stack so host DATA stack pollution
+\ (common during TSRC-INCLUDE) cannot bury branch origins → B #0 hangs.
 
-: TIF  ( -- orig )
+32 CONSTANT #TCS
+CREATE TCS  #TCS CELLS ALLOT
+VARIABLE TCSP
+: TCS-CLEAR  ( -- )  0 TCSP ! ;
+: TCS-PUSH  ( x -- )
+  TCSP @ #TCS U>= IF S" TIF control stack overflow" TCOM-ABORT THEN
+  TCSP @ CELLS TCS + !  1 TCSP +!
+  ;
+: TCS-POP  ( -- x )
+  TCSP @ 0= IF S" TIF control stack underflow" TCOM-ABORT THEN
+  -1 TCSP +!  TCSP @ CELLS TCS + @
+  ;
+
+TCS-CLEAR
+
+: TIF  ( -- )
   \ MOV-X-X, is (xm xd): X0 X1 = MOV X1,X0 (flag TOS → X1)
   X0 X1 MOV-X-X,
   X0 X19 8 LDR-POST,             \ drop flag; new TOS
   ALIGN4-T
-  HERE-T                         \ orig = CBZ site
+  HERE-T TCS-PUSH                \ CBZ site
   X1 0 CBZ-X,                    \ if flag==0 skip true part (imm patched later)
   ;
 
 \ Resolve TIF's CBZ or TELSE's B (auto-detect opcode)
-: TTHEN  ( orig -- )
+: TTHEN  ( -- )
+  TCS-POP
   DUP W@-T 24 RSHIFT $FF AND $14 = IF
     HERE-T SWAP PATCH-B
   ELSE
@@ -411,11 +452,11 @@ $A8C17FFE CONSTANT (A64-LDP-X30-XZR-SP)   \ LDP X30, XZR, [SP], #16
   THEN
   ;
 
-: TELSE  ( orig-if -- orig-ahead )
+: TELSE  ( -- )
   ALIGN4-T HERE-T 0 B-IMM,       \ branch around else-part
-  SWAP                           \ ahead-orig  if-orig
+  TCS-POP                        \ if-orig (CBZ)
   HERE-T SWAP PATCH-CBZ          \ IF's CBZ → start of else
-  ;                              \ leave ahead-orig for TTHEN
+  TCS-PUSH                       \ ahead-orig for TTHEN
   ;
 
 \ BEGIN / UNTIL (flag): loop while flag is 0 (exit when flag <> 0)

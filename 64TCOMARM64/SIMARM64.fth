@@ -255,6 +255,29 @@ VARIABLE SM
     DROP EXIT
   THEN
 
+  \ UDIV Xd,Xn,Xm  9AC00800
+  DUP $FF20FC00 AND $9AC00800 = IF
+    DUP SIM-RD SD !
+    DUP SIM-RN SIM-X@ SN !
+    SIM-RM SIM-X@ DUP 0= IF
+      DROP S" SIM: UDIV by 0" TYPE CR TRUE SIM-HALT ! DROP EXIT
+    THEN
+    SN @ SWAP / SD @ SIM-X!
+    DROP EXIT
+  THEN
+
+  \ MSUB Xd,Xn,Xm,Xa  9B00xxxx  Xd = Xa - Xn*Xm
+  DUP $FF208000 AND $9B008000 = IF
+    DUP SIM-RD SD !
+    DUP SIM-RN SN !
+    DUP SIM-RM SM !
+    DUP 10 RSHIFT $1F AND          \ Ra
+    DUP 31 = IF DROP 0 ELSE SIM-X@ THEN
+    SN @ SIM-X@ SM @ SIM-X@ * -
+    SD @ SIM-X!
+    DROP EXIT
+  THEN
+
   \ UBFM as LSL #sh (immr=64-sh, imms=63-sh)
   DUP $FF800000 AND $D3400000 = IF
     DUP SIM-RD SD !

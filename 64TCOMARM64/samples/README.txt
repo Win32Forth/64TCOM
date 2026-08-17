@@ -22,6 +22,7 @@ Build a sample (64Forth console)
   TCOM samples/hello.tfth
   TCOM samples/print.tfth
   TCOM samples/args.tfth
+  TCOM samples/add.tfth
 
 Paths with spaces must be quoted:
 
@@ -60,11 +61,13 @@ What each sample does
     User args are 1-based (program name is not ARG1).
     Shell quotes apply: ./samples/args "" foo  → empty ARG1, ARG2=foo
 
-  CLI words (always available in the dialect after pack load):
-    ARGCOUNT   ( -- n )         number of user arguments
-    ARG1       ( -- c-addr u )  first user arg, or empty
-    ARG2       ( -- c-addr u )  second user arg, or empty
-    ARG#       ( n -- c-addr u ) nth user arg (1-based); invalid n → empty
+  add.tfth
+    ./samples/add 3 5 → prints 8 (uses = IF S>N + . CR)
+
+  CLI / dialect words (after pack load):
+    ARGCOUNT ARG1 ARG2 ARG#
+    0=  =  <  >   ROT NIP 2DUP
+    EMIT CR SPACE .   TYPE   S>N  (string to signed decimal)
 
 Optional demos (after FLOAD TARGETARM64.fth)
 -------------------------------------------
