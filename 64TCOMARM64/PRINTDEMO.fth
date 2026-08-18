@@ -1,4 +1,4 @@
-\ PRINTDEMO.fth — samples/print.tfth via TSRC (Layer 2 print)
+\ PRINTDEMO.fth — samples/print.fth via TSRC (Layer 2 print)
 \ Public domain. Proves TYPE# / S" on sim + native + Mach-O stdout.
 
 TARGET-INIT
@@ -6,7 +6,7 @@ TARGET-INIT
 LL-INIT
 FORTH DEFINITIONS
 
-S" samples/print.tfth" TSRC-INCLUDE
+S" samples/print.fth" TSRC-INCLUDE
 
 S" samples/print" MACHO-FILENAME PLACE
 S" samples/print.bin" IMAGE-FILENAME PLACE
@@ -17,7 +17,7 @@ FORTH DEFINITIONS
 VARIABLE RX
 
 : PRINT-DEMO-CHECK  ( -- )
-  S" --- PRINT-DEMO (print.tfth) ---" TYPE CR
+  S" --- PRINT-DEMO (print.fth) ---" TYPE CR
   S" MAIN" RUN-SYM RX !
   S" MAIN sim => " TYPE RX @ . CR
   RX @ 0 <> IF S" PRINT-DEMO fail MAIN sim want 0" TYPE CR ABORT THEN

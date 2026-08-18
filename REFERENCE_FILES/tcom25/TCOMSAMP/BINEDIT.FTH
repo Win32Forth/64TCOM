@@ -1,4 +1,4 @@
-\\ BINEDIT.SEQ          A Binary file Editor              by Tom Zimmer
+\\ BINEDIT.FTH          A Binary file Editor              by Tom Zimmer
 
 {
 

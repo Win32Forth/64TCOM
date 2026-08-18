@@ -1,6 +1,5 @@
 \\
 
-        .OPTIONS /OPT /NOINIT
 
 {
 

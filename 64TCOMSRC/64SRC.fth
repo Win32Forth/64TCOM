@@ -9,24 +9,28 @@
 \   Library: PLUS# MINUS# DUP# DROP# SWAP# OVER# FETCH# STORE# TYPE# ARG##
 \   Host compile words: ARGCOUNT ARG1 ARG2 ARG#
 \
-\ Dialect (.tfth) — extension distinguishes target source from host .fth:
-\   \ comment   ( comment )
+\ Dialect (.fth) — extension distinguishes target source from host .fth:
+\   \ comment          (to end of line)
+\   ( comment )        (paren, may span lines)
+\   \\ … {             (multi-line block; opener is two backslashes)
+\   } … {              (alias for the same multi-line block)
 \   VARIABLE name
 \   : name … ;
-\   FLOAD path.tfth   |  INCLUDE path.tfth   (top-level; nested .tfth)
+\   FLOAD path.fth   |  INCLUDE path.fth   (top-level; nested .fth)
 \   decimal | $hex
 \   IF ELSE THEN BEGIN UNTIL AGAIN WHILE REPEAT
 \   @ ! + - DUP DROP SWAP OVER
 \   S-quote text quote   TYPE   dot-quote text quote  (Layer 2 print)
 \   ARGCOUNT ARG1 ARG2 ARG#   (Layer 2 CLI args; 1-based user argv)
 \   0= = < >   ROT NIP 2DUP   EMIT CR SPACE .   S>N
+\   CHAR c   [CHAR] c   (compile ASCII code of first char of next word)
 \   other names → SYM-COMPILE-REF (call or data addr)
 \
 \ API (caller does TARGET-INIT / finish):
 \   c-addr u TSRC-INCLUDE
-\   TSRC-INCLUDE" path.tfth"
+\   TSRC-INCLUDE" path.fth"
 \
-\ FLOAD/INCLUDE in a .tfth loads another restricted target file (not host FLOAD).
+\ FLOAD/INCLUDE in a .fth loads another restricted target file (not host FLOAD).
 \ Relative paths are resolved against the including file's directory.
 
 TCOM-ANEW 64SRC
@@ -34,8 +38,19 @@ TCOM-ANEW 64SRC
 FORTH DEFINITIONS
 DECIMAL
 
-8192 CONSTANT /TSRC-BUF
-CREATE TSRC-BUF  /TSRC-BUF ALLOT
+\ Source buffer: ALLOCATE/RESIZE heap, not a fixed dictionary allot.
+\ Default floor 64 KiB; TSRC-LOAD-FILE grows to FILE-SIZE (and more while reading).
+65536 CONSTANT /TSRC-BUF-MIN
+16777216 CONSTANT /TSRC-BUF-MAX          \ 16 MiB sanity cap
+VARIABLE TSRC-BUF-ADDR                   \ 0 until TSRC-BUF-BOOT
+VARIABLE TSRC-BUF-CAP                    \ current capacity (bytes)
+VARIABLE TSRC-NEED                       \ expected size from FILE-SIZE (-1 = unknown)
+0 TSRC-BUF-ADDR !
+0 TSRC-BUF-CAP !
+
+: TSRC-BUF   ( -- addr )  TSRC-BUF-ADDR @ ;
+: /TSRC-BUF  ( -- n )     TSRC-BUF-CAP @ ;
+
 VARIABLE TSRC-LEN
 VARIABLE TSRC-I
 VARIABLE TSRC-LINE
@@ -53,6 +68,7 @@ CREATE TSRC-RESOLVED  256 ALLOT
 34 CONSTANT TSRC-QUOT-CH
 
 \ Nesting: save parent buffer + scan state
+\ Per-level heap slots (not a fixed stride arena) so the main buffer can grow.
 8 CONSTANT #TSRC-NEST
 VARIABLE TSRC-DEPTH
 0 TSRC-DEPTH !
@@ -61,7 +77,8 @@ CREATE TSRC-NEST-I     #TSRC-NEST CELLS ALLOT
 CREATE TSRC-NEST-LINE  #TSRC-NEST CELLS ALLOT
 CREATE TSRC-NEST-PATH  #TSRC-NEST 256 * ALLOT
 CREATE TSRC-NEST-DIR   #TSRC-NEST 256 * ALLOT
-CREATE TSRC-NEST-BUF   #TSRC-NEST /TSRC-BUF * ALLOT
+CREATE TSRC-NEST-BA    #TSRC-NEST CELLS ALLOT   \ buffer addr per level (0 = none)
+CREATE TSRC-NEST-BC    #TSRC-NEST CELLS ALLOT   \ capacity per level
 
 DEFER TSRC-DO-FLOAD
 : (TSRC-FLOAD-STUB)  ( -- )  S" TSRC-DO-FLOAD not set" TYPE CR TCOM-ABORT ;
@@ -71,6 +88,68 @@ DEFER TSRC-DO-FLOAD
   S" TSRC line " TYPE TSRC-LINE @ 0 .R S" : " TYPE TYPE CR
   TCOM-ABORT
   ;
+
+\ ( need -- ) ensure main buffer capacity >= need (and >= MIN); abort on failure
+: TSRC-ENSURE-CAP  ( need -- )
+  DUP 0< IF  DROP S" TSRC: negative buffer size" TSRC-ERR  THEN
+  /TSRC-BUF-MIN MAX
+  DUP /TSRC-BUF-MAX U> IF
+    DROP S" TSRC: file exceeds 16 MiB buffer cap" TSRC-ERR
+  THEN
+  DUP TSRC-BUF-CAP @ U> 0= IF  DROP EXIT  THEN
+  TSRC-BUF-ADDR @ 0= IF
+    DUP ALLOCATE IF
+      2DROP S" TSRC: ALLOCATE failed" TSRC-ERR
+    THEN
+    TSRC-BUF-ADDR !
+    TSRC-BUF-CAP !
+    EXIT
+  THEN
+  TSRC-BUF-ADDR @ OVER RESIZE IF
+    2DROP S" TSRC: RESIZE failed" TSRC-ERR
+  THEN
+  TSRC-BUF-ADDR !
+  TSRC-BUF-CAP !
+  ;
+
+\ Double capacity (used when reading past FILE-SIZE or size unknown)
+: TSRC-GROW  ( -- )
+  /TSRC-BUF DUP IF 2* ELSE DROP /TSRC-BUF-MIN THEN
+  TSRC-ENSURE-CAP
+  ;
+
+\ ( idx need -- ) ensure nest slot idx can hold need bytes
+: TSRC-NEST-ENSURE  ( idx need -- )
+  SWAP >R                                    \ need | R: idx
+  DUP R@ CELLS TSRC-NEST-BC + @ U> 0= IF
+    DROP R> DROP EXIT
+  THEN
+  R@ CELLS TSRC-NEST-BA + @ 0= IF
+    DUP ALLOCATE IF
+      2DROP R> DROP S" TSRC: nest ALLOCATE failed" TSRC-ERR
+    THEN
+    R@ CELLS TSRC-NEST-BA + !
+    R> CELLS TSRC-NEST-BC + !
+    EXIT
+  THEN
+  R@ CELLS TSRC-NEST-BA + @ OVER RESIZE IF
+    2DROP R> DROP S" TSRC: nest RESIZE failed" TSRC-ERR
+  THEN
+  R@ CELLS TSRC-NEST-BA + !
+  R> CELLS TSRC-NEST-BC + !
+  ;
+
+: TSRC-BUF-BOOT  ( -- )
+  0 TSRC-BUF-ADDR !
+  0 TSRC-BUF-CAP !
+  /TSRC-BUF-MIN TSRC-ENSURE-CAP
+  #TSRC-NEST 0 DO
+    0 I CELLS TSRC-NEST-BA + !
+    0 I CELLS TSRC-NEST-BC + !
+  LOOP
+  ;
+
+TSRC-BUF-BOOT
 
 : TSRC-EOF?  ( -- f )  TSRC-I @ TSRC-LEN @ U>= ;
 
@@ -107,11 +186,68 @@ DEFER TSRC-DO-FLOAD
   AGAIN
   ;
 
+\ Multi-line block comment body: skip until closing {
+: TSRC-SKIP-BLOCK  ( -- )
+  BEGIN
+    TSRC-GETC DUP 0< IF  DROP S" unclosed block comment (need {)" TSRC-ERR  THEN
+    [CHAR] { = IF EXIT THEN
+  AGAIN
+  ;
+
+\ Match upcoming token (already saw leading \) against ca u (e.g. S" ANS").
+\ On match: consume name chars, return true. Else restore I and return false.
+: TSRC-MATCH-DIR?  ( ca u -- f )
+  TSRC-I @ >R
+  TSRC-GETC DROP                         \ consume '\'
+  0 DO
+    TSRC-PEEK DUP 0< IF
+      DROP UNLOOP R> TSRC-I ! FALSE EXIT
+    THEN
+    DUP BL <= IF
+      DROP UNLOOP R> TSRC-I ! FALSE EXIT
+    THEN
+    OVER C@ 32 OR <> IF
+      DROP UNLOOP R> TSRC-I ! FALSE EXIT
+    THEN
+    TSRC-GETC DROP 1+
+  LOOP DROP
+  \ Must be end of token (whitespace or EOF)
+  TSRC-PEEK DUP 0< IF DROP R> DROP TRUE EXIT THEN
+  BL <= IF R> DROP TRUE EXIT THEN
+  R> TSRC-I ! FALSE
+  ;
+
+\ \ANS / \TCOM — if directive is false, skip rest of line (like \)
+: TSRC-TRY-DIRECTIVE  ( -- handled? )
+  S" ANS" TSRC-MATCH-DIR? IF
+    ['] \ANS >BODY @ 0= IF TSRC-SKIP-LINE THEN
+    TRUE EXIT
+  THEN
+  S" TCOM" TSRC-MATCH-DIR? IF
+    ['] \TCOM >BODY @ 0= IF TSRC-SKIP-LINE THEN
+    TRUE EXIT
+  THEN
+  FALSE
+  ;
+
 : TSRC-TOKEN  ( -- ca u )
   TSRC-SKIP-WS
   TSRC-EOF? IF  TSRC-WORD 0 EXIT  THEN
+  \ \\ … {  multi-line (two backslashes); checked before single-\ line comment
   TSRC-PEEK [CHAR] \ = IF
+    TSRC-I @ 1+ TSRC-LEN @ < IF
+      TSRC-BUF TSRC-I @ 1+ + C@ [CHAR] \ = IF
+        TSRC-GETC DROP TSRC-GETC DROP
+        TSRC-SKIP-BLOCK RECURSE EXIT
+      THEN
+    THEN
+    \ \ANS / \TCOM dual-load directives (before treating \ as line comment)
+    TSRC-TRY-DIRECTIVE IF  RECURSE EXIT  THEN
     TSRC-GETC DROP TSRC-SKIP-LINE RECURSE EXIT
+  THEN
+  \ } … {  alias for the same multi-line block
+  TSRC-PEEK [CHAR] } = IF
+    TSRC-GETC DROP TSRC-SKIP-BLOCK RECURSE EXIT
   THEN
   TSRC-PEEK [CHAR] ( = IF
     TSRC-GETC DROP TSRC-SKIP-PAREN RECURSE EXIT
@@ -158,21 +294,28 @@ DEFER TSRC-DO-FLOAD
 \ ( ca u -- n true | false )  always consumes ca u
 : TSRC->NUMBER  ( ca u -- n true | false )
   DUP 0= IF  2DROP FALSE EXIT  THEN
+  0 TSRC-ACC !  FALSE TSRC-OK !
+  FALSE >R                           \ sign flag on R
+  OVER C@ [CHAR] - = IF
+    1 /STRING DUP 0= IF  R> DROP 2DROP FALSE EXIT  THEN
+    R> DROP TRUE >R
+  THEN
   OVER C@ [CHAR] $ = IF
-    1 /STRING DUP 0= IF  2DROP FALSE EXIT  THEN
+    1 /STRING DUP 0= IF  R> DROP 2DROP FALSE EXIT  THEN
     16
   ELSE  10  THEN  TSRC-BASE !
-  0 TSRC-ACC !  FALSE TSRC-OK !
   BEGIN DUP WHILE
     OVER C@ TSRC-BASE @ TSRC-DIGIT
-    DUP 0< IF  DROP 2DROP FALSE EXIT  THEN
+    DUP 0< IF  DROP 2DROP R> DROP FALSE EXIT  THEN
     TSRC-ACC @ TSRC-BASE @ * + TSRC-ACC !
     TRUE TSRC-OK !
     1 /STRING
   REPEAT
   2DROP
-  TSRC-OK @ 0= IF  FALSE EXIT  THEN
-  TSRC-ACC @ TRUE
+  TSRC-OK @ 0= IF  R> DROP FALSE EXIT  THEN
+  TSRC-ACC @
+  R> IF NEGATE THEN
+  TRUE
   ;
 
 : TSRC-COLON  ( ca u -- )
@@ -193,6 +336,8 @@ DEFER TSRC-DO-FLOAD
   END-T:
   FALSE TO ?INTERPRETIVE
   FALSE TSRC-IN-COLON !
+  \ Drop host-stack junk so top-level , / ALLOT / VALUE see a clean stack
+  BEGIN DEPTH WHILE DROP REPEAT
   ;
 
 : TSRC-VARIABLE  ( ca u -- )
@@ -203,6 +348,57 @@ DEFER TSRC-DO-FLOAD
   0 OVER !-D
   T-CELL ALLOT-D
   SYM-DATA SWAP SYM-ADD DROP   \ ( ca u type daddr )
+  ;
+
+\ CREATE name — data symbol at HERE-D; no automatic allot (use ALLOT / ,)
+: TSRC-CREATE  ( ca u -- )
+  TSRC-IN-COLON @ IF  2DROP S" CREATE inside :" TSRC-ERR  THEN
+  CELL-ALIGN-D
+  HERE-D                       ( ca u daddr )
+  SYM-DATA SWAP SYM-ADD DROP
+  ;
+
+\ VALUE — n already under (ca u) on host stack; SYM-VALUE auto-fetches
+: TSRC-VALUE  ( ca u -- )
+  TSRC-IN-COLON @ IF  2DROP S" VALUE inside :" TSRC-ERR  THEN
+  DEPTH 2 <= IF  2DROP S" VALUE needs initial n" TSRC-ERR  THEN
+  CELL-ALIGN-D
+  HERE-D >R                      \ n ca u  R: daddr
+  ROT R@ !-D                     \ ca u
+  T-CELL ALLOT-D
+  SYM-VALUE R> SYM-ADD DROP
+  ;
+
+\ TO / =: name — compile store into a VALUE (or VARIABLE cell)
+: TSRC-TO  ( -- )
+  TSRC-IN-COLON @ 0= IF  S" TO outside :" TSRC-ERR  THEN
+  TSRC-TOKEN
+  DUP 0= IF  2DROP S" TO needs a name" TSRC-ERR  THEN
+  2DUP SYM-FIND IF
+    >R 2DROP R>                          \ ix (IF ate true)
+  ELSE
+    TYPE S"  ?" TSRC-ERR
+  THEN
+  DUP SYM-TYPE@ DUP SYM-VALUE = SWAP SYM-DATA = OR 0= IF
+    DROP S" TO needs VALUE or VARIABLE" TSRC-ERR
+  THEN
+  SYM-ADDR@ COMP-DATA-ADDR
+  COMP-STORE
+  ;
+
+\ Top-level ,  ( n -- ) store cell at HERE-D and allot
+: TSRC-COMMA  ( -- )
+  TSRC-IN-COLON @ IF  S" , inside : — use literals" TSRC-ERR  THEN
+  DEPTH 0= IF  S" , underflow" TSRC-ERR  THEN
+  HERE-D !-D
+  T-CELL ALLOT-D
+  ;
+
+\ Top-level ALLOT ( n -- )
+: TSRC-ALLOT  ( -- )
+  TSRC-IN-COLON @ IF  S" ALLOT inside :" TSRC-ERR  THEN
+  DEPTH 0= IF  S" ALLOT underflow" TSRC-ERR  THEN
+  ALLOT-D
   ;
 
 : TSRC-HOST-EXEC  ( ca u -- )
@@ -221,6 +417,25 @@ DEFER TSRC-DO-FLOAD
   ELSE
     TYPE S"  prim missing" TSRC-ERR
   THEN
+  ;
+
+\ +!> name  ( n -- )  NAME @ n + TO NAME
+: TSRC-+TO  ( -- )
+  TSRC-IN-COLON @ 0= IF  S" +!> outside :" TSRC-ERR  THEN
+  TSRC-TOKEN
+  DUP 0= IF  2DROP S" +!> needs a name" TSRC-ERR  THEN
+  2DUP SYM-FIND IF
+    >R 2DROP R>
+  ELSE
+    TYPE S"  ?" TSRC-ERR
+  THEN
+  DUP SYM-TYPE@ DUP SYM-VALUE = SWAP SYM-DATA = OR 0= IF
+    DROP S" +!> needs VALUE or VARIABLE" TSRC-ERR
+  THEN
+  DUP >R
+  SYM-ADDR@ COMP-DATA-ADDR  COMP-FETCH
+  S" PLUS#" TSRC-LIB-CALL
+  R> SYM-ADDR@ COMP-DATA-ADDR  COMP-STORE
   ;
 
 \ ASCII double-quote — avoid [CHAR] " inside definitions (breaks some 64Forth parses)
@@ -246,6 +461,14 @@ DEFER TSRC-DO-FLOAD
   AGAIN
   ;
 
+\ CHAR / [CHAR] — parse next word; compile first character as a literal
+: TSRC-COMPILE-CHAR  ( -- )
+  TSRC-IN-COLON @ 0= IF  S" CHAR outside :" TSRC-ERR  THEN
+  TSRC-TOKEN
+  DUP 0= IF  2DROP S" CHAR needs a character" TSRC-ERR  THEN
+  DROP C@ G,                         \ ( ca u -- ) first char as lit
+  ;
+
 \ True if (ca u) is the two-char token S"
 : TSRC-SQUOT?  ( ca u -- f )
   2 <> IF  DROP FALSE EXIT  THEN
@@ -266,6 +489,38 @@ DEFER TSRC-DO-FLOAD
   2DUP S" +" TSRC-EQ IF  2DROP S" PLUS#" TSRC-LIB-CALL TRUE EXIT  THEN
   2DUP S" -" TSRC-EQ IF  2DROP S" MINUS#" TSRC-LIB-CALL TRUE EXIT  THEN
   2DUP S" *" TSRC-EQ IF  2DROP S" MUL#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" AND" TSRC-EQ IF  2DROP S" AND#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" OR" TSRC-EQ IF  2DROP S" OR#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" INVERT" TSRC-EQ IF  2DROP S" INVERT#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" NOT" TSRC-EQ IF  2DROP S" INVERT#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" 2*" TSRC-EQ IF  2DROP S" 2STAR#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" 2/" TSRC-EQ IF  2DROP S" 2SLASH#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" NEGATE" TSRC-EQ IF  2DROP S" NEGATE#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" CELLS" TSRC-EQ IF  2DROP S" CELLS#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" CELL+" TSRC-EQ IF  2DROP 8 G, S" PLUS#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" 2@" TSRC-EQ IF  2DROP S" 2FETCH#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" >R" TSRC-EQ IF  2DROP S" TOR#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" R>" TSRC-EQ IF  2DROP S" FROMR#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" R@" TSRC-EQ IF  2DROP S" RFETCH#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" CMOVE" TSRC-EQ IF  2DROP S" CMOVE#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" SPACES" TSRC-EQ IF  2DROP S" SPACES#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" MOD" TSRC-EQ IF  2DROP S" MOD#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" /" TSRC-EQ IF  2DROP S" DIV#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" 1-" TSRC-EQ IF  2DROP S" 1MINUS#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" 1+" TSRC-EQ IF  2DROP S" 1PLUS#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" KEY?" TSRC-EQ IF  2DROP S" KEYQ#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" BYE" TSRC-EQ IF  2DROP S" BYE#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" AT" TSRC-EQ IF  2DROP S" AT#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" CLS" TSRC-EQ IF  2DROP S" CLS#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" GET-CHAR" TSRC-EQ IF  2DROP S" GETCHAR#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" TONE" TSRC-EQ IF  2DROP S" TONE#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" TIME-RESET" TSRC-EQ IF  2DROP S" TIMERST#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" 10TH-ELAPSED" TSRC-EQ IF  2DROP S" TENTHEL#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" TENTHS" TSRC-EQ IF  2DROP S" TENTHS#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" EXIT" TSRC-EQ IF  2DROP S" EXIT#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" UPC" TSRC-EQ IF  2DROP S" UPC#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" TRUE" TSRC-EQ IF  2DROP -1 G, TRUE EXIT  THEN
+  2DUP S" FALSE" TSRC-EQ IF  2DROP 0 G, TRUE EXIT  THEN
   2DUP S" DUP" TSRC-EQ IF  2DROP S" DUP#" TSRC-LIB-CALL TRUE EXIT  THEN
   2DUP S" DROP" TSRC-EQ IF  2DROP S" DROP#" TSRC-LIB-CALL TRUE EXIT  THEN
   2DUP S" SWAP" TSRC-EQ IF  2DROP S" SWAP#" TSRC-LIB-CALL TRUE EXIT  THEN
@@ -287,6 +542,10 @@ DEFER TSRC-DO-FLOAD
   2DUP S" OPEN-W" TSRC-EQ IF  2DROP S" OPEN-W" TSRC-HOST-EXEC TRUE EXIT  THEN
   2DUP S" LINE-BUF" TSRC-EQ IF  2DROP S" LINE-BUF" TSRC-HOST-EXEC TRUE EXIT  THEN
   2DUP S" EMIT" TSRC-EQ IF  2DROP S" EMIT#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" CHAR" TSRC-EQ IF  2DROP TSRC-COMPILE-CHAR TRUE EXIT  THEN
+  2DUP S" [CHAR]" TSRC-EQ IF  2DROP TSRC-COMPILE-CHAR TRUE EXIT  THEN
+  2DUP S" I" TSRC-EQ IF  2DROP S" TI," TSRC-HOST-EXEC TRUE EXIT  THEN
+  2DUP S" J" TSRC-EQ IF  2DROP S" TJ," TSRC-HOST-EXEC TRUE EXIT  THEN
   2DUP S" CR" TSRC-EQ IF  2DROP S" CR#" TSRC-LIB-CALL TRUE EXIT  THEN
   2DUP S" SPACE" TSRC-EQ IF  2DROP S" SPACE#" TSRC-LIB-CALL TRUE EXIT  THEN
   2DUP S" ." TSRC-EQ IF  2DROP S" DOT#" TSRC-LIB-CALL TRUE EXIT  THEN
@@ -309,6 +568,29 @@ DEFER TSRC-DO-FLOAD
   2DROP FALSE
   ;
 
+\ CASE OF ENDOF ENDCASE — nested IF/ELSE chain
+\ (Uses SYM-FIND/COMP-CALL directly so this can be defined before TSRC-LIB-CALL is used.)
+VARIABLE #CASE-OF
+: (CASE-CALL)  ( ca u -- )
+  2DUP SYM-FIND IF  >R 2DROP R> SYM-ADDR@ COMP-CALL
+  ELSE  TYPE S"  missing for CASE" TCOM-ABORT  THEN
+  ;
+: TCASE  ( -- )  0 #CASE-OF ! ;
+\ OF: OVER = IF DROP  (drop selector on match). Default clause must DROP
+\ the selector; ENDCASE only closes THENs (no trailing DROP) so a match
+\ path does not under-consume the data stack.
+: TOF  ( -- )
+  S" OVER#" (CASE-CALL)
+  S" EQ#"   (CASE-CALL)
+  TIF
+  S" DROP#" (CASE-CALL)
+  1 #CASE-OF +!
+  ;
+: TENDOF  ( -- )  TELSE ;
+: TENDCASE  ( -- )
+  BEGIN #CASE-OF @ WHILE  TTHEN  -1 #CASE-OF +!  REPEAT
+  ;
+
 : TSRC-CTRL?  ( ca u -- f )
   2DUP S" IF" TSRC-EQ IF  2DROP S" TIF" TSRC-HOST-EXEC TRUE EXIT  THEN
   2DUP S" ELSE" TSRC-EQ IF  2DROP S" TELSE" TSRC-HOST-EXEC TRUE EXIT  THEN
@@ -318,6 +600,13 @@ DEFER TSRC-DO-FLOAD
   2DUP S" AGAIN" TSRC-EQ IF  2DROP S" TAGAIN" TSRC-HOST-EXEC TRUE EXIT  THEN
   2DUP S" WHILE" TSRC-EQ IF  2DROP S" TWHILE" TSRC-HOST-EXEC TRUE EXIT  THEN
   2DUP S" REPEAT" TSRC-EQ IF  2DROP S" TREPEAT" TSRC-HOST-EXEC TRUE EXIT  THEN
+  2DUP S" DO" TSRC-EQ IF  2DROP S" TDO" TSRC-HOST-EXEC TRUE EXIT  THEN
+  2DUP S" LOOP" TSRC-EQ IF  2DROP S" TLOOP" TSRC-HOST-EXEC TRUE EXIT  THEN
+  2DUP S" +LOOP" TSRC-EQ IF  2DROP S" T+LOOP" TSRC-HOST-EXEC TRUE EXIT  THEN
+  2DUP S" CASE" TSRC-EQ IF  2DROP TCASE TRUE EXIT  THEN
+  2DUP S" OF" TSRC-EQ IF  2DROP TOF TRUE EXIT  THEN
+  2DUP S" ENDOF" TSRC-EQ IF  2DROP TENDOF TRUE EXIT  THEN
+  2DUP S" ENDCASE" TSRC-EQ IF  2DROP TENDCASE TRUE EXIT  THEN
   2DROP FALSE
   ;
 
@@ -328,6 +617,14 @@ DEFER TSRC-DO-FLOAD
     2DROP TSRC-TOKEN DUP 0= IF  2DROP S" VARIABLE needs a name" TSRC-ERR  THEN
     TSRC-VARIABLE EXIT
   THEN
+  2DUP S" CREATE" TSRC-EQ IF
+    2DROP TSRC-TOKEN DUP 0= IF  2DROP S" CREATE needs a name" TSRC-ERR  THEN
+    TSRC-CREATE EXIT
+  THEN
+  2DUP S" VALUE" TSRC-EQ IF
+    2DROP TSRC-TOKEN DUP 0= IF  2DROP S" VALUE needs a name" TSRC-ERR  THEN
+    TSRC-VALUE EXIT
+  THEN
   2DUP S" :" TSRC-EQ IF
     2DROP TSRC-TOKEN DUP 0= IF  2DROP S" : needs a name" TSRC-ERR  THEN
     TSRC-COLON EXIT
@@ -335,19 +632,49 @@ DEFER TSRC-DO-FLOAD
   2DUP S" ;" TSRC-EQ IF  2DROP TSRC-SEMI EXIT  THEN
   2DUP S" FLOAD" TSRC-EQ IF  2DROP TSRC-DO-FLOAD EXIT  THEN
   2DUP S" INCLUDE" TSRC-EQ IF  2DROP TSRC-DO-FLOAD EXIT  THEN
+  2DUP S" ," TSRC-EQ IF  2DROP TSRC-COMMA EXIT  THEN
+  2DUP S" ALLOT" TSRC-EQ IF  2DROP TSRC-ALLOT EXIT  THEN
+  2DUP S" CELLS" TSRC-EQ IF
+    2DROP
+    TSRC-IN-COLON @ IF
+      S" CELLS#" TSRC-LIB-CALL
+    ELSE
+      DEPTH 0= IF  S" CELLS underflow" TSRC-ERR  THEN
+      8 *
+    THEN
+    EXIT
+  THEN
+  2DUP S" TO" TSRC-EQ IF  2DROP TSRC-TO EXIT  THEN
+  2DUP S" =:" TSRC-EQ IF  2DROP TSRC-TO EXIT  THEN
+  2DUP S" !>" TSRC-EQ IF  2DROP TSRC-TO EXIT  THEN
+  2DUP S" OFF>" TSRC-EQ IF  2DROP 0 G, TSRC-TO EXIT  THEN
+  2DUP S" ON>" TSRC-EQ IF  2DROP -1 G, TSRC-TO EXIT  THEN
+  2DUP S" +!>" TSRC-EQ IF  2DROP TSRC-+TO EXIT  THEN
+  \ ?EXIT ( flag -- )  EXIT if flag nonzero (ANS). Was wrongly ZEQ-inverted.
+  2DUP S" ?EXIT" TSRC-EQ IF
+    2DROP S" TIF" TSRC-HOST-EXEC
+    S" EXIT#" TSRC-LIB-CALL S" TTHEN" TSRC-HOST-EXEC EXIT
+  THEN
   2DUP TSRC-CTRL? IF  EXIT  THEN
 
   TSRC-IN-COLON @ 0= IF
-    TYPE S"  at top level (only VARIABLE : FLOAD/INCLUDE)" TSRC-ERR
+    \ top-level number → host stack (for , VALUE ALLOT CELLS)
+    OVER C@ >R
+    R@ [CHAR] $ =  R@ [CHAR] - = OR
+    R> [CHAR] 0 [CHAR] 9 1+ WITHIN OR IF
+      2DUP TSRC->NUMBER IF  >R 2DROP R> EXIT  THEN
+    THEN
+    TYPE S"  at top level (VARIABLE CREATE VALUE : FLOAD ALLOT , CELLS)" TSRC-ERR
   THEN
 
   2DUP TSRC-PRIM? IF  EXIT  THEN
 
-  \ Number: try without keeping ca u on success
-  OVER C@ DUP [CHAR] $ = SWAP DUP [CHAR] 0 [CHAR] 9 1+ WITHIN OR IF
-    DROP
+  \ Number inside :  (allow leading - and $)
+  OVER C@ >R
+  R@ [CHAR] $ =  R@ [CHAR] - = OR
+  R> [CHAR] 0 [CHAR] 9 1+ WITHIN OR IF
     2DUP TSRC->NUMBER IF  >R 2DROP R> G, EXIT  THEN
-  ELSE DROP THEN
+  THEN
 
   2DUP SYM-FIND IF
     NIP NIP SYM-COMPILE-REF
@@ -399,7 +726,7 @@ DEFER TSRC-DO-FLOAD
 
 : TSRC-NEST-PATH-A  ( idx -- ca )  256 * TSRC-NEST-PATH + ;
 : TSRC-NEST-DIR-A   ( idx -- ca )  256 * TSRC-NEST-DIR + ;
-: TSRC-NEST-BUF-A   ( idx -- ca )  /TSRC-BUF * TSRC-NEST-BUF + ;
+: TSRC-NEST-BUF-A   ( idx -- ca )  CELLS TSRC-NEST-BA + @ ;
 
 : TSRC-STATE-SAVE  ( idx -- )
   >R
@@ -408,7 +735,8 @@ DEFER TSRC-DO-FLOAD
   TSRC-LINE @  R@ CELLS TSRC-NEST-LINE + !
   TSRC-CUR-PATH COUNT  R@ TSRC-NEST-PATH-A PLACE
   TSRC-CUR-DIR  COUNT  R@ TSRC-NEST-DIR-A  PLACE
-  TSRC-BUF  TSRC-LEN @  R@ TSRC-NEST-BUF-A  SWAP MOVE
+  R@ TSRC-LEN @ TSRC-NEST-ENSURE
+  TSRC-BUF  R@ TSRC-NEST-BUF-A  TSRC-LEN @ MOVE
   R> DROP
   ;
 
@@ -419,32 +747,55 @@ DEFER TSRC-DO-FLOAD
   R@ CELLS TSRC-NEST-LINE + @ TSRC-LINE !
   R@ TSRC-NEST-PATH-A COUNT TSRC-CUR-PATH PLACE
   R@ TSRC-NEST-DIR-A  COUNT TSRC-CUR-DIR  PLACE
+  TSRC-LEN @ TSRC-ENSURE-CAP
   R@ TSRC-NEST-BUF-A  TSRC-BUF  TSRC-LEN @ MOVE
   R> DROP
   ;
 
+\ Load entire file into TSRC-BUF. Sizes from FILE-SIZE (grows past 64 KiB);
+\ grows further while reading if needed. Never silently truncates.
 : TSRC-LOAD-FILE  ( ca u -- )
   R/O OPEN-FILE IF
     DROP TYPE S" : can't open source" TSRC-ERR
   THEN
   TSRC-FID !
+  TSRC-FID @ FILE-SIZE IF
+    2DROP
+    /TSRC-BUF-MIN TSRC-ENSURE-CAP
+    -1 TSRC-NEED !
+  ELSE
+    ( lo hi )
+    IF
+      DROP TSRC-FID @ CLOSE-FILE DROP
+      S" TSRC: file too large (>4GiB)" TSRC-ERR
+    THEN
+    DUP TSRC-NEED !
+    TSRC-ENSURE-CAP
+  THEN
   0 TSRC-LEN !
   BEGIN
-    TSRC-BUF TSRC-LEN @ +
-    /TSRC-BUF TSRC-LEN @ - 1-
+    /TSRC-BUF TSRC-LEN @ - DUP 0= IF
+      DROP
+      TSRC-GROW
+      /TSRC-BUF TSRC-LEN @ -
+    THEN
+    TSRC-BUF TSRC-LEN @ +  SWAP
     TSRC-FID @ READ-FILE
     IF
       TSRC-FID @ CLOSE-FILE DROP
       S" read error" TSRC-ERR
     THEN
     DUP 0= IF
-      DROP TSRC-FID @ CLOSE-FILE DROP EXIT
+      DROP
+      TSRC-NEED @ 0< 0= IF
+        TSRC-LEN @ TSRC-NEED @ <> IF
+          TSRC-FID @ CLOSE-FILE DROP
+          S" TSRC: short read (size mismatch)" TSRC-ERR
+        THEN
+      THEN
+      TSRC-FID @ CLOSE-FILE DROP EXIT
     THEN
-    TSRC-LEN @ + DUP /TSRC-BUF 1- > IF
-      DROP TSRC-FID @ CLOSE-FILE DROP
-      S" file too large for TSRC buffer (8KiB)" TSRC-ERR
-    THEN
-    TSRC-LEN !
+    TSRC-LEN +!
   AGAIN
   ;
 
@@ -468,7 +819,7 @@ DEFER TSRC-DO-FLOAD
   TSRC-DEPTH @ IF
     TSRC-DEPTH @ 1- TSRC-STATE-SAVE
   ELSE
-    \ Top-level path is cwd-relative as given (TCOM-CLI samples/foo.tfth)
+    \ Top-level path is cwd-relative as given (TCOM-CLI samples/foo.fth)
     0 TSRC-CUR-DIR C!
   THEN
   1 TSRC-DEPTH +!
@@ -513,8 +864,10 @@ DEFER TSRC-DO-FLOAD
 ' TSRC-FLOAD IS TSRC-DO-FLOAD
 
 : .64SRC  ( -- )
-  S" 64SRC — restricted .tfth loader (compiler, pack-independent)" TYPE CR
-  S"   c-addr u TSRC-INCLUDE   FLOAD/INCLUDE inside .tfth" TYPE CR
+  S" 64SRC — restricted .fth loader (compiler, pack-independent)" TYPE CR
+  S"   c-addr u TSRC-INCLUDE   FLOAD/INCLUDE inside .fth" TYPE CR
+  S"   Comments: \\ line  ( )  \\ ... {  or  } ... {" TYPE CR
+  S"   Buffer: 64 KiB min, grows to FILE-SIZE (cap 16 MiB)" TYPE CR
   S"   Needs pack: TIF TELSE TTHEN … G@ G! prims" TYPE CR
   ;
 

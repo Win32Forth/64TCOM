@@ -196,6 +196,20 @@ $D65F03C0 CONSTANT MH-RET
 : MH-EMIT-NL ( -- )  10 PAD C! PAD 1 MH-FID @ WRITE-FILE DROP ;
 : MH-EMIT-B  ( b -- )  PAD C! PAD 1 MH-FID @ WRITE-FILE DROP ;
 
+\ Paste a UTF-8 / ASCII include file (cwd-relative, e.g. tcom-textgrid.inc) into the .m/.c
+: MH-EMIT-FILE  ( c-addr u -- )
+  R/O OPEN-FILE IF
+    DROP TYPE S" : MACHO include missing" TYPE CR TCOM-ABORT
+  THEN
+  >R
+  BEGIN
+    PAD 1024 R@ READ-FILE
+    IF  R> CLOSE-FILE DROP  S" MACHO include read error" TYPE CR TCOM-ABORT  THEN
+    DUP 0= IF  DROP R> CLOSE-FILE DROP EXIT  THEN
+    PAD SWAP MH-FID @ WRITE-FILE DROP
+  AGAIN
+  ;
+
 : MH-EMIT-U  ( u -- )
   BASE @ MH-BASE-SAVE !
   DECIMAL
@@ -342,6 +356,10 @@ $D65F03C0 CONSTANT MH-RET
 : MH-EMIT-COMMON-DEFS  ( -- )
   S" #define TCOM_ENTRY " MH-EMIT-S MACHO-ENTRY-T@ MH-EMIT-U MH-EMIT-NL
   S" #define TCOM_PAGE 0x4000u" MH-EMIT-S MH-EMIT-NL
+  \ Extra RW region after the data image for Forth DSP (grows down) + RP.
+  \ One page was too small for TETRA — DSP walked into RX code → SIGBUS.
+  S" #define TCOM_STACK_BYTES 0x100000u" MH-EMIT-S MH-EMIT-NL
+  S" #define TCOM_RP_BYTES 0x8000u" MH-EMIT-S MH-EMIT-NL
   S" #define TCOM_ARGC_OFF 0u" MH-EMIT-S MH-EMIT-NL
   S" #define TCOM_ARGS_OFF 8u" MH-EMIT-S MH-EMIT-NL
   S" #define TCOM_ARG_STRIDE 256u" MH-EMIT-S MH-EMIT-NL
@@ -382,20 +400,24 @@ $D65F03C0 CONSTANT MH-RET
 
 : MH-EMIT-RUN-ASM  ( -- )
   S"   void *dsp = buf + total - 64;" MH-EMIT-S MH-EMIT-NL
+  S"   void *rp  = (uint8_t *)dsp - TCOM_RP_BYTES;" MH-EMIT-S MH-EMIT-NL
   S"   void *entry = buf + TCOM_ENTRY;" MH-EMIT-S MH-EMIT-NL
   S"   uint64_t result;" MH-EMIT-S MH-EMIT-NL
   S"   __asm__ volatile(" MH-EMIT-S MH-EMIT-NL
   S"     " MH-EMIT-S 34 MH-EMIT-B S" mov x19, %1" MH-EMIT-S
     92 MH-EMIT-B S" n" MH-EMIT-S 92 MH-EMIT-B S" t" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+  S"     " MH-EMIT-S 34 MH-EMIT-B S" mov x20, %2" MH-EMIT-S
+    92 MH-EMIT-B S" n" MH-EMIT-S 92 MH-EMIT-B S" t" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
   S"     " MH-EMIT-S 34 MH-EMIT-B S" mov x0, xzr" MH-EMIT-S
     92 MH-EMIT-B S" n" MH-EMIT-S 92 MH-EMIT-B S" t" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
-  S"     " MH-EMIT-S 34 MH-EMIT-B S" blr %2" MH-EMIT-S
+  S"     " MH-EMIT-S 34 MH-EMIT-B S" blr %3" MH-EMIT-S
     92 MH-EMIT-B S" n" MH-EMIT-S 92 MH-EMIT-B S" t" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
   S"     " MH-EMIT-S 34 MH-EMIT-B S" mov %0, x0" MH-EMIT-S
     92 MH-EMIT-B S" n" MH-EMIT-S 92 MH-EMIT-B S" t" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
   S"     : " MH-EMIT-S 34 MH-EMIT-B S" =r" MH-EMIT-S 34 MH-EMIT-B
-  S" (result) : " MH-EMIT-S 34 MH-EMIT-B S" r" MH-EMIT-S 34 MH-EMIT-B
-  S" (dsp), " MH-EMIT-S 34 MH-EMIT-B S" r" MH-EMIT-S 34 MH-EMIT-B S" (entry)" MH-EMIT-S MH-EMIT-NL
+  S" (result) : " MH-EMIT-S 34 MH-EMIT-B S" r" MH-EMIT-S 34 MH-EMIT-B S" (dsp), "
+  MH-EMIT-S 34 MH-EMIT-B S" r" MH-EMIT-S 34 MH-EMIT-B S" (rp), "
+  MH-EMIT-S 34 MH-EMIT-B S" r" MH-EMIT-S 34 MH-EMIT-B S" (entry)" MH-EMIT-S MH-EMIT-NL
   S"     : " MH-EMIT-S 34 MH-EMIT-B S" x0" MH-EMIT-S 34 MH-EMIT-B S" ," MH-EMIT-S
   34 MH-EMIT-B S" x1" MH-EMIT-S 34 MH-EMIT-B S" ," MH-EMIT-S
   34 MH-EMIT-B S" x2" MH-EMIT-S 34 MH-EMIT-B S" ," MH-EMIT-S
@@ -403,86 +425,20 @@ $D65F03C0 CONSTANT MH-RET
   34 MH-EMIT-B S" x16" MH-EMIT-S 34 MH-EMIT-B S" ," MH-EMIT-S
   34 MH-EMIT-B S" x17" MH-EMIT-S 34 MH-EMIT-B S" ," MH-EMIT-S
   34 MH-EMIT-B S" x19" MH-EMIT-S 34 MH-EMIT-B S" ," MH-EMIT-S
+  34 MH-EMIT-B S" x20" MH-EMIT-S 34 MH-EMIT-B S" ," MH-EMIT-S
   34 MH-EMIT-B S" x30" MH-EMIT-S 34 MH-EMIT-B S" ," MH-EMIT-S
   34 MH-EMIT-B S" memory" MH-EMIT-S 34 MH-EMIT-B S" );" MH-EMIT-S MH-EMIT-NL
   ;
 
 : MH-EMIT-CLI-HOST  ( -- )
-  S" typedef int64_t (*tcom_host_fn)(int64_t, int64_t);" MH-EMIT-S MH-EMIT-NL
-  S" static int tcom_gui_opened = 0;" MH-EMIT-S MH-EMIT-NL
-  S" static char tcom_app_name[256] = " MH-EMIT-S 34 MH-EMIT-B S" 64TCOM" MH-EMIT-S 34 MH-EMIT-B S" ;" MH-EMIT-S MH-EMIT-NL
-  S" static int64_t tcom_host_window(int64_t a, int64_t b) { (void)a; (void)b; (void)tcom_gui_opened; return -1; }" MH-EMIT-S MH-EMIT-NL
-  S" static int64_t tcom_host_app_name(int64_t ca, int64_t u) {" MH-EMIT-S MH-EMIT-NL
-  S"   size_t n = (size_t)u; if (n > 255u) n = 255u;" MH-EMIT-S MH-EMIT-NL
-  S"   if (!ca || n == 0) { strcpy(tcom_app_name, " MH-EMIT-S 34 MH-EMIT-B S" 64TCOM" MH-EMIT-S 34 MH-EMIT-B S" ); return 0; }" MH-EMIT-S MH-EMIT-NL
-  S"   memcpy(tcom_app_name, (const void *)(uintptr_t)ca, n); tcom_app_name[n] = 0; return 0;" MH-EMIT-S MH-EMIT-NL
-  S" }" MH-EMIT-S MH-EMIT-NL
-  S" static tcom_host_fn host_fn[] = { tcom_host_window, tcom_host_app_name };" MH-EMIT-S MH-EMIT-NL
+  S" /* CLI host_fn[] — screen stubs + stdio (see tcom-textgrid-cli.inc) */" MH-EMIT-S MH-EMIT-NL
+  S" tcom-textgrid-cli.inc" MH-EMIT-FILE
   MH-EMIT-NL
   ;
 
 : MH-EMIT-GUI-HOST  ( -- )
-  S" typedef int64_t (*tcom_host_fn)(int64_t, int64_t);" MH-EMIT-S MH-EMIT-NL
-  S" static int tcom_gui_opened = 0;" MH-EMIT-S MH-EMIT-NL
-  S" static char tcom_app_name[256] = " MH-EMIT-S 34 MH-EMIT-B S" 64TCOM" MH-EMIT-S 34 MH-EMIT-B S" ;" MH-EMIT-S MH-EMIT-NL
-  S" @interface TcomAppDelegate : NSObject <NSApplicationDelegate>" MH-EMIT-S MH-EMIT-NL
-  S" @end" MH-EMIT-S MH-EMIT-NL
-  S" @implementation TcomAppDelegate" MH-EMIT-S MH-EMIT-NL
-  S" - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {" MH-EMIT-S MH-EMIT-NL
-  S"   (void)sender; return YES;" MH-EMIT-S MH-EMIT-NL
-  S" }" MH-EMIT-S MH-EMIT-NL
-  S" @end" MH-EMIT-S MH-EMIT-NL
-  \ Menubar from tcom_app_name (default 64TCOM) + Quit (Cmd-Q).
-  S" static void tcom_install_main_menu(NSApplication *app) {" MH-EMIT-S MH-EMIT-NL
-  S"   NSString *name = [NSString stringWithUTF8String:tcom_app_name];" MH-EMIT-S MH-EMIT-NL
-  S"   NSString *quit = [@" MH-EMIT-S 34 MH-EMIT-B S" Quit " MH-EMIT-S 34 MH-EMIT-B
-  S"  stringByAppendingString:name];" MH-EMIT-S MH-EMIT-NL
-  S"   if ([app mainMenu] != nil) {" MH-EMIT-S MH-EMIT-NL
-  S"     NSMenuItem *appItem = [[app mainMenu] itemAtIndex:0];" MH-EMIT-S MH-EMIT-NL
-  S"     NSMenu *appMenu = [appItem submenu];" MH-EMIT-S MH-EMIT-NL
-  S"     [appMenu setTitle:name];" MH-EMIT-S MH-EMIT-NL
-  S"     if ([appMenu numberOfItems] > 0) [[appMenu itemAtIndex:0] setTitle:quit];" MH-EMIT-S MH-EMIT-NL
-  S"     return;" MH-EMIT-S MH-EMIT-NL
-  S"   }" MH-EMIT-S MH-EMIT-NL
-  S"   NSMenu *menubar = [NSMenu new];" MH-EMIT-S MH-EMIT-NL
-  S"   NSMenuItem *appItem = [NSMenuItem new];" MH-EMIT-S MH-EMIT-NL
-  S"   [menubar addItem:appItem];" MH-EMIT-S MH-EMIT-NL
-  S"   NSMenu *appMenu = [[NSMenu alloc] initWithTitle:name];" MH-EMIT-S MH-EMIT-NL
-  S"   NSMenuItem *quitItem = [[NSMenuItem alloc]" MH-EMIT-S MH-EMIT-NL
-  S"     initWithTitle:quit action:@selector(terminate:) keyEquivalent:@" MH-EMIT-S
-    34 MH-EMIT-B S" q" MH-EMIT-S 34 MH-EMIT-B S" ];" MH-EMIT-S MH-EMIT-NL
-  S"   [quitItem setTarget:app];" MH-EMIT-S MH-EMIT-NL
-  S"   [appMenu addItem:quitItem];" MH-EMIT-S MH-EMIT-NL
-  S"   [appItem setSubmenu:appMenu];" MH-EMIT-S MH-EMIT-NL
-  S"   [app setMainMenu:menubar];" MH-EMIT-S MH-EMIT-NL
-  S" }" MH-EMIT-S MH-EMIT-NL
-  S" static int64_t tcom_host_app_name(int64_t ca, int64_t u) {" MH-EMIT-S MH-EMIT-NL
-  S"   size_t n = (size_t)u; if (n > 255u) n = 255u;" MH-EMIT-S MH-EMIT-NL
-  S"   if (!ca || n == 0) strcpy(tcom_app_name, " MH-EMIT-S 34 MH-EMIT-B S" 64TCOM" MH-EMIT-S 34 MH-EMIT-B S" );" MH-EMIT-S MH-EMIT-NL
-  S"   else { memcpy(tcom_app_name, (const void *)(uintptr_t)ca, n); tcom_app_name[n] = 0; }" MH-EMIT-S MH-EMIT-NL
-  S"   NSApplication *app = [NSApplication sharedApplication];" MH-EMIT-S MH-EMIT-NL
-  S"   if ([app mainMenu] != nil) tcom_install_main_menu(app);" MH-EMIT-S MH-EMIT-NL
-  S"   return 0;" MH-EMIT-S MH-EMIT-NL
-  S" }" MH-EMIT-S MH-EMIT-NL
-  S" static int64_t tcom_host_window(int64_t a, int64_t b) {" MH-EMIT-S MH-EMIT-NL
-  S"   (void)a; (void)b;" MH-EMIT-S MH-EMIT-NL
-  S"   NSApplication *app = [NSApplication sharedApplication];" MH-EMIT-S MH-EMIT-NL
-  S"   [app setActivationPolicy:NSApplicationActivationPolicyRegular];" MH-EMIT-S MH-EMIT-NL
-  S"   static TcomAppDelegate *delegate = nil;" MH-EMIT-S MH-EMIT-NL
-  S"   if (!delegate) { delegate = [TcomAppDelegate new]; [app setDelegate:delegate]; }" MH-EMIT-S MH-EMIT-NL
-  S"   tcom_install_main_menu(app);" MH-EMIT-S MH-EMIT-NL
-  S"   NSRect frame = NSMakeRect(200, 200, 480, 320);" MH-EMIT-S MH-EMIT-NL
-  S"   NSUInteger style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |" MH-EMIT-S MH-EMIT-NL
-  S"                      NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;" MH-EMIT-S MH-EMIT-NL
-  S"   NSWindow *win = [[NSWindow alloc] initWithContentRect:frame" MH-EMIT-S MH-EMIT-NL
-  S"     styleMask:style backing:NSBackingStoreBuffered defer:NO];" MH-EMIT-S MH-EMIT-NL
-  S"   [win setTitle:[NSString stringWithUTF8String:tcom_app_name]];" MH-EMIT-S MH-EMIT-NL
-  S"   [win makeKeyAndOrderFront:nil];" MH-EMIT-S MH-EMIT-NL
-  S"   [app activateIgnoringOtherApps:YES];" MH-EMIT-S MH-EMIT-NL
-  S"   tcom_gui_opened = 1;" MH-EMIT-S MH-EMIT-NL
-  S"   return 0;" MH-EMIT-S MH-EMIT-NL
-  S" }" MH-EMIT-S MH-EMIT-NL
-  S" static tcom_host_fn host_fn[] = { tcom_host_window, tcom_host_app_name };" MH-EMIT-S MH-EMIT-NL
+  S" /* GUI 80x25 text grid + host_fn[] (see tcom-textgrid.inc) */" MH-EMIT-S MH-EMIT-NL
+  S" tcom-textgrid.inc" MH-EMIT-FILE
   MH-EMIT-NL
   ;
 
@@ -501,7 +457,9 @@ $D65F03C0 CONSTANT MH-RET
   MH-EMIT-CLI-HOST
   S" int main(int argc, char **argv) {" MH-EMIT-S MH-EMIT-NL
   S"   uint32_t code_bytes = (TCOM_CODE_LEN + TCOM_PAGE - 1u) & ~(TCOM_PAGE - 1u);" MH-EMIT-S MH-EMIT-NL
-  S"   uint32_t total = code_bytes + TCOM_PAGE;" MH-EMIT-S MH-EMIT-NL
+  S"   uint32_t data_bytes = (TCOM_DATA_LEN + TCOM_PAGE - 1u) & ~(TCOM_PAGE - 1u);" MH-EMIT-S MH-EMIT-NL
+  S"   if (data_bytes < TCOM_PAGE) data_bytes = TCOM_PAGE;" MH-EMIT-S MH-EMIT-NL
+  S"   uint32_t total = code_bytes + data_bytes + TCOM_STACK_BYTES;" MH-EMIT-S MH-EMIT-NL
   S"   uint8_t *buf = (uint8_t *)mmap(NULL, total, 3, 0x1002, -1, 0);" MH-EMIT-S MH-EMIT-NL
   S"   if (buf == (void *)(uintptr_t)-1) return 127;" MH-EMIT-S MH-EMIT-NL
   S"   memcpy(buf, tcom_code, TCOM_CODE_LEN);" MH-EMIT-S MH-EMIT-NL
@@ -529,7 +487,9 @@ $D65F03C0 CONSTANT MH-RET
   MH-EMIT-GUI-HOST
   S" int main(int argc, char **argv) {" MH-EMIT-S MH-EMIT-NL
   S"   uint32_t code_bytes = (TCOM_CODE_LEN + TCOM_PAGE - 1u) & ~(TCOM_PAGE - 1u);" MH-EMIT-S MH-EMIT-NL
-  S"   uint32_t total = code_bytes + TCOM_PAGE;" MH-EMIT-S MH-EMIT-NL
+  S"   uint32_t data_bytes = (TCOM_DATA_LEN + TCOM_PAGE - 1u) & ~(TCOM_PAGE - 1u);" MH-EMIT-S MH-EMIT-NL
+  S"   if (data_bytes < TCOM_PAGE) data_bytes = TCOM_PAGE;" MH-EMIT-S MH-EMIT-NL
+  S"   uint32_t total = code_bytes + data_bytes + TCOM_STACK_BYTES;" MH-EMIT-S MH-EMIT-NL
   S"   uint8_t *buf = (uint8_t *)mmap(NULL, total, 3, 0x1002, -1, 0);" MH-EMIT-S MH-EMIT-NL
   S"   if (buf == (void *)(uintptr_t)-1) return 127;" MH-EMIT-S MH-EMIT-NL
   S"   memcpy(buf, tcom_code, TCOM_CODE_LEN);" MH-EMIT-S MH-EMIT-NL
@@ -583,13 +543,13 @@ CREATE MH-NAME  128 ALLOT
     S"   <key>CFBundleName</key><string>$BIN</string>" MH-EMIT-S MH-EMIT-NL
     S"   <key>CFBundlePackageType</key><string>APPL</string>" MH-EMIT-S MH-EMIT-NL
     S"   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>" MH-EMIT-S MH-EMIT-NL
-    S"   <key>CFBundleShortVersionString</key><string>0.3</string>" MH-EMIT-S MH-EMIT-NL
+    S"   <key>CFBundleShortVersionString</key><string>0.4</string>" MH-EMIT-S MH-EMIT-NL
     S"   <key>NSHighResolutionCapable</key><true/>" MH-EMIT-S MH-EMIT-NL
     S"   <key>NSPrincipalClass</key><string>NSApplication</string>" MH-EMIT-S MH-EMIT-NL
     S" </dict>" MH-EMIT-S MH-EMIT-NL
     S" </plist>" MH-EMIT-S MH-EMIT-NL
     S" EOF" MH-EMIT-S MH-EMIT-NL
-    \ Optional icon: drop NAME.png (ideally 1024x1024) beside the .tfth / output.
+    \ Optional icon: drop NAME.png (ideally 1024x1024) beside the .fth / output.
     \ Build converts PNG → .icns into Contents/Resources and sets CFBundleIconFile.
     S" if [ -f " MH-EMIT-S 34 MH-EMIT-B S" $NAME.png" MH-EMIT-S 34 MH-EMIT-B S"  ]; then" MH-EMIT-S MH-EMIT-NL
     S"   mkdir -p " MH-EMIT-S 34 MH-EMIT-B S" $APP/Contents/Resources" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL

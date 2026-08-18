@@ -15,6 +15,7 @@ VARIABLE SIM-MAX
 VARIABLE SIM-Z          \ last SUBS/ADDS zero flag (true = Z set)
 VARIABLE SIM-C          \ carry (unsigned no-borrow for SUBS / CMP)
 VARIABLE SIM-N          \ result negative (signed)
+VARIABLE SIM-V          \ signed overflow (ADDS/SUBS)
 100000 SIM-MAX !
 
 CREATE SIM-X  32 CELLS ALLOT     \ X0..X31 (31 = XZR reads 0 / ignores write)
@@ -69,12 +70,15 @@ VARIABLE SM
   LOOP 2DROP
   ;
 
+4096 CONSTANT #SIM-RSTACK               \ Forth RP region below DSP
 : SIM-INIT  ( -- )
   SIM-X 32 CELLS 0 FILL
-  T-DATA-BASE T-DATA-MAX + 64 -  19 SIM-X!
+  T-DATA-BASE T-DATA-MAX + 64 -  19 SIM-X!   \ X19 = DSP
+  19 SIM-X@ #SIM-RSTACK -  20 SIM-X!         \ X20 = RP top
   FALSE SIM-Z !
   FALSE SIM-C !
   FALSE SIM-N !
+  FALSE SIM-V !
   SIM-R-CLEAR  0 SIM-STEPS !  FALSE SIM-HALT !
   ;
 
@@ -132,18 +136,22 @@ VARIABLE SM
   \ B.cond  top byte 0x54; cond in bits 3:0
   DUP 24 RSHIFT $FF AND $54 = IF
     DUP $F AND SD !
-    SD @ 0 = IF  SIM-Z @  ELSE
-    SD @ 1 = IF  SIM-Z @ 0=  ELSE
-    SD @ 2 = IF  SIM-C @  ELSE
-    SD @ 3 = IF  SIM-C @ 0=  ELSE
-    SD @ 8 = IF  SIM-C @ SIM-Z @ 0= AND  ELSE
-    SD @ 9 = IF  SIM-C @ 0= SIM-Z @ OR  ELSE
-    SD @ 10 = IF  SIM-N @ SIM-Z @ OR 0=  ELSE   \ GE approx !N||Z without V
-    SD @ 11 = IF  SIM-N @  ELSE                  \ LT approx N (no V)
-    SD @ 12 = IF  SIM-N @ 0= SIM-Z @ 0= AND  ELSE \ GT approx !N && !Z
-    SD @ 13 = IF  SIM-N @ SIM-Z @ OR  ELSE       \ LE
+    SD @ 0 = IF  SIM-Z @  ELSE                    \ EQ
+    SD @ 1 = IF  SIM-Z @ 0=  ELSE                 \ NE
+    SD @ 2 = IF  SIM-C @  ELSE                    \ CS/HS
+    SD @ 3 = IF  SIM-C @ 0=  ELSE                 \ CC/LO
+    SD @ 4 = IF  SIM-N @  ELSE                    \ MI
+    SD @ 5 = IF  SIM-N @ 0=  ELSE                 \ PL
+    SD @ 6 = IF  SIM-V @  ELSE                    \ VS
+    SD @ 7 = IF  SIM-V @ 0=  ELSE                 \ VC
+    SD @ 8 = IF  SIM-C @ SIM-Z @ 0= AND  ELSE     \ HI
+    SD @ 9 = IF  SIM-C @ 0= SIM-Z @ OR  ELSE      \ LS
+    SD @ 10 = IF  SIM-N @ SIM-V @ =  ELSE         \ GE  N==V
+    SD @ 11 = IF  SIM-N @ SIM-V @ <>  ELSE        \ LT  N!=V
+    SD @ 12 = IF  SIM-Z @ 0= SIM-N @ SIM-V @ = AND  ELSE \ GT
+    SD @ 13 = IF  SIM-Z @ SIM-N @ SIM-V @ <> OR  ELSE    \ LE
     SD @ 14 = IF TRUE  ELSE
-    FALSE THEN THEN THEN THEN THEN THEN THEN THEN THEN THEN THEN
+    FALSE THEN THEN THEN THEN THEN THEN THEN THEN THEN THEN THEN THEN THEN THEN THEN
     IF  SIM-IMM19 4 * SIM-PC @ 4 - + SIM-PC !  THEN
     DROP EXIT
   THEN
@@ -326,13 +334,18 @@ VARIABLE SM
     DROP EXIT
   THEN
 
-  \ ADDS
+  \ ADDS  — set Z/N/V (signed overflow)
   DUP 24 RSHIFT $FF AND $AB = IF
     DUP SIM-RD SD !
     DUP SIM-RN SIM-X@ SN !
-    SN @ SIM-RM SIM-X@ +  SM !
+    SIM-RM SIM-X@ SM !
+    SN @ SM @ +  
+    \ V if same sign inputs, different sign result
+    SN @ 0< SM @ 0< = IF  DUP 0< SN @ 0< <> ELSE FALSE THEN SIM-V !
+    SM ! 
     SD @ 31 <> IF  SM @ SD @ SIM-X!  THEN
     SM @ 0= SIM-Z !
+    SM @ 0< SIM-N !
     DROP EXIT
   THEN
 
@@ -377,17 +390,21 @@ VARIABLE SM
     DROP EXIT
   THEN
 
-  \ LDR [n,#0]
+  \ LDR Xt,[Xn,#imm12*8]  (unsigned offset)
   DUP $FFC00000 AND $F9400000 = IF
     DUP SIM-RD SD !
-    SIM-RN SIM-X@ SIM-LOAD64 SD @ SIM-X!
+    DUP SIM-RN SIM-X@ SN !
+    10 RSHIFT $FFF AND 8 * SN @ +
+    SIM-LOAD64 SD @ SIM-X!
     DROP EXIT
   THEN
 
-  \ STR [n,#0]
+  \ STR Xt,[Xn,#imm12*8]
   DUP $FFC00000 AND $F9000000 = IF
-    DUP SIM-RD SIM-X@
-    SWAP SIM-RN SIM-X@ SIM-STORE64
+    DUP SIM-RD SIM-X@ SM !
+    DUP SIM-RN SIM-X@ SN !
+    10 RSHIFT $FFF AND 8 * SN @ +
+    SM @ SWAP SIM-STORE64
     DROP EXIT
   THEN
 

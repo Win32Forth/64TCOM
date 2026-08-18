@@ -6,23 +6,22 @@ It is **not** an F-PC 16-bit translation layer. The compiler director is being r
 
 **Public domain.** 64TCOM, like classic **TCOM** and **F-PC** (Tom Zimmer and contributors), is dedicated to the public domain.
 
-**Current pack:** ARM64 **Version 0.3** (see [`STATUS.md`](STATUS.md)).  
-**Host:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2+** recommended.
+**Current pack:** ARM64 **Version 0.4** (see [`STATUS.md`](STATUS.md)).  
+**Host:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.3+** recommended (1.1.2+ for agent).
 
-### Version 0.3 (ARM64) — highlight
+### Version 0.4 (ARM64) — highlight
 
-- CLI I/O: stderr / stdin / files (`ETYPE`, `ACCEPT`, `OPEN-R`/`READ`/`WRITE`, …)
-- Layer 4 MVP: **`WINDOW`** + **`TCOM`** → AppKit window + `.app` (`window/win.tfth`)
-- Multi-file `.tfth` (`FLOAD`/`INCLUDE`), richer dialect, args/print from 0.2
-- Ship **`.tfth` + docs**; regenerate with **`TCOM`** (GUI) / **`TCOM-CLI`** (Terminal)
-- **App icon:** place a **1024×1024 PNG** next to the `.tfth` with the same leaf name
-  (e.g. `window/win.png` beside `window/win.tfth`), then `TCOM` embeds it in the `.app`
+- **TETRA** playable `.app` (`tetra/tetra.fth`) on real AppKit **80×25** text grid
+- `\ANS` / `\TCOM` **DIRECTIVE** dual-load foundation; target sources use **`.fth`** again
+- Growable TSRC buffer; DSP/HOST-CALL stability; `>R`/`R>`/`R@`; CASE/OF hygiene
+- Layer 4 from 0.3: **`WINDOW`** + **`TCOM`** → `.app` / **`TCOM-CLI`** → Terminal
+- **App icon:** 1024×1024 PNG next to the `.fth` (same leaf name), then `TCOM` embeds it
 
 ```forth
 \ Working folder: 64TCOMARM64/
 FLOAD TARGETARM64.fth
-TCOM window/win.tfth            \ GUI + .app (primary); needs win.png for Finder icon
-TCOM-CLI samples/hello.tfth     \ Terminal / exit status
+TCOM window/win.fth            \ GUI + .app (primary); needs win.png for Finder icon
+TCOM-CLI samples/hello.fth     \ Terminal / exit status
 ```
 
 ---

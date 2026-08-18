@@ -1,12 +1,12 @@
-\\ DRAW.SEQ     A simple Graphics Drawing program        by Tom Zimmer
+\\ DRAW.FTH     A simple Graphics Drawing program        by Tom Zimmer
 
   Simple drawing program, runs in 640x480 mode
 
 
-                .options /opt /noinit
+               
 {
 
-needs graph.seq
+require graph.fth
 
 16 constant drawtop
 

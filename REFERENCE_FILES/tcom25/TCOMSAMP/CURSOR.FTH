@@ -1,5 +1,4 @@
-\\ CURSOR.SEQ            Turn on the computers cursor    by Tom Zimmer
-.options /opt /0init /tailopton
+\\ CURSOR.FTH            Turn on the computers cursor    by Tom Zimmer
 
   This file is an example of a very small program that just turns the
 cursor on. It also illustrates a use of "0INIT", that initializes in a

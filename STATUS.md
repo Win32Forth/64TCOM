@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-17 — **Version 0.3**: Layer 2 I/O + Layer 4 `WINDOW` / `TCOM` (GUI primary; `TCOM-CLI` for Terminal)
+**Last updated:** 2026-08-18 — **Version 0.4**: TETRA playable `.app`; `\ANS`/`\TCOM` DIRECTIVE; growable TSRC; `.fth` again
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
 
@@ -14,13 +14,13 @@
 | Stage | What | Status |
 |-------|------|--------|
 | **Layer 0** | Codegen foundation: calls, control demos, lib leaves, sim / native / Mach-O | **Done** |
-| **Layer 1** | Compile a **Forth source file** into a complete image + entry + standalone | **Done** (restricted dialect; `hello.tfth` MAIN=>42 all paths) |
+| **Layer 1** | Compile a **Forth source file** into a complete image + entry + standalone | **Done** (restricted dialect; `hello.fth` MAIN=>42 all paths) |
 | **Layer 2** | Useful **CLI** tools (args, print, exit, I/O) in Terminal | **Done** — print + args + stderr/stdin/files |
 | **Later** | More dialect, strings, runtime services (env/sockets deferred) | **Layer 3** |
-| **Layer 4** | Own window(s); Finder `.app` later | **Started** — blank `WINDOW` + AppKit run loop |
+| **Layer 4** | Own window(s); Finder `.app` | **In progress** — 80×25 text grid + `TETRA` `.app` |
 
 ```text
-  Layer 4  Window MVP DONE (blank WINDOW); .app / drawing next   ← you are here
+  Layer 4  Text grid + TETRA.app (playable polish + dual-load next)   ← you are here
   Layer 3  More dialect / services (env·sockets not planned yet)
   Layer 2  CLI: print + args + I/O DONE
   Layer 1  Compile a Forth source file into a complete image     DONE
@@ -29,47 +29,38 @@
 
 **Product story** (not “finish the ARM64 ISA”):
 
-> Host 64Forth runs 64TCOM → reads target source → emits ARM64 image → `SAVE-MACHO` → terminal binary.
+> Host 64Forth runs 64TCOM → reads target source → emits ARM64 image → `SAVE-MACHO` → terminal binary / `.app`.
 
 **Proven today:**
 
 ```text
 FLOAD TARGETARM64.fth
-SRC-DEMO     \ hello.tfth MAIN => 42 (sim + native + Mach-O)
-PRINT-DEMO   \ print.tfth writes "Hello, 64TCOM\n", MAIN exit 0
+SRC-DEMO     \ hello.fth MAIN => 42 (sim + native + Mach-O)
+PRINT-DEMO   \ print.fth writes "Hello, 64TCOM\n", MAIN exit 0
 ```
 
 Or one-shot:
 
 ```text
-S" samples/hello.tfth" TSRC-BUILD   \ image + SAVE-MACHO entry MAIN → ./tcomarm64
+S" samples/hello.fth" TSRC-BUILD   \ image + SAVE-MACHO entry MAIN → ./tcomarm64
 S" ./tcomarm64" SYSTEM .            \ exit status 42
 
-\ Preferred console form (output next to source, no .tfth):
-TCOM window/win.tfth                \ → window/win + window/win.app (GUI, primary)
-TCOM-CLI samples/print.tfth         \ → samples/print  (CLI / Terminal)
-TCOM "path with spaces/foo.tfth"    \ → GUI build; quote paths with spaces
+\ Preferred console form (output next to source, strip .fth):
+TCOM window/win.fth                \ → window/win + window/win.app (GUI, primary)
+TCOM-CLI samples/print.fth         \ → samples/print  (CLI / Terminal)
+TCOM "path with spaces/foo.fth"    \ → GUI build; quote paths with spaces
 ```
 
-### Why `.tfth` (not `.fth`) for target sources
+### Source extension: `.fth` again (not `.fth`)
 
-Host 64Forth sources already use **`.fth`** (`FLOAD TARGETARM64.fth`, pack files, demos). Target programs go through a **restricted** loader (`TSRC-INCLUDE`), not the host interpreter.
-
-| Extension | Means |
-|-----------|--------|
-| **`.fth`** | Host 64Forth source (full dictionary, `FLOAD` / `INCLUDE`) |
-| **`.tfth`** | **T**arget Forth under TCOM — scanned by `TSRC-INCLUDE` only |
-
-Goals of the split: avoid accidentally `FLOAD`ing a target file as host Forth; make “this is the program we compile” obvious in the tree. The choice is **convention, not a hard requirement** — we can accept `.fth` for target files later if preferred; the loader does not care about the suffix.
-
-Eventually that binary *is* the app (or is linked into one), with a small C/runtime shell only where the OS forces it (Mach-O, windowing, etc.).
+Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will use `\ANS` / `\TCOM` line directives (like classic `\FPC` / `\TCOM`), not a separate extension, to distinguish interactive 64Forth load from TCOM compile. Host pack sources remain `.fth` as well; context (TCOM vs `FLOAD`) decides the loader.
 
 ---
 
 ## YOU ARE HERE
 
 ```text
-  Pack version     0.3    — 64TCOM ARM64 (TVERSION in OPTARM64)
+  Pack version     0.4    — 64TCOM ARM64 (TVERSION in OPTARM64)
   Phase 0–2        DONE
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
@@ -85,36 +76,89 @@ Eventually that binary *is* the app (or is linked into one), with a small C/runt
   Roadmap E        DONE   — NEST-DEMO nested colon + IF, sim + native true BLR
   Roadmap C/D      DONE   — TVARIABLE + FETCH#/STORE#; SYM-DATA = daddr;
                            COMP-DATA-ADDR + DATA-RELOC; Mach-O tcom_data[] + MOV fixup
-  Host automation  DONE   — 64Forth **1.1.2** agent channel (validated on Applications install)
+  Host automation  DONE   — 64Forth **1.1.2+** agent channel; **1.1.3** GRAPHICS window
   Layer 1          DONE   — TSRC-INCLUDE + TSRC-BUILD + SRC-DEMO:
-                           samples/hello.tfth → MAIN => 42 (sim + native + Mach-O)
+                           samples/hello.fth → MAIN => 42 (sim + native + Mach-O)
   Layer 2 print    DONE   — TYPE# (Darwin write SVC); dialect S" / TYPE / ."
-                           samples/print.tfth → "Hello, 64TCOM\n" + exit 0 (all paths)
+                           samples/print.fth → "Hello, 64TCOM\n" + exit 0 (all paths)
   Console build    DONE   — `TCOM` (GUI) / `TCOM-CLI` (Terminal) → same-dir leaf (MAIN)
   Layer 2 args     DONE   — ARGCOUNT ARG1 ARG2 ARG# (1-based user argv; Mach-O fill)
   Dialect grow     DONE   — 0= = < > * ROT NIP 2DUP EMIT CR SPACE . S>N; samples/add
-  Multi-file       DONE   — FLOAD/INCLUDE in .tfth (nested); samples/multi + math.tfth
+  Multi-file       DONE   — FLOAD/INCLUDE in .fth (nested); samples/multi + math.fth
   Layer 2 I/O      DONE   — stderr ETYPE/EEMIT/ECR; stdin KEY/ACCEPT/LINE-BUF;
                            files OPEN-R/W CLOSE READ WRITE (Darwin SVC + CS)
                            samples: err, echoin, fcat, fwrite
   Control hygiene  DONE   — TIF/TELSE + TWHILE/TREPEAT use TCS (host stack safe)
-  Layer 4 window   MVP    — host-call `WINDOW#` / `APP-NAME#`; `/MACHO-GUI` → AppKit `.m`
-                           `TCOM` → binary + `.app` (Finder); `TCOM-CLI` → Terminal tools
-                           Icon: 1024×1024 `name.png` beside `.tfth` → embedded `.icns`
-                           demos in `window/` (sibling of `samples/`)
-  Product path     OPEN   — more dialect on demand; text/draw in window next
+  Layer 4 window   DONE   — host-call grid: AT/CLS/EMIT/GET-CHAR/KEY?/KEY/timers/TYPE
+                           `tcom-textgrid.inc` 80×25 NSView; event pump during MAIN
+                           `TCOM` → `.app`; `TCOM-CLI` → Terminal; icon from `name.png`
+                           demos: `window/win.fth`, `tetra/tetra.fth` → `tetra.app`
+  Bugfix         DONE   — SWAP/OVER/ROT/2DUP used LDR-X0 with a stray offset (X0↔X19)
+  Product path     OPEN   — TETRA playability polish; more dialect on demand
 ```
 **Pack version history**
 
 | Version | Notes |
 |---------|--------|
 | **0.1** | First ARM64 pack: prims, SIM, native, SAVE-MACHO, true BLR, IF demos |
-| **0.2** | NEST/VAR; Roadmap B complete; `TSRC-INCLUDE` + Mach-O data page; Layer 1 `hello.tfth` MAIN=>42; Layer 2 print (`TYPE#`, `S"`); console build → same-dir executable; `samples/` + README (`.tfth` only in dist) |
-| **0.3** | Layer 2 I/O; `TWHILE` on TCS; Layer 4 MVP `WINDOW`/`APP-NAME` + AppKit `.app`; **`TCOM`** = GUI primary, **`TCOM-CLI`** = Terminal; `window/win.tfth` |
+| **0.2** | NEST/VAR; Roadmap B complete; `TSRC-INCLUDE` + Mach-O data page; Layer 1 `hello.fth` MAIN=>42; Layer 2 print (`TYPE#`, `S"`); console build → same-dir executable; `samples/` + README |
+| **0.3** | Layer 2 I/O; Layer 4 text grid + window demo; TCOM=GUI / TCOM-CLI=Terminal |
+| **0.4** | TETRA playable `.app`; real AppKit 80×25 grid; `\ANS`/`\TCOM` DIRECTIVE; growable TSRC; `.fth` again; DSP/HOST-CALL fixes; `>R`/`R>`/`R@` |
 
-**Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2** (agent channel shipped; ANS/Hayes + agent green on install).  
+**Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.3** (GRAPHICS app-output window; agent from 1.1.2).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  
-Release: https://github.com/Win32Forth/64Forth/releases/tag/v1.1.2  
+Release: https://github.com/Win32Forth/64Forth/releases/tag/v1.1.2 (agent); rebuild **1.1.3** for GRAPHICS  
+
+---
+
+## Future / potential work (architecture & dual-load)
+
+Tracked here so it is not lost; not blocking current TETRA/grid polish.
+
+### Dual-load: `\ANS` / `\TCOM` (near-term)
+
+Classic F-PC/TCOM used `DIRECTIVE` so one application source could load under F-PC *and* compile under TCOM (`\FPC` / `\TCOM` in `REFERENCE_FILES/FPC36/fpcsrc/UTILS.FTH`). For 64TCOM:
+
+| Environment | `\ANS` | `\TCOM` |
+|-------------|--------|---------|
+| 64Forth interactive | **true** (rest of line loads) | **false** (rest of line commented) |
+| TCOM compile | **false** | **true** |
+
+Same `.fth` sample (e.g. `tetra/tetra.fth`) should `FLOAD` under 64Forth for interactive test and `TCOM` for `.app`. Needs: host-side graphics/sound words for ANS load; `\ANS`/`\TCOM` gates in sources (DIRECTIVE + TSRC recognition already stubbed on the TCOM side).
+
+### 64Forth app output window — **not** the console (near-term / design locked)
+
+**Do not** bend the 64Forth console into TCOM character graphics. The console stays the REPL/debug surface (compile log, `.S`, `SEE`, agent, future debug features).
+
+Add a **separate graphics / app-output layer** (own window(s)):
+
+| Surface | Role |
+|---------|------|
+| **Console** | Host Forth, TCOM log, debugging — unchanged |
+| **Char-graphics window** | Fixed text grid (`AT` / `CLS` / `EMIT` / `GET-CHAR` / `KEY?`) for TETRA-class apps under `\ANS` |
+| **Pixel-graphics window** (later) | Framebuffer / draw ops |
+
+**Implementation preference:** implement as much as possible **in Forth**, with **limited Swift helpers in `forth.s` / host bridge only as needed** (window create, blit, event pump). Ideally share the same buffer/API model as TCOM’s AppKit text grid (`tcom-textgrid.inc`) so `\ANS` and `\TCOM` skins stay aligned.
+
+Input focus: keys go to the graphics window when it is frontmost; console keeps its own KEY when focused.
+
+**Started 2026-08-18 (64Forth):**
+- Swift: `Host/AppOutputHost.swift` — NSWindow + grid view, blit, key queue  
+- Kernel: `(APP-OPEN)` `(APP-CLOSE)` `(APP-BLIT)` `(APP-KEY?)` `(APP-KEY)` in `forth.s`  
+- Forth: `Resources/Library/AppOutput/app-output.fth` — `VOCABULARY GRAPHICS` with classic `WINDOW` `CLS` `AT` `EMIT` `GET-CHAR` `KEY?` `KEY` + `GRAPHICS-SMOKE`  
+- Console / Facility unchanged. Agent: open returns error (no window).
+
+### Sound (future — remember)
+
+64Forth has **no sound support** today. The **base 64Forth system** should eventually support at least basic sound output (beep / tone / simple samples) for TCOM apps (`TONE`, music) and general use. **Not implementing now** — track as base-system work when graphics dual-load is underway. TCOM already has a `TONE#` stub / `NSBeep` in the GUI shell.
+
+### Retargetability: vocabularies vs string dispatch (later)
+
+Classic TCOM made a new CPU pack comparatively easy: set up **vocabularies** (`HOST`, `TARGET`, `HTARGET`, `COMPILER`, …), compile adjusted definitions of the *same* names into those vocabularies, and let search order decide meaning.
+
+Current 64TCOM keeps packs (`ASM*` / `OPT*` / `LIB*` / `MACHO*`) and `DEFER`/`IS` for `COMP-*`, but **TSRC name resolution** is a shared tokenizer with long `2DUP S" name" TSRC-EQ` chains in `64SRC.fth`. That works, but retargeting is **not as easy** as classic TCOM: adding dialect words or mapping source spellings often means editing the shared dispatcher, not only filling a target vocabulary.
+
+**Potential future alignment:** shrink or replace the string-dispatch table with vocabulary-based name resolution so a new CPU pack is mostly “new vocab contents + `COMP-*` implementations,” closer to the original design. Deferred `COMP-*` is already pointed the right way; the gap is name resolution.
 
 ---
 
@@ -171,7 +215,7 @@ $FORTH --agent -c "$(pwd)" \
   -e 'IF-DEMO' \
   -o /tmp/if.txt
 
-# Layer 1: .tfth source → sim + native + Mach-O MAIN => 42
+# Layer 1: .fth source → sim + native + Mach-O MAIN => 42
 $FORTH --agent -c "$(pwd)" \
   -e 'FLOAD TARGETARM64.fth' \
   -e 'SRC-DEMO' \
@@ -217,7 +261,7 @@ VAR-DEMO
 IF-DEMO
 SRC-DEMO
 \ or:  ARM64-DEMO  .RUN-ANS  .RUN-ANS-N
-\ or:  S" samples/hello.tfth" TSRC-BUILD
+\ or:  S" samples/hello.fth" TSRC-BUILD
 ```
 
 ### Success markers
@@ -255,7 +299,7 @@ grep -E 'OK|fail|ABORT|undefined|Hello' /tmp/nest.txt /tmp/var.txt /tmp/if.txt /
 | `NEST-DEMO` / `NESTDEMO.fth` | Multi-level `G'` → `CALL-ABS` / true BLR; forward call; IF + nested calls |
 | `VAR-DEMO` / `VARDEMO.fth` | `TVARIABLE`, `SYM-DATA` (daddr), `G'`, `G@`/`G!`, `FETCH#`/`STORE#`, data in `T-DATA` |
 | `IF-DEMO` / `IFDEMO.fth` | Full Roadmap B: IF/loops/WHILE, sim+native+Mach-O LOOP3 |
-| `SRC-DEMO` / `SRCDEMO.fth` | **Layer 1:** `TSRC-INCLUDE` + data reloc; `hello.tfth` MAIN=>42 sim/native/Mach-O |
+| `SRC-DEMO` / `SRCDEMO.fth` | **Layer 1:** `TSRC-INCLUDE` + data reloc; `hello.fth` MAIN=>42 sim/native/Mach-O |
 | `PRINT-DEMO` / `PRINTDEMO.fth` | **Layer 2 print:** `S"` + `TYPE#` (write SVC); stdout on three runners |
 | `ARM64-DEMO` | Lit + `PLUS#` → ANS => 5 (sim/native/Mach-O) |
 | `runtest.fth` | End-to-end pack smoke including demos above |
@@ -289,14 +333,14 @@ T: BUMP
 | `SYM-COMPILE-REF` → `COMP-DATA-ADDR` for `SYM-DATA` | `64TCOMSRC/64DIR.fth` |
 | Control/data emitters + DATA-RELOC | Pack (`ASMARM64` / `OPTARM64`) |
 | Mach-O `tcom_data[]` + data MOV fixup | `MACHOARM64.fth` |
-| Sample sources + howto | `64TCOMARM64/samples/*.tfth`, `samples/README.txt` |
+| Sample sources + howto | `64TCOMARM64/samples/*.fth`, `samples/README.txt` |
 | Pack demo | `SRC-DEMO` → `SRCDEMO.fth` |
-| Console build | `TCOM-CLI samples/hello.tfth` → `samples/hello`; `TCOM window/win.tfth` → `.app` |
+| Console build | `TCOM-CLI samples/hello.fth` → `samples/hello`; `TCOM window/win.fth` → `.app` |
 | One-shot build helper | `TSRC-BUILD` (ca u — path) in `TARGETARM64.fth` |
 
-**Dialect:** `VARIABLE`, `: … ;`, numbers/`$hex`, `IF ELSE THEN`, `BEGIN UNTIL AGAIN WHILE REPEAT`, `@ ! + - DUP DROP SWAP OVER`, **`S" …"` / `TYPE` / `." …"`** (Layer 2), other names → symbol compile.
+**Dialect:** `VARIABLE`, `: … ;`, numbers/`$hex`, `IF ELSE THEN`, `BEGIN UNTIL AGAIN WHILE REPEAT`, `@ ! + - DUP DROP SWAP OVER`, **`S" …"` / `TYPE` / `." …"`** (Layer 2), **`CHAR` / `[CHAR]`** + `EMIT`, comments `\ ` / `( )` / multi-line **`\\ … {`** or **`} … {`**, other names → symbol compile.
 
-**Sample `samples/hello.tfth`:**
+**Sample `samples/hello.fth`:**
 
 ```forth
 VARIABLE X
@@ -310,7 +354,7 @@ VARIABLE X
 \ stdout Hello + exit 42
 ```
 
-**Sample `samples/print.tfth` (Layer 2 print):**
+**Sample `samples/print.fth` (Layer 2 print):**
 
 ```forth
 : MAIN
@@ -341,7 +385,7 @@ VARIABLE X
 | `ARG2` | `( -- c-addr u )` | Second user arg, or empty |
 | `ARG#` | `( n -- c-addr u )` | 1-based user arg; invalid `n` → empty |
 
-Shell already parses blanks and `"..."` (including empty `""`). Mach-O `main(argc,argv)` copies `argv[1..]` into fixed `T-DATA` counted slots (max 16 × 255). Sim/native leave `ARGCOUNT=0`. Sample: `samples/args.tfth`.
+Shell already parses blanks and `"..."` (including empty `""`). Mach-O `main(argc,argv)` copies `argv[1..]` into fixed `T-DATA` counted slots (max 16 × 255). Sim/native leave `ARGCOUNT=0`. Sample: `samples/args.fth`.
 
 **Re-run (agent):**
 
@@ -364,7 +408,7 @@ $FORTH --agent -c "$(pwd)" \
 ```bash
 $FORTH --agent -c "$(pwd)" \
   -e 'FLOAD TARGETARM64.fth' \
-  -e 'S" samples/hello.tfth" TSRC-BUILD' \
+  -e 'S" samples/hello.fth" TSRC-BUILD' \
   -e 'S" ./tcomarm64" SYSTEM .' \
   -o /tmp/tsrc-build.txt
 # Expect: 42 on SYSTEM line; ./tcomarm64 exits 42
@@ -374,12 +418,12 @@ Or after pack load (interactive):
 
 ```forth
 TARGET-INIT
-S" samples/hello.tfth" TSRC-INCLUDE
+S" samples/hello.fth" TSRC-INCLUDE
 ARM64-FINISH
 S" MAIN" RUN-SYM .          \ => 42
 S" MAIN" MACHO-ENTRY-SET SAVE-MACHO-FILE
 S" ./tcomarm64" SYSTEM .    \ => 42
-\ or:  S" samples/hello.tfth" TSRC-BUILD
+\ or:  S" samples/hello.fth" TSRC-BUILD
 ```
 
 **Agent verify (2026-08-17):** SRC-DEMO and TSRC-BUILD green on 64Forth 1.1.2 `/Applications` — all three runners MAIN=>42.
@@ -417,6 +461,7 @@ Output locals are returned automatically — do not push them before `;` :
 - [x] **0.1** Product name 64TCOM, tree under Documents/64TCOM
 - [x] **0.2** Design docs in `64DESIGN/`
 - [x] **0.3** Public domain + GitHub Win32Forth/64TCOM
+- [x] **0.4** TETRA `.app` + text grid; `\ANS`/`\TCOM`; growable TSRC; `.fth` again
 - [x] **1.1** `64HOST.fth` — HOST/COMPILER/TARGET, target mem, DEFER hooks, `U>=`
 - [x] **1.1b** Quiet `TCOM-ANEW`; GEN load chain; GEN tags; cookies
 - [x] **1.2** Symbol table + `64DIR` director (name → type/addr/uses)
@@ -488,7 +533,7 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 | IF / BEGIN–UNTIL / WHILE / loops | **Done** — Roadmap B (`IF-DEMO` sim+native+Mach-O) |
 | Sim + in-process native run | Working |
 | Standalone CLI Mach-O via `cc` | Working — ANS exit 5; hello MAIN 42; **print Hello** |
-| **Parse a `.tfth` and compile colon defs** | **Done (restricted)** — `TSRC-INCLUDE` / `TSRC-BUILD` / `SRC-DEMO` |
+| **Parse a `.fth` and compile colon defs** | **Done (restricted)** — `TSRC-INCLUDE` / `TSRC-BUILD` / `SRC-DEMO` |
 | Target `TVARIABLE` + `@`/`!` + data | **Done** — daddr + DATA-RELOC; sim/native/`tcom_data[]` Mach-O |
 | **Print (`TYPE` / `S"`)** | **Done** — `TYPE#` write SVC; `PRINT-DEMO` three runners |
 | argc/argv, richer I/O, GUI apps | Not yet |
@@ -515,7 +560,7 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 |------|------|
 | `64TCOMSRC/64HOST.fth` | Host layer + options |
 | `64TCOMSRC/64DIR.fth` | Symbol table + director (Phase 1.3) |
-| `64TCOMSRC/64SRC.fth` | Generic `.tfth` loader (`TSRC-INCLUDE`) — **not** pack-specific |
+| `64TCOMSRC/64SRC.fth` | Generic `.fth` loader (`TSRC-INCLUDE`) — **not** pack-specific |
 | `64TCOMGEN/` | GEN pack (tutorial tags) — done for demos |
 | `64TCOMARM64/` | ARM64 real target pack — `FLOAD TARGETARM64.fth` |
 | `REFERENCE_FILES/` | Classic F-PC 3.6 + TCOM 2.5 |
@@ -535,8 +580,8 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 | `IFDEMO.fth` | Control-flow smoke (sim+native subset) |
 | `NESTDEMO.fth` | Nested `G'` / true BLR + IF + forward call |
 | `VARDEMO.fth` | `TVARIABLE` + `G@`/`G!` data cells |
-| `SRCDEMO.fth` / `samples/hello.tfth` | Layer 1: source → sim/native/Mach-O MAIN => 42 |
-| `PRINTDEMO.fth` / `samples/print.tfth` | Layer 2 print: `S"` + `TYPE` → stdout + exit 0 |
+| `SRCDEMO.fth` / `samples/hello.fth` | Layer 1: source → sim/native/Mach-O MAIN => 42 |
+| `PRINTDEMO.fth` / `samples/print.fth` | Layer 2 print: `S"` + `TYPE` → stdout + exit 0 |
 | `runtest.fth` | Full pack smoke (agent: `-f runtest.fth`) |
 
 ---
@@ -569,9 +614,9 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 |-------------|--------|
 | Nested colon + IF/loop | `NEST-DEMO` sim+native; `IF-DEMO` sim+native+Mach-O LOOP3 |
 | `VARIABLE` + `@`/`!` + data | `TVARIABLE` / daddr / DATA-RELOC; `VAR-DEMO` + Mach-O data page |
-| Restricted `.tfth` loader | `64TCOMSRC/64SRC.fth` `TSRC-INCLUDE` (not in pack) |
-| Source → sim + native + Mach-O | **`SRC-DEMO` / `TSRC-BUILD`**: `hello.tfth` MAIN **exit 42** |
-| **Print to stdout** | **`PRINT-DEMO`**: `print.tfth` → `Hello, 64TCOM\n` + exit 0 (all paths) |
+| Restricted `.fth` loader | `64TCOMSRC/64SRC.fth` `TSRC-INCLUDE` (not in pack) |
+| Source → sim + native + Mach-O | **`SRC-DEMO` / `TSRC-BUILD`**: `hello.fth` MAIN **exit 42** |
+| **Print to stdout** | **`PRINT-DEMO`**: `print.fth` → `Hello, 64TCOM\n` + exit 0 (all paths) |
 
 ### Milestone table
 
@@ -579,7 +624,7 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 |------|-------------|------|
 | 1 | Nested colon + IF/loop **via compiled words** | **Done** — `NEST-DEMO`; IF-DEMO Mach-O LOOP3 |
 | 2 | `VARIABLE` + `@`/`!` + data area | **Done** — daddr + reloc + `tcom_data[]` |
-| 3 | Target subset parser: `: … ;` `IF`… numbers, word calls | **Done** — `64SRC` + `hello.tfth` |
+| 3 | Target subset parser: `: … ;` `IF`… numbers, word calls | **Done** — `64SRC` + `hello.fth` |
 | 4 | `MAIN` + `SAVE-MACHO` exit code | **Done** — `./tcomarm64` exit **42** |
 | 5 | Print (`S"` + `TYPE` / write) | **Done** — `PRINT-DEMO` three runners |
 | 6 | argc/argv onto data stack | **Next** (Layer 2 remainder) |
@@ -595,8 +640,8 @@ Standalone (64Forth 1.0.5+ SYSTEM auto-build default):
 2c. ~~**Data embed for standalone VAR (Mach-O)**~~ — **done** (`tcom_data[]` + MOV fixup)  
 3. ~~**Source loader + closed loop**~~ — **done** (`TSRC-INCLUDE`, `TSRC-BUILD`, `SRC-DEMO` MAIN=>42)  
 4. ~~**Layer 2 print**~~ — **done** (`TYPE#` write SVC, dialect `S"`/`TYPE`, `PRINT-DEMO`)  
-5. ~~**Layer 2 args**~~ — **done** (`ARGCOUNT` `ARG1` `ARG2` `ARG#`; `samples/args.tfth`)  
-6. Grow dialect + messier `.tfth` (control-heavy, multi-def)  
+5. ~~**Layer 2 args**~~ — **done** (`ARGCOUNT` `ARG1` `ARG2` `ARG#`; `samples/args.fth`)  
+6. Grow dialect + messier `.fth` (control-heavy, multi-def)  
 7. Library wave (compares, `ROT`, …) as demos need  
 8. Grow assembler / library **on demand**  
 9. **Phase 4.0** utilities — listing/xref after richer sources exist  
@@ -632,7 +677,7 @@ requires them.
 | **3.4** Standalone Mach-O | **Done** | `SAVE-MACHO` → C + `cc`; auto-build via `SYSTEM` |
 | **3.5** True BL/BLR (no inline) | **Done** | Default fixup; `/INLINE-CALLS` fallback |
 | **Control demos** | **Roadmap B done** | `IF-DEMO` sim+native+Mach-O LOOP3; WHILE/REPEAT |
-| **Source→image→Mach-O** | **Layer 1 done** | `hello.tfth` MAIN=>42 sim/native/Mach-O |
+| **Source→image→Mach-O** | **Layer 1 done** | `hello.fth` MAIN=>42 sim/native/Mach-O |
 | **CLI I/O → app** | **Open** | Layers 2–4 (see Product destination) |
 | **4.0** Utilities | **Open** | Listing, xref, debugger — after richer sources |
 
@@ -733,7 +778,7 @@ Goal: move from **leaf demos** (ANS => 5) to code the **compiler** can generate 
 Aim for a **restricted but real** dialect first, not full ANS. Example shape:
 
 ```forth
-\ hello.tfth  — target source (name TBD)
+\ hello.fth  — target source (name TBD)
 VARIABLE X
 : DOUBLE  ( n -- 2n )  DUP + ;
 : MAIN    ( -- )  21 DOUBLE  X !  X @  ;
@@ -742,7 +787,7 @@ VARIABLE X
 **Success criteria for the first “real compiler” milestone:**
 
 1. `FLOAD TARGETARM64.fth`
-2. Something like `S" hello.tfth" TCOM-COMPILE` (or `INCLUDE` under a target compile mode)
+2. Something like `S" hello.fth" TCOM-COMPILE` (or `INCLUDE` under a target compile mode)
 3. Sim and native: `MAIN` leaves expected result
 4. `SAVE-MACHO-FILE` → `./hello` exits with that value (or prints it)
 
@@ -821,7 +866,7 @@ Do **not** design windowing into the compiler until CLI source→binary is borin
 
 ### What we already have
 
-**Layer 0 + Layer 1 MVP:** stack ops, `+`/`-`, lit, `CALL-ABS` (true BLR; `/INLINE-CALLS` fallback), control via `TIF`/loops and dialect, nested colon (`NEST-DEMO`), `VARIABLE` with daddr + Mach-O data page, restricted `.tfth` loader → sim/native/standalone (`hello.tfth` MAIN=>42).
+**Layer 0 + Layer 1 MVP:** stack ops, `+`/`-`, lit, `CALL-ABS` (true BLR; `/INLINE-CALLS` fallback), control via `TIF`/loops and dialect, nested colon (`NEST-DEMO`), `VARIABLE` with daddr + Mach-O data page, restricted `.fth` loader → sim/native/standalone (`hello.fth` MAIN=>42).
 
 Still needed for **useful** programs: broader dialect/lib, multi-file sources, strings/I/O policy, richer CLI runtime — then GUI.
 
@@ -936,7 +981,7 @@ without relying on 5-insn inlining
 ```text
 FLOAD TARGETARM64.fth
 SRC-DEMO
-\ or:  S" samples/hello.tfth" TSRC-BUILD
+\ or:  S" samples/hello.fth" TSRC-BUILD
 MAIN  (sim + native) => 42
 ./tcomarm64 exit 42
 ```
@@ -966,7 +1011,7 @@ MAIN  (sim + native) => 42
 5. ~~**Source loader (P1 MVP)**~~ — **done** (`TSRC-INCLUDE` / `TSRC-BUILD` / MAIN=>42)  
 6. ~~**Print (`TYPE` / write)**~~ — **done** (`PRINT-DEMO`)  
 7. **argc/argv** — finish Layer 2  
-8. **Second messier `.tfth` + dialect growth** — keep three runners green  
+8. **Second messier `.fth` + dialect growth** — keep three runners green  
 9. **Library breadth** — what next sources actually call  
 10. **Assembler opcodes only when a prim needs them**  
 11. **GUI (P6)** only after CLI source→binary + I/O is boring  

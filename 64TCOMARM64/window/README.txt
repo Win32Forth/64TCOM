@@ -5,20 +5,20 @@ GUI demos for Layer 4 (AppKit). Sibling of samples/ (CLI tools).
 
 What ships
 ----------
-  Distributed:  *.tfth, optional *.png (1024×1024 app icons), and this README.txt
+  Distributed:  *.fth, optional *.png (1024×1024 app icons), and this README.txt
   Not shipped:  generated binaries and intermediates
                 (name, name.m, name-build.sh, name.bin, name.app/)
 
 Requirements
 ------------
-  - 64Forth 1.1.2+ recommended (1.0.5+ for auto-cc via SYSTEM)
+  - 64Forth 1.1.3+ recommended (1.0.5+ for auto-cc via SYSTEM)
   - Working folder: 64TCOMARM64/  (parent of this window/ folder)
   - macOS AppKit (cc -framework AppKit)
 
 Build (64Forth console)
 -----------------------
   FLOAD TARGETARM64.fth
-  TCOM window/win.tfth
+  TCOM window/win.fth
   → window/win           (Terminal binary)
   → window/win.app       (Finder double-clickable bundle)
   → window/win.m, -build.sh, .bin
@@ -26,9 +26,9 @@ Build (64Forth console)
 Icon
 ----
   For the .app to show a custom Finder icon, put a **1024×1024 PNG** in the
-  **same folder as the .tfth source**, with the **same leaf name**:
+  **same folder as the .fth source**, with the **same leaf name**:
 
-    window/win.tfth
+    window/win.fth
     window/win.png          ← required for an icon (1024×1024 pixels)
 
   Then run TCOM (rebuild). The build converts the PNG to an .icns inside
@@ -55,13 +55,17 @@ Dialect
 -------
   APP-NAME ( c-addr u -- )  set menu-bar app name and default window title.
                    Call before WINDOW. Default if omitted: "64TCOM".
-  WINDOW   ( -- )  open a blank NSWindow via the GUI shell host call.
+  WINDOW   ( -- )  open an NSWindow with an 80×25 text-grid content view.
                    Only useful with TCOM (AppKit .m + .app).
                    Under TCOM-CLI the host stub is a no-op (-1).
+  AT CLS EMIT GET-CHAR KEY? KEY TYPE . CR SPACE TONE
+  TIME-RESET 10TH-ELAPSED TENTHS
+                   Grid / keyboard / timer host words (see tcom-textgrid.inc).
+                   KEY?/TENTHS pump AppKit events while MAIN still runs.
 
 Example
 -------
-  : MAIN  S" MyApp" APP-NAME  WINDOW  0 ;
+  : MAIN  S" MyApp" APP-NAME  WINDOW  0 0 AT ." Hi"  0 ;
 
 See also: samples/ for CLI tools (print, args, fcat, …).
 

@@ -1,4 +1,4 @@
-\ BANNER.SEQ    Compliments of F83X   mod to sequential by Tom Zimmer
+\ BANNER.FTH    Compliments of F83X   mod to sequential by Tom Zimmer
 .options /opt /noinit           \ compiler directives for this program
 
 CREATE CHAR-MATRIX              \ build the character generator

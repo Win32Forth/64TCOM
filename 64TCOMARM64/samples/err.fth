@@ -1,7 +1,7 @@
-\ err.tfth — stderr sample (ETYPE)
+\ err.fth — stderr sample (ETYPE)
 \
 \   FLOAD TARGETARM64.fth
-\   TCOM-CLI samples/err.tfth
+\   TCOM-CLI samples/err.fth
 \   ./samples/err           → message on stderr, exit 1
 \   ./samples/err 2>/tmp/e  → /tmp/e has the message
 

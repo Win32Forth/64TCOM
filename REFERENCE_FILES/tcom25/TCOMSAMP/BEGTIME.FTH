@@ -1,4 +1,4 @@
-\\ BEGTIME.SEQ                  Written by Bob Smith  12/07/92 14:20
+\\ BEGTIME.FTH                  Written by Bob Smith  12/07/92 14:20
 
         .OPTIONS /OPT /DEFINIT
 

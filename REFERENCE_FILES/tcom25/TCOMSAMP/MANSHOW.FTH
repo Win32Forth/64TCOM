@@ -1,8 +1,6 @@
-\ MAN486.SEQ MANDELBROT PLOT WITH MATH COPPROCESSOR 21oct92cht
+\ MANSHOW.FTH MANDELBROT PLOT WITH MATH COPPROCESSOR 21oct92cht
 
-.options /opt /noinit
-
-needs graph.seq
+needs graph.fth
 
 \ **********************************************************************
 \ a group of variables to save with each graphic image  128 bytes

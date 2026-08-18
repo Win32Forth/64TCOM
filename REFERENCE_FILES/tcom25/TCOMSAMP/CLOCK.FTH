@@ -1,4 +1,4 @@
-\  MYCLOCK.BLK   a visual clock program                11Nov87jgm
+\  CLOCK.FTH   a visual clock program                11Nov87jgm
 .options /opt /noinit /inx      \ compiler directives for this program
 
 \                      November 1987
@@ -18,10 +18,10 @@
 \       day intervals, days, years MOD 50.
 
 \ 10/19/89 TJZ
-\ Use the following DOS command line to compile CLOCK.SEQ into the
+\ Use the following DOS command line to compile CLOCK.FTH into the
 \ CLOCK.COM program file:
 \
-\       C:> TCOM CLOCK /OPT /NOINIT <Enter>
+\       C:> TCOM CLOCK.FTH <Enter>
 \
 
 \ cons, vars, arrays, strings

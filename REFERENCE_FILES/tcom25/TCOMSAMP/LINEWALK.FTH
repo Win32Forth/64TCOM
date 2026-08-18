@@ -1,12 +1,12 @@
-\\ LINEWALK.SEQ         A Demo of Line Drawing          by Tom Zimmer
+\\ LINEWALK.FTH         A Demo of Line Drawing          by Tom Zimmer
 
         Compile with the following command line:
 
-                TCOM LINEWALK /OPT /NOINIT <Enter>
+                TCOM LINEWALK <Enter>
 
 {
 
-needs graph.seq
+needs graph.fth
 
 : graph_bye     ( -- )          \ cleanup stuff when we are all done
                 text-mode 0 1 at

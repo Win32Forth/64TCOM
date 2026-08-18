@@ -1,5 +1,4 @@
 \\ PASCAL.SEQ       Tiny Pascal     Copyright 1987-91       Tom Zimmer
-.options /opt /noinit /tailoptoff \ compiler directives for this program
 
   Here is the latest version of my Tiny Pascal Implimentation in Forth.
 

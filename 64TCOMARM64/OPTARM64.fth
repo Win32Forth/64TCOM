@@ -8,7 +8,7 @@ TCOM-ANEW OPTARM64
 FORTH DEFINITIONS
 DECIMAL
 
-: (TVER-ARM64)  ( -- )  ." 64TCOM ARM64 Version 0.3" ;
+: (TVER-ARM64)  ( -- )  ." 64TCOM ARM64 Version 0.4" ;
 ' (TVER-ARM64) IS TVERSION
 
 /LOW-HIGH
@@ -318,7 +318,8 @@ VARIABLE MAP-FID
   ;
 
 \ Data-address relocs for Mach-O (daddr in SYM-DATA; emit host via DTHERE + record)
-64 CONSTANT #DATA-RELOC
+\ TETRA-class sources reference many VALUE/VARIABLE/CREATE sites — 64 was too small.
+512 CONSTANT #DATA-RELOC
 CREATE DATA-RELOC-OFF  #DATA-RELOC CELLS ALLOT   \ taddr of MOVZ of lit sequence
 CREATE DATA-RELOC-D    #DATA-RELOC CELLS ALLOT   \ daddr
 VARIABLE DATA-RELOC-N
@@ -329,7 +330,7 @@ VARIABLE DATA-RELOC-N
 \ Host-call relocs (GUI / C helpers): .quad site patched to &host_fn[slot]
 \ Magic in .quad = $C0DE000000000000 | slot  (never a valid code taddr)
 $C0DE000000000000 CONSTANT HOST-CALL-MAGIC
-16 CONSTANT #HOST-RELOC
+64 CONSTANT #HOST-RELOC
 CREATE HOST-RELOC-OFF  #HOST-RELOC CELLS ALLOT   \ taddr of .quad
 CREATE HOST-RELOC-SLOT #HOST-RELOC CELLS ALLOT   \ host fn index
 VARIABLE HOST-RELOC-N
@@ -347,14 +348,30 @@ VARIABLE HOST-RELOC-N
   1 HOST-RELOC-N +!
   ;
 
+\ Preserve Forth DSP/RP (X19/X20) across C/ObjC — AppKit can clobber callee-
+\ saved regs in practice when deep into event/draw (e.g. Screenshot).
+$A9BF53F3 CONSTANT (A64-STP-X19-X20-SP)   \ STP X19, X20, [SP, #-16]!
+$A8C153F3 CONSTANT (A64-LDP-X19-X20-SP)   \ LDP X19, X20, [SP], #16
+
 \ Call a C/ObjC host helper. slot indexes the shell's host_fn[] table.
 \ Same call frame as CALL-ABS; .quad = HOST-CALL-MAGIC|slot (patched by shell).
 : HOST-CALL,  ( slot -- )
+  \ Frame (28 bytes + .quad):
+  \   STP X30,XZR,[SP,#-16]!
+  \   STP X19,X20,[SP,#-16]!     \ keep Forth DSP/RP across AppKit
+  \   LDR X16, .quad             \ imm19=5 → PC+20
+  \   BLR X16
+  \   LDP X19,X20,[SP],#16
+  \   LDP X30,XZR,[SP],#16
+  \   B +3                       \ skip .quad
+  \   .quad MAGIC|slot
   ALIGN4-T
   HERE-T 7 AND 0= IF  NOP,  THEN
   (A64-STP-X30-XZR-SP) W,
-  X16 4 LDR64-LIT,
+  (A64-STP-X19-X20-SP) W,
+  X16 5 LDR64-LIT,
   X16 BLR-X,
+  (A64-LDP-X19-X20-SP) W,
   (A64-LDP-X30-XZR-SP) W,
   3 B-IMM,
   DUP HOST-RELOC-ADD

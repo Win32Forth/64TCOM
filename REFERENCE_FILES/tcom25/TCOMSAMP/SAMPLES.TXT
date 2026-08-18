@@ -1,4 +1,4 @@
-\ SAMPLES.DOC           Sample source file for TCOM     by Tom Zimmer
+\ SAMPLES.TXT           Sample source file for TCOM     by Tom Zimmer
 
   TCOM includes several example source files to illustrate various
 features available in TCOM, and to provide some utilities you might find

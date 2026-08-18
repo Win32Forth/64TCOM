@@ -1,4 +1,4 @@
-\ ALLSPECS.SEQ      Return all directories one at a time
+\ ALLSPECS.FTH      Return all directories one at a time
 
 8000 constant dirlenmax
 \       create dirlist dirlenmax 100 + allot
@@ -49,14 +49,14 @@ create dirpad 128 allot
                 startdir count dup 1+ =: dirlistlen dirlist place
                 dirlist
                 begin   dup c@
-\fpc                    ?keypause
+                        ?keypause
                 while             curhndl clr-hcb
                         dup count curhndl place
                                   curhndl count + 1- c@ '\' <>
                         if  " \"  curhndl +place
                         then
                         " *.*"    curhndl +place
-\fpc                               curhndl count cr type space
+                                  curhndl count cr type space
                                   curhndl $getdirs
                         count +
                 repeat  drop dirlist =: dirptr ;

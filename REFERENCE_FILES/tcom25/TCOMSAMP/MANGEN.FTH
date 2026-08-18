@@ -1,8 +1,6 @@
-\ MAN486.SEQ MANDELBROT PLOT WITH MATH COPPROCESSOR 21oct92cht
+\ MAN486.FTH MANDELBROT PLOT WITH MATH COPPROCESSOR 21oct92cht
 
-.options /opt /noinit /tailopton
-
-needs graph.seq
+needs graph.fth
 
 variable fpstatus
 

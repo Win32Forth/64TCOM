@@ -1,8 +1,8 @@
-\ hello.tfth — sample target program (restricted dialect)
+\ hello.fth — sample target program (restricted dialect)
 \
 \ How to build (from 64Forth, working folder = 64TCOMARM64/):
 \   FLOAD TARGETARM64.fth
-\   TCOM-CLI samples/hello.tfth
+\   TCOM-CLI samples/hello.fth
 \
 \ That writes next to this file:
 \   samples/hello          (standalone arm64 executable)
@@ -14,7 +14,7 @@
 \   ./samples/hello        (Terminal)  or  S" ./samples/hello" SYSTEM .
 \ Expect: stdout "Hello, 64TCOM" and process exit status 42
 \
-\ Only the .tfth sources ship in a distribution; rebuild generated files with TCOM-CLI.
+\ Only the .fth sources ship in a distribution; rebuild generated files with TCOM-CLI.
 \
 \ See samples/README.txt for more detail.
 

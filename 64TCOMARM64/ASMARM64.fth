@@ -581,15 +581,77 @@ CREATE LL-FWD  #LLAB CELLS ALLOT
 
 : LIT-X0,  ( n -- )  X0 MOV-X-IMM64, ;
 
+4096 CONSTANT #RSTACK                     \ Forth RP bytes below DSP
+
 : DSP-INIT,  ( host-dsp-top -- )
-  X19 MOV-X-IMM64,
+  \ X19 = DSP; X20 = RP (same gap as SIM #SIM-RSTACK)
+  DUP X19 MOV-X-IMM64,
+  #RSTACK - X20 MOV-X-IMM64,
   0 X0 MOV-X-IMM64,
+  ;
+
+\ ----- DO / LOOP / +LOOP / I / J (RP = X20; bias = 1<<63) -----
+$444F0001 CONSTANT DO-SYS                 \ TCS marker
+
+: TDO  ( -- )
+  \ ( limit index -- )  X0=index, [X19]=limit
+  X0 X1 MOV-X-X,                         \ X1 = index
+  X2 X19 8 LDR-POST,                     \ X2 = limit; drop
+  X0 X19 8 LDR-POST,                     \ new TOS
+  $8000000000000000 X3 MOV-X-IMM64,      \ bias
+  X3 X2 X2 ADD-X-X,                      \ limit'
+  X2 X1 X1 SUB-X-X,                      \ index' = index - limit'
+  X2 X20 -8 STR-PRE,                     \ push limit'
+  X1 X20 -8 STR-PRE,                     \ push index'
+  ALIGN4-T HERE-T TCS-PUSH               \ loop head
+  DO-SYS TCS-PUSH
+  ;
+
+: TLOOP  ( -- )
+  TCS-POP DO-SYS <> IF S" LOOP without DO" TCOM-ABORT THEN
+  TCS-POP >R                             \ dest
+  X1 X20 0 LDR-OFF,                      \ index'  (LDR Xt,[Xn,#0])
+  1 X2 MOV-X-IMM64,
+  X2 X1 X1 ADDS-X,                       \ index' += 1
+  X1 X20 0 STR-OFF,
+  ALIGN4-T
+  R@ HERE-T - 4 / VC B.COND,             \ continue if no overflow
+  16 X20 X20 ADD-IMM,                    \ UNLOOP
+  R> DROP
+  ;
+
+: T+LOOP  ( -- )
+  TCS-POP DO-SYS <> IF S" +LOOP without DO" TCOM-ABORT THEN
+  TCS-POP >R
+  X0 X1 MOV-X-X,                         \ n
+  X0 X19 8 LDR-POST,                     \ drop n
+  X2 X20 0 LDR-OFF,                      \ index'
+  X1 X2 X2 ADDS-X,                       \ index' += n
+  X2 X20 0 STR-OFF,
+  ALIGN4-T
+  R@ HERE-T - 4 / VC B.COND,
+  16 X20 X20 ADD-IMM,
+  R> DROP
+  ;
+
+: TI,  ( -- )
+  X0 X19 -8 STR-PRE,
+  X1 X20 0 LDR-OFF,                      \ index'
+  X2 X20 8 LDR-OFF,                      \ limit'
+  X2 X1 X0 ADD-X-X,                      \ I
+  ;
+
+: TJ,  ( -- )
+  X0 X19 -8 STR-PRE,
+  X1 X20 16 LDR-OFF,                     \ outer index'
+  X2 X20 24 LDR-OFF,                     \ outer limit'
+  X2 X1 X0 ADD-X-X,
   ;
 
 : .ASMARM64  ( -- )
   S" ASMARM64 3.1+: X0-X30 AND/ORR/EOR ADD/SUB CMP B/BL/B.cond CBZ" TYPE CR
   S"   LL: BR>LL  AHEAD THEN, AIF, AELSE, ATHEN,  CALL-ABS" TYPE CR
-  S"   Forth-ABI: TIF TELSE TTHEN  TBEGIN TUNTIL TAGAIN TWHILE TREPEAT T0=," TYPE CR
+  S"   Forth-ABI: TIF…  TBEGIN…  TDO TLOOP T+LOOP TI, TJ,  T0=," TYPE CR
   ;
 
 : (SETASSEM)  ( -- )

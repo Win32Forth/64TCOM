@@ -1,8 +1,8 @@
-\ fcat.tfth — file read sample (OPEN-R READ CLOSE)
+\ fcat.fth — file read sample (OPEN-R READ CLOSE)
 \
 \   FLOAD TARGETARM64.fth
-\   TCOM-CLI samples/fcat.tfth
-\   ./samples/fcat samples/hello.tfth
+\   TCOM-CLI samples/fcat.fth
+\   ./samples/fcat samples/hello.fth
 \
 \ Exit 0 ok, 1 usage, 2 open fail.
 \ TWHILE treats TOS as flag and keeps under as new TOS — keep a pad 0 under the loop.

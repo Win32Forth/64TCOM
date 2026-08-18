@@ -15,7 +15,7 @@
 
  **********************************************************************
 
-        needs ffloat    \ load the floating point package
+        require ffloat    \ load the floating point package
         floats          \ allow automatic floating point number conversion
         degrees         \ make FSIN word in degrees
 
@@ -30,7 +30,7 @@
 
 {
 
-needs graph.seq
+require graph.fth
 
 create sintbl
           0 ,    25 ,    49 ,    74 ,    97 ,   120 ,   141 ,   160 ,

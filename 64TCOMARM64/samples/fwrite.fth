@@ -1,7 +1,7 @@
-\ fwrite.tfth — file write sample (OPEN-W WRITE CLOSE)
+\ fwrite.fth — file write sample (OPEN-W WRITE CLOSE)
 \
 \   FLOAD TARGETARM64.fth
-\   TCOM-CLI samples/fwrite.tfth
+\   TCOM-CLI samples/fwrite.fth
 \   ./samples/fwrite /tmp/tcom-fwrite.txt
 \   cat /tmp/tcom-fwrite.txt
 \

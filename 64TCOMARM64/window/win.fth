@@ -1,7 +1,7 @@
-\ win.tfth — Layer 4 blank-window MVP (APP-NAME + WINDOW)
+\ win.fth — Layer 4 blank-window MVP (APP-NAME + WINDOW)
 \
 \   FLOAD TARGETARM64.fth
-\   TCOM window/win.tfth
+\   TCOM window/win.fth
 \   open window/win.app          \ or double-click in Finder
 \
 \ Optional Finder icon: place a 1024×1024 PNG beside this file as

@@ -66,14 +66,13 @@
         21 16 MY.AT 42 EMIT
         17 0 DO -1 I MY.AT 42 EMIT 21 I MY.AT 42 EMIT LOOP
         21 0 DO I -1 MY.AT 42 EMIT I 16 MY.AT 42 EMIT LOOP
-
-
         ;
-COMMENT:
+
+\\
         It might be better to use position variables rather than vectors
         except when doing a rotate. The position information is needed to
         check the validity of every down, left and right moves.
-COMMENT;
+{
 
 CREATE FIGURE
         8 , 0 , 10 , 0 ,  8 , 1 , 10 , 1 ,      \ block   figure.no 0
@@ -531,7 +530,7 @@ DECIMAL
 {
 
 \ : TEST ( n -- )
-\         =: FIGURE.NO
+\         TO FIGURE.NO
 \         FILL.CURR
 \         DOWN
 \         ;
@@ -569,7 +568,7 @@ CREATE NOTES 48 allot
 : MUSIC
         sound_on
         if      NOTENUM NOTES + @ 1 TONE
-                NOTENUM 2+ 48 MOD =: NOTENUM
+                NOTENUM 2+ 48 MOD TO NOTENUM
         else    1 tenths
         then    ;
 
@@ -611,7 +610,7 @@ CREATE NOTES 48 allot
 0 VALUE ROW.NUM
 
 : ROW.FULL? ( n -- tf ) \ check if row n is full of 32 's   for a y vary x
-        =: ROW.NUM                      \
+        TO ROW.NUM                      \
         TRUE                            \ t
         20 0 DO                         \ t each x is I
         I ROW.NUM MY.AT                 \ t x y --
@@ -627,7 +626,7 @@ CREATE NOTES 48 allot
 0 VALUE LEVEL
 
 : ROW.DROP ( n  -- )                      \ use ROW.NUM
-    =: ROW.NUM                          \ the row to be eliminated
+    TO ROW.NUM                          \ the row to be eliminated
       BEGIN
         20 0 DO                         \  x's    each x in the row
         I                               \ x --
@@ -636,16 +635,16 @@ CREATE NOTES 48 allot
         I ROW.NUM                       \ ascii x y --  write to space below
         MY.AT EMIT                      \ --
         LOOP                            \     next higher row
-      ROW.NUM 1- DUP =: ROW.NUM         \ r   continue to zero
+      ROW.NUM 1- DUP TO ROW.NUM         \ r   continue to zero
       1 < UNTIL
       80 2 TONE
-      SCORE 1+ =: SCORE
-      SCORE 10 / =: LEVEL
-      5 LEVEL - =: TIME.LIMIT
+      SCORE 1+ TO SCORE
+      SCORE 10 / TO LEVEL
+      5 LEVEL - TO TIME.LIMIT
       6 6 AT LEVEL .
        5 10 AT SCORE .
       SCORE HIGH.SCORE >
-                IF SCORE =: HIGH.SCORE
+                IF SCORE TO HIGH.SCORE
                 THEN
       3 16  AT HIGH.SCORE .
           ;
@@ -667,7 +666,7 @@ CREATE NOTES 48 allot
         ;
 
 : SETUP
-        0 =: SCORE
+        0 TO SCORE
         27 0 AT ."    ***   T E T R A   ***"
         5 9 AT  ." *SCORE*"
         5 5 AT  ." *LEVEL*"
@@ -690,7 +689,7 @@ CREATE NOTES 48 allot
 : GAME
         fill-notes
       FIELD SETUP BORDER BEGIN          \ make field , mark beginning
-        FIGURE.NO 1+ 6 MOD =: FIGURE.NO  \ new figure
+        FIGURE.NO 1+ 6 MOD TO FIGURE.NO  \ new figure
         FILL.CURR                        \ new figure into array
         BACKUP.CURR                     \ copy into BACK array
         DOWN.CURR                       \ inc CURR y's

@@ -1,4 +1,4 @@
-\\ LINES.SEQ     A simple graphic demo, draws lines on CGA or HERCULES
+\\ LINES.FTH     A simple graphic demo, draws lines on CGA or HERCULES
 
   Here is an example file that will work on either CGA/EGA/VGA or HERCULES.
 
@@ -8,7 +8,7 @@
 
 {
 
-needs graph.seq
+needs graph.fth
 needs herc.seq
 
 0 value SEED1

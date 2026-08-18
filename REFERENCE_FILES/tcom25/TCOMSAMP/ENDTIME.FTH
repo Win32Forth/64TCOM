@@ -1,6 +1,4 @@
-\\ ENDTIME.SEQ                          by Bob Smith  12/07/92 14:22
-
-        .OPTIONS /OPT /DEFINIT
+\\ ENDTIME.FTH                          by Bob Smith  12/07/92 14:22
 
 ENDTIME <filename> will append the current date and time to the specified
 file.  If no file is specified, a default file name JOBCLOCK.DOC will

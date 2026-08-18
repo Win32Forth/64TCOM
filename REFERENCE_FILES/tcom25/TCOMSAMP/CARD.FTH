@@ -1,5 +1,4 @@
-\\ CARDFILE.SEQ  A simple cardfile program for F-PC      by Tom Zimmer
-.options /opt /noinit /nostack  \ compiler directives for this program
+\\ CARDFILE.FTH  A simple cardfile program for F-PC      by Tom Zimmer
 
   旼컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴커
   � Here is a simple Card File type database, as an example of how to make �

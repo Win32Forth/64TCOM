@@ -62,6 +62,22 @@ node_modules/
 64TCOMARM64/window/win.app/
 64TCOMARM64/window/*.app/
 64TCOMARM64/window/*.bin
+64TCOMARM64/tetra/tetra
+64TCOMARM64/tetra/tetra.bin
+64TCOMARM64/tetra/tetra.c
+64TCOMARM64/tetra/tetra.m
+64TCOMARM64/tetra/tetra-build.sh
+64TCOMARM64/tetra/tetra.app/
+64TCOMARM64/tetra/*.app/
+64TCOMARM64/tetra/*.bin
+# Local scratch Mach-O build scripts / objects
+64TCOMARM64/t_*-build.sh
+64TCOMARM64/t_min
+64TCOMARM64/t_ba
+64TCOMARM64/t_gc
+64TCOMARM64/t_min.*
+64TCOMARM64/t_ba.*
+64TCOMARM64/t_gc.*
 64TCOMARM64/samples/err
 64TCOMARM64/samples/err.bin
 64TCOMARM64/samples/err.c

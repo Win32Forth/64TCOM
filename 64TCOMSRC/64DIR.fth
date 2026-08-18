@@ -20,7 +20,8 @@ S" [64DIR] tables..." TYPE CR
 2 CONSTANT SYM-LIBRARY
 3 CONSTANT SYM-CODE
 4 CONSTANT SYM-FORWARD
-5 CONSTANT SYM-DATA          \ host addr of a target data cell (VARIABLE)
+5 CONSTANT SYM-DATA          \ daddr of a target VARIABLE (pushes address)
+6 CONSTANT SYM-VALUE         \ daddr of a VALUE (pushes contents; TO stores)
 
 -1 CONSTANT SYM-NO-CHAIN
 
@@ -247,7 +248,12 @@ VARIABLE M-TMP
     DUP SYM-TYPE@ SYM-DATA = IF
       SYM-ADDR@ COMP-DATA-ADDR       \ daddr → pack emits runtime address
     ELSE
-      SYM-ADDR@ COMP-CALL
+      DUP SYM-TYPE@ SYM-VALUE = IF
+        SYM-ADDR@ COMP-DATA-ADDR
+        COMP-FETCH
+      ELSE
+        SYM-ADDR@ COMP-CALL
+      THEN
     THEN
   THEN
   ;
@@ -299,6 +305,7 @@ DEFER LIB-AUTO-INCLUDE
   DUP SYM-CODE    = IF DROP S" CODE" TYPE EXIT THEN
   DUP SYM-FORWARD = IF DROP S" FWD" TYPE EXIT THEN
   DUP SYM-DATA    = IF DROP S" DATA" TYPE EXIT THEN
+  DUP SYM-VALUE   = IF DROP S" VALUE" TYPE EXIT THEN
   DROP S" ?" TYPE
   ;
 

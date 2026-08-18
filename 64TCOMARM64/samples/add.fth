@@ -1,8 +1,8 @@
-\ add.tfth — dialect growth sample: args + S>N + . + IF
+\ add.fth — dialect growth sample: args + S>N + . + IF
 \
 \ How to build (from 64Forth, working folder = 64TCOMARM64/):
 \   FLOAD TARGETARM64.fth
-\   TCOM-CLI samples/add.tfth
+\   TCOM-CLI samples/add.fth
 \
 \ Run (from samples/ or pack root):
 \   ./samples/add 3 5        → prints 8, exit 0

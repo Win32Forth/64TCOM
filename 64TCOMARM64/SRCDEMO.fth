@@ -1,4 +1,4 @@
-\ SRCDEMO.fth — samples/hello.tfth via TSRC-INCLUDE + full CLI loop
+\ SRCDEMO.fth — samples/hello.fth via TSRC-INCLUDE + full CLI loop
 \ Public domain. Loader: 64TCOMSRC/64SRC.fth. Outputs: samples/hello
 
 TARGET-INIT
@@ -6,9 +6,9 @@ TARGET-INIT
 LL-INIT
 FORTH DEFINITIONS
 
-S" samples/hello.tfth" TSRC-INCLUDE
+S" samples/hello.fth" TSRC-INCLUDE
 
-\ Same-dir names as TCOM (beside the .tfth)
+\ Same-dir names as TCOM (beside the .fth)
 S" samples/hello" MACHO-FILENAME PLACE
 S" samples/hello.bin" IMAGE-FILENAME PLACE
 
@@ -18,7 +18,7 @@ FORTH DEFINITIONS
 VARIABLE RX
 
 : SRC-DEMO-CHECK  ( -- )
-  S" --- SRC-DEMO (hello.tfth) ---" TYPE CR
+  S" --- SRC-DEMO (hello.fth) ---" TYPE CR
   S" MAIN" RUN-SYM RX !
   S" MAIN => " TYPE RX @ . CR
   RX @ 42 <> IF S" SRC-DEMO fail MAIN want 42" TYPE CR ABORT THEN

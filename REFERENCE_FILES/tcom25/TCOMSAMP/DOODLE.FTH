@@ -1,12 +1,11 @@
-\\ DOODLE.SEQ     A simple Graphics Drawing program        by Tom Zimmer
+\\ DOODLE.FTH     A simple Graphics Drawing program        by Tom Zimmer
 
   Simple drawing program, runs in 320x200 mode
 
 
-                .options /opt /noinit
 {
 
-needs graph.seq
+require graph.fth
 
 8 constant drawtop
 

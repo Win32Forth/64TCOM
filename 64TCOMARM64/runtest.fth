@@ -39,7 +39,7 @@ NEST-DEMO
 S" --- VAR-DEMO (VARIABLE + @/!) ---" TYPE CR
 VAR-DEMO
 
-S" --- SRC-DEMO (TSRC-INCLUDE hello.tfth) ---" TYPE CR
+S" --- SRC-DEMO (TSRC-INCLUDE hello.fth) ---" TYPE CR
 SRC-DEMO
 
 S" --- PRINT-DEMO (Layer 2 S-quote + TYPE) ---" TYPE CR

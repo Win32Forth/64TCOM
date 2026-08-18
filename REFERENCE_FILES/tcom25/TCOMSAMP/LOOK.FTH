@@ -1,5 +1,4 @@
-\\ LOOK.SEQ      Target compilable string search across many files
-.options /opt /noinit /tailopton      \ compiler options for SZ
+\\ LOOK.FTH      Target compilable string search across many files
 ***************************************************************************
                             Advertisement
 ***************************************************************************
@@ -93,7 +92,7 @@ commandline:
 
 {
 
-fload allspecs.seq
+fload allspecs.fth
 
    700 constant maxfiles        \ only hold upto 700 filenames in list
                                 \ from any given directory.

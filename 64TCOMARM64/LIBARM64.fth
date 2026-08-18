@@ -65,14 +65,14 @@ VARIABLE LIB-BODY-XT
 
 : BODY-SWAP   ( -- )
   BTI,
-  X1 X19 0 LDR-X0,
-  X0 X19 0 STR-X0,
-  X1 X0 MOV-X-X,
+  X1 X19 LDR-X0,                 \ X1 = under
+  X0 X19 STR-X0,                 \ under = old TOS
+  X1 X0 MOV-X-X,                 \ TOS = old under
   ;
 
 : BODY-OVER   ( -- )
   BTI,
-  X1 X19 0 LDR-X0,
+  X1 X19 LDR-X0,                 \ X1 = under
   X0 X19 -8 STR-PRE,
   X1 X0 MOV-X-X,
   ;
@@ -126,8 +126,18 @@ VARIABLE IO-P4
   X0 X19 8 LDR-POST,
   ;
 
+\ TYPE# ( c-addr u -- ) host slot 11 → grid (GUI) or stdout (CLI)
 : BODY-TYPE  ( -- )
-  BTI,  1 X3 MOV-X-IMM64,  (BODY-WRITE-FD)  ;
+  BTI,
+  X0 X2 MOV-X-X,                     \ X2 = u
+  X1 X19 8 LDR-POST,                 \ X1 = c-addr; [X19]=new TOS
+  X0 X19 LDR-X0,                     \ peek new TOS
+  X0 X19 -8 STR-PRE,                 \ save TOS
+  X1 X0 MOV-X-X,                     \ X0 = c-addr
+  X2 X1 MOV-X-X,                     \ X1 = u
+  11 HOST-CALL,
+  X0 X19 8 LDR-POST,
+  ;
 
 : BODY-ETYPE  ( -- )
   BTI,  2 X3 MOV-X-IMM64,  (BODY-WRITE-FD)  ;
@@ -156,29 +166,13 @@ VARIABLE IO-P4
   IO-P2 @ THEN,
   ;
 
-\ KEY# ( -- c | -1 )
+\ KEY# ( -- c | -1 ) host slot 7 (GUI key queue / CLI stdin)
 : BODY-KEY  ( -- )
   BTI,
-  X0 X19 -8 STR-PRE,
-  X19 X1 MOV-X-X,
-  1 X2 MOV-X-IMM64,
+  X0 X19 -8 STR-PRE,                 \ save prior TOS
   0 X0 MOV-X-IMM64,
-  3 X16 MOV-X-IMM64,
-  $80 SVC,
-  ALIGN4-T HERE-T IO-P2 !
-  0 CS B.COND,
-  XZR X0 CMP-X,
-  ALIGN4-T HERE-T IO-P1 !
-  0 EQ B.COND,
-  X4 X19 LDRB-X,
-  X0 X19 8 LDR-POST,
-  X4 X0 MOV-X-X,
-  AHEAD IO-P3 !
-  HERE-T IO-P2 @ PATCH-BCOND
-  HERE-T IO-P1 @ PATCH-BCOND
-  X0 X19 8 LDR-POST,
-  -1 X0 MOV-X-IMM64,
-  IO-P3 @ THEN,
+  0 X1 MOV-X-IMM64,
+  7 HOST-CALL,                       \ result in X0
   ;
 
 \ ACCEPT# ( c-addr u1 -- u2 )
@@ -389,10 +383,10 @@ VARIABLE IO-P4
 \ ----- stack -----
 : BODY-ROT  ( -- )   \ ( a b c -- b c a )
   BTI,
-  X1 X19 0 LDR-X0,               \ X1=b  (c=X0, under b, under a)
-  X2 X19 8 LDR-X0,               \ X2=a at [X19,#8]
-  X1 X19 8 STR-X0,               \ [X19,#8]=b
-  X0 X19 0 STR-X0,               \ [X19]=c
+  X1 X19 0 LDR-OFF,              \ X1=b  (c=X0, under b, under a)
+  X2 X19 8 LDR-OFF,              \ X2=a at [X19,#8]
+  X1 X19 8 STR-OFF,              \ [X19,#8]=b
+  X0 X19 0 STR-OFF,              \ [X19]=c
   X2 X0 MOV-X-X,                 \ TOS=a
   ;
 
@@ -403,21 +397,21 @@ VARIABLE IO-P4
 
 : BODY-2DUP  ( -- )  \ ( a b -- a b a b )
   BTI,
-  X1 X19 0 LDR-X0,               \ X1=a, X0=b
+  X1 X19 LDR-X0,                 \ X1=a, X0=b
   X1 X19 -8 STR-PRE,
   X0 X19 -8 STR-PRE,
   ;
 
-\ EMIT# ( c -- ) write one char to stdout
+\ EMIT# ( c -- ) host slot 5 → grid (GUI) or stdout (CLI)
 : BODY-EMIT  ( -- )
   BTI,
-  X0 X19 -8 STR-PRE,             \ store char cell at DSP
-  X19 X1 MOV-X-X,                \ X1 → low byte of cell (LE)
-  1 X2 MOV-X-IMM64,
-  1 X0 MOV-X-IMM64,
-  4 X16 MOV-X-IMM64,
-  $80 SVC,
-  X0 X19 8 LDR-POST,             \ drop char cell; restore TOS
+  X0 X1 MOV-X-X,                 \ X1 = c
+  X0 X19 8 LDR-POST,             \ drop c; X0 = prior TOS
+  X0 X19 -8 STR-PRE,             \ save TOS across host
+  X1 X0 MOV-X-X,                 \ X0 = c
+  0 X1 MOV-X-IMM64,
+  5 HOST-CALL,
+  X0 X19 8 LDR-POST,
   ;
 
 \ EEMIT# ( c -- ) write one char to stderr
@@ -432,19 +426,14 @@ VARIABLE IO-P4
   X0 X19 8 LDR-POST,
   ;
 
-\ CR#  emit newline to stdout
+\ CR#  newline via host emit (slot 5)
 : BODY-CR  ( -- )
   BTI,
-  X0 X19 -8 STR-PRE,             \ save TOS
-  10 X0 MOV-X-IMM64,
   X0 X19 -8 STR-PRE,
-  X19 X1 MOV-X-X,
-  1 X2 MOV-X-IMM64,
-  1 X0 MOV-X-IMM64,
-  4 X16 MOV-X-IMM64,
-  $80 SVC,
-  X0 X19 8 LDR-POST,             \ drop temp
-  X0 X19 8 LDR-POST,             \ restore TOS
+  10 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  5 HOST-CALL,
+  X0 X19 8 LDR-POST,
   ;
 
 \ ECR#  emit newline to stderr
@@ -462,18 +451,13 @@ VARIABLE IO-P4
   X0 X19 8 LDR-POST,
   ;
 
-\ SPACE#  emit blank
+\ SPACE#  blank via host emit (slot 5)
 : BODY-SPACE  ( -- )
   BTI,
   X0 X19 -8 STR-PRE,
   BL X0 MOV-X-IMM64,
-  X0 X19 -8 STR-PRE,
-  X19 X1 MOV-X-X,
-  1 X2 MOV-X-IMM64,
-  1 X0 MOV-X-IMM64,
-  4 X16 MOV-X-IMM64,
-  $80 SVC,
-  X0 X19 8 LDR-POST,
+  0 X1 MOV-X-IMM64,
+  5 HOST-CALL,
   X0 X19 8 LDR-POST,
   ;
 
@@ -488,63 +472,16 @@ VARIABLE SN-P1
 VARIABLE SN-P2
 VARIABLE SN-P3
 
-\ Emit low 8 bits of X0 (clobbers X1,X2,X16)
-: (EMIT-X0-BYTE,)  ( -- )
-  X0 X19 -8 STR-PRE,
-  X19 X1 MOV-X-X,
-  1 X2 MOV-X-IMM64,
-  1 X0 MOV-X-IMM64,
-  4 X16 MOV-X-IMM64,
-  $80 SVC,
-  X0 X19 8 LDR-POST,
-  ;
-
-\ DOT# ( n -- ) signed decimal, no trailing blank
+\ DOT# ( n -- ) host slot 13 — signed decimal, no trailing blank
 : BODY-DOT  ( -- )
   BTI,
-  X0 X2 MOV-X-X,
-  0 X4 MOV-X-IMM64,
-  0 X3 MOV-X-IMM64,
-  ALIGN4-T HERE-T DOT-P1 !
-  X2 0 CBNZ-X,
-  48 X0 MOV-X-IMM64,
-  (EMIT-X0-BYTE,)
+  X0 X1 MOV-X-X,                     \ X1 = n
+  X0 X19 8 LDR-POST,                 \ drop n; X0 = prior TOS
+  X0 X19 -8 STR-PRE,                 \ save TOS
+  X1 X0 MOV-X-X,                     \ X0 = n
+  0 X1 MOV-X-IMM64,
+  13 HOST-CALL,
   X0 X19 8 LDR-POST,
-  AHEAD DOT-P2 !
-  HERE-T DOT-P1 @ PATCH-CBZ
-  XZR X2 CMP-X,
-  ALIGN4-T HERE-T DOT-P3 !
-  0 GE B.COND,
-  1 X3 MOV-X-IMM64,
-  X2 XZR X2 SUB-X-X,
-  HERE-T DOT-P3 @ PATCH-BCOND
-  ALIGN4-T HERE-T DOT-P4 !
-  10 X5 MOV-X-IMM64,
-  X5 X2 X6 UDIV-X,
-  X5 X2 X6 X7 MSUB-X,
-  X7 X0 MOV-X-X,
-  X0 X19 -8 STR-PRE,
-  1 X4 X4 ADD-IMM,
-  X6 X2 MOV-X-X,
-  ALIGN4-T
-  DOT-P4 @ HERE-T - 4 / X2 SWAP CBNZ-X,   \ back to digit extract
-  ALIGN4-T HERE-T DOT-P5 !
-  X3 0 CBZ-X,
-  45 X0 MOV-X-IMM64,
-  (EMIT-X0-BYTE,)
-  HERE-T DOT-P5 @ PATCH-CBZ
-  ALIGN4-T HERE-T DOT-P1 !
-  ALIGN4-T HERE-T DOT-P3 !
-  X4 0 CBZ-X,
-  X0 X19 8 LDR-POST,
-  48 X0 X0 ADD-IMM,
-  (EMIT-X0-BYTE,)
-  1 X4 X4 SUB-IMM,
-  ALIGN4-T
-  DOT-P1 @ HERE-T - 4 / B-IMM,            \ back to emit head
-  HERE-T DOT-P3 @ PATCH-CBZ
-  X0 X19 8 LDR-POST,
-  DOT-P2 @ THEN,
   ;
 
 \ SNUMBER# ( c-addr u -- n ) decimal; leading - ; bad/empty → 0
@@ -657,6 +594,253 @@ VARIABLE SN-P3
   ;
 
 ' BODY-APP-NAME  LIB-PRIM-XT APP-NAME#
+
+\ ----- extra stack/math/memory for TETRA-class sources -----
+: BODY-AND  ( -- )
+  BTI,  X1 X19 8 LDR-POST,  X0 X1 X0 AND-X,  ;
+: BODY-OR  ( -- )
+  BTI,  X1 X19 8 LDR-POST,  X0 X1 X0 ORR-X,  ;
+: BODY-INVERT  ( -- )
+  BTI,  -1 X1 MOV-X-IMM64,  X1 X0 X0 EOR-X,  ;
+: BODY-2STAR  ( -- )
+  BTI,  X0 X0 X0 ADD-X-X,  ;          \ 2*
+: BODY-2SLASH  ( -- )
+  BTI,
+  $13017C00 X0 (REG) OR X0 (REG) 5 LSHIFT OR W,   \ ASR X0,X0,#1
+  ;
+: BODY-NEGATE  ( -- )
+  BTI,  X0 XZR X0 SUB-X-X,  ;
+: BODY-CELLS  ( -- )
+  BTI,  3 X0 X0 LSL-IMM,              \ * 8
+  ;
+: BODY-2FETCH  ( -- )                 \ ( a -- x y )  2@
+  BTI,
+  X0 X1 MOV-X-X,
+  X1 X0 LDR-X0,                       \ x = [a]
+  X0 X19 -8 STR-PRE,
+  8 X1 X1 ADD-IMM,
+  X1 X0 LDR-X0,                       \ y = [a+8]
+  ;
+
+\ CMOVE ( src dest u -- )  forward byte copy
+: BODY-CMOVE  ( -- )
+  BTI,
+  X0 X3 MOV-X-X,                      \ u
+  X2 X19 8 LDR-POST,                  \ dest
+  X1 X19 8 LDR-POST,                  \ src
+  X0 X19 8 LDR-POST,                  \ restore TOS
+  ALIGN4-T HERE-T IO-P1 !
+  X3 XZR CMP-X,
+  ALIGN4-T HERE-T IO-P2 !
+  0 EQ B.COND,                        \ u==0 done
+  X4 X1 LDRB-X,                       \ X4 = [src]
+  X4 X2 STRB-X,                       \ [dest] = X4
+  1 X1 X1 ADD-IMM,
+  1 X2 X2 ADD-IMM,
+  1 X3 X3 SUB-IMM,
+  IO-P1 @ HERE-T - 4 / B-IMM,         \ back
+  HERE-T IO-P2 @ PATCH-BCOND
+  ;
+
+: BODY-SPACES  ( -- )                 \ ( n -- ) via host emit
+  BTI,
+  ALIGN4-T HERE-T IO-P1 !
+  X0 XZR CMP-X,
+  ALIGN4-T HERE-T IO-P2 !
+  0 LE B.COND,
+  X0 X19 -8 STR-PRE,                  \ save n across host
+  BL X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  5 HOST-CALL,
+  X0 X19 8 LDR-POST,                  \ restore n
+  1 X0 X0 SUB-IMM,
+  IO-P1 @ HERE-T - 4 / B-IMM,
+  HERE-T IO-P2 @ PATCH-BCOND
+  X0 X19 8 LDR-POST,                  \ drop n
+  ;
+
+' BODY-AND     LIB-PRIM-XT AND#
+' BODY-OR      LIB-PRIM-XT OR#
+' BODY-INVERT  LIB-PRIM-XT INVERT#
+' BODY-2STAR   LIB-PRIM-XT 2STAR#
+' BODY-2SLASH  LIB-PRIM-XT 2SLASH#
+' BODY-NEGATE  LIB-PRIM-XT NEGATE#
+' BODY-CELLS   LIB-PRIM-XT CELLS#
+' BODY-2FETCH  LIB-PRIM-XT 2FETCH#
+' BODY-CMOVE   LIB-PRIM-XT CMOVE#
+' BODY-SPACES  LIB-PRIM-XT SPACES#
+
+\ MOD# ( n1 n2 -- n3 )  rem = n1 - (n1/n2)*n2  (UDIV; ok for TETRA non-neg)
+: BODY-MOD  ( -- )
+  BTI,
+  X1 X19 8 LDR-POST,                  \ X1 = n1, X0 = n2
+  X0 X2 MOV-X-X,                      \ X2 = n2
+  X2 X1 X3 UDIV-X,                    \ X3 = n1 / n2
+  X2 X1 X3 X0 MSUB-X,                 \ X0 = n1 - n3*n2
+  ;
+
+' BODY-MOD     LIB-PRIM-XT MOD#
+
+: BODY-DIV  ( -- )                    \ ( n1 n2 -- n1/n2 ) UDIV
+  BTI,
+  X1 X19 8 LDR-POST,                  \ X1=n1 X0=n2
+  X0 X2 MOV-X-X,
+  X2 X1 X0 UDIV-X,
+  ;
+
+: BODY-1MINUS  ( -- )
+  BTI,  1 X0 X0 SUB-IMM,
+  ;
+
+: BODY-1PLUS  ( -- )
+  BTI,  1 X0 X0 ADD-IMM,
+  ;
+
+' BODY-DIV     LIB-PRIM-XT DIV#
+' BODY-1MINUS  LIB-PRIM-XT 1MINUS#
+' BODY-1PLUS   LIB-PRIM-XT 1PLUS#
+
+\ Return stack via X20 (same RP as DO/LOOP). Nest >R above loop frames.
+: BODY-TOR  ( -- )                    \ >R  ( x -- )
+  BTI,
+  X0 X20 -8 STR-PRE,
+  X0 X19 8 LDR-POST,
+  ;
+
+: BODY-FROMR  ( -- )                  \ R>  ( -- x )
+  BTI,
+  X0 X19 -8 STR-PRE,
+  X0 X20 8 LDR-POST,
+  ;
+
+: BODY-RFETCH  ( -- )                 \ R@  ( -- x )
+  BTI,
+  X0 X19 -8 STR-PRE,
+  X0 X20 0 LDR-OFF,
+  ;
+
+' BODY-TOR     LIB-PRIM-XT TOR#
+' BODY-FROMR   LIB-PRIM-XT FROMR#
+' BODY-RFETCH  LIB-PRIM-XT RFETCH#
+
+\ KEY?# ( -- flag ) host slot 6 — pumps GUI events
+\ Pass DSP (X19) in X1 so the host can watch for Forth stack growth.
+: BODY-KEYQ  ( -- )
+  BTI,
+  X19 X1 MOV-X-X,
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  6 HOST-CALL,
+  ;
+
+\ BYE# — exit process
+: BODY-BYE  ( -- )
+  BTI,
+  0 X0 MOV-X-IMM64,
+  1 X16 MOV-X-IMM64,                  \ SYS_exit
+  $80 SVC,
+  ;
+
+\ AT# ( x y -- ) host slot 2 — DOS cursor (0,0 top-left)
+: BODY-AT  ( -- )
+  BTI,
+  X0 X2 MOV-X-X,                      \ X2 = y
+  X1 X19 8 LDR-POST,                  \ X1 = x; [X19]=new TOS
+  X0 X19 LDR-X0,                      \ peek new TOS
+  X0 X19 -8 STR-PRE,                  \ save TOS
+  X1 X0 MOV-X-X,                      \ X0 = x
+  X2 X1 MOV-X-X,                      \ X1 = y
+  2 HOST-CALL,
+  X0 X19 8 LDR-POST,
+  ;
+
+\ CLS# ( -- ) host slot 3
+: BODY-CLS  ( -- )
+  BTI,
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  3 HOST-CALL,
+  X0 X19 8 LDR-POST,
+  ;
+
+\ GET-CHAR# ( -- c ) host slot 4 — char at cursor (no advance)
+: BODY-GETCHAR  ( -- )
+  BTI,
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  4 HOST-CALL,
+  ;
+
+\ TONE# ( freq dur -- ) host slot 12
+: BODY-TONE  ( -- )
+  BTI,
+  X0 X2 MOV-X-X,                      \ X2 = dur
+  X1 X19 8 LDR-POST,                  \ X1 = freq
+  X0 X19 LDR-X0,
+  X0 X19 -8 STR-PRE,
+  X1 X0 MOV-X-X,                      \ X0 = freq
+  X2 X1 MOV-X-X,                      \ X1 = dur
+  12 HOST-CALL,
+  X0 X19 8 LDR-POST,
+  ;
+
+\ TIME-RESET# / 10TH-ELAPSED# / TENTHS# — wall clock + event pump (GUI)
+: BODY-TIMERST  ( -- )
+  BTI,
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  8 HOST-CALL,
+  X0 X19 8 LDR-POST,
+  ;
+: BODY-TENTHEL  ( -- )
+  BTI,
+  X19 X1 MOV-X-X,
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  9 HOST-CALL,
+  ;
+: BODY-TENTHS  ( -- )                 \ ( n -- )
+  BTI,
+  X0 X1 MOV-X-X,                      \ X1 = n
+  X0 X19 8 LDR-POST,                  \ drop n
+  X0 X19 -8 STR-PRE,
+  X1 X0 MOV-X-X,
+  0 X1 MOV-X-IMM64,
+  10 HOST-CALL,
+  X0 X19 8 LDR-POST,
+  ;
+
+' BODY-KEYQ    LIB-PRIM-XT KEYQ#
+' BODY-BYE     LIB-PRIM-XT BYE#
+' BODY-AT      LIB-PRIM-XT AT#
+' BODY-CLS     LIB-PRIM-XT CLS#
+' BODY-GETCHAR LIB-PRIM-XT GETCHAR#
+' BODY-TONE    LIB-PRIM-XT TONE#
+' BODY-TIMERST LIB-PRIM-XT TIMERST#
+' BODY-TENTHEL LIB-PRIM-XT TENTHEL#
+' BODY-TENTHS  LIB-PRIM-XT TENTHS#
+
+\ UPC# ( c -- c' )  a-z → A-Z
+: BODY-UPC  ( -- )
+  BTI,
+  X0 X1 MOV-X-X,
+  [CHAR] a X2 MOV-X-IMM64,
+  X2 X1 CMP-X,
+  ALIGN4-T HERE-T IO-P1 !
+  0 LT B.COND,
+  [CHAR] z X2 MOV-X-IMM64,
+  X2 X1 CMP-X,
+  ALIGN4-T HERE-T IO-P2 !
+  0 GT B.COND,
+  32 X0 X0 SUB-IMM,
+  HERE-T IO-P1 @ PATCH-BCOND
+  HERE-T IO-P2 @ PATCH-BCOND
+  ;
+
+' BODY-UPC     LIB-PRIM-XT UPC#
 
 HERE-T LIB-CODE-END !
 SYM-N @ LIB-SYM-N !

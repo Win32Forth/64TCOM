@@ -1,6 +1,4 @@
-\ MIDNIGHT.SEQ  (C) Copyright 1979, 1989 Peter Midnight
-.options /opt /definit /inx
-comment:
+\\ MIDNIGHT.FTH  (C) Copyright 1979, 1989 Peter Midnight
 
    I first wrote this graphic presentation of the ancient Towers of Hanoi
 puzzle in Pascal.  The class assignment was to use recursion to produce a
@@ -19,13 +17,13 @@ improvement.  This is my first machine readable publication of this program.
    This program is my claim to fame.  As long as its popularity continues,
 I may never need another.   Peter Midnight
 
-comment;
+{
 
 \ ************************** 10/19/89 TJZ **************************
 \ Use the following DOS command line to target compile MIDNIGHT.SEQ
 \ and build a MIDNIGHT.COM program file:
 \
-\       C:> TCOM MIDNIGHT /OPT <Enter>
+\       C:> TCOM MIDNIGHT <Enter>
 \
 
 \ Modified 10/19/89 TJZ

@@ -1,4 +1,4 @@
-\\ LINESCAN.SEQ         A Demo of Line Drawing          by Tom Zimmer
+\\ LINESCAN.FTH         A Demo of Line Drawing          by Tom Zimmer
 
         Compile with the following command line:
 
@@ -6,7 +6,7 @@
 
 {
 
-needs graph.seq
+require graph.fth
 
 : graph_bye     ( -- )          \ cleanup stuff when we are all done
                 text-mode 0 1 at

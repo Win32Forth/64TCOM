@@ -38,10 +38,15 @@ INCLUDE LIBARM64.fth
 INCLUDE SIMARM64.fth
 INCLUDE NATARM64.fth
 INCLUDE MACHOARM64.fth
-\ Generic .tfth loader (compiler) — after pack hooks/prims exist
+\ Generic .fth loader (compiler) — after pack hooks/prims exist
 INCLUDE ../64TCOMSRC/64SRC.fth
 
-\ Pack wrapper: .tfth → image → Mach-O entry MAIN (after 64SRC is loaded)
+\ Dual-load directives: under TCOM, \TCOM lines load and \ANS lines are skipped.
+\ (64HOST defaults the opposite for interactive 64Forth.)
+FALSE ' \ANS  >BODY !
+TRUE  ' \TCOM >BODY !
+
+\ Pack wrapper: .fth → image → Mach-O entry MAIN (after 64SRC is loaded)
 : TSRC-BUILD  ( ca u -- )
   TARGET-INIT
   LL-INIT
@@ -52,9 +57,9 @@ INCLUDE ../64TCOMSRC/64SRC.fth
   ;
 
 \ ----- TCOM / TCOM-CLI — parse filename, build next to source (MAIN entry) -----
-\   TCOM window/win.tfth          → GUI (.m + .app)   [default / primary]
-\   TCOM-CLI samples/print.tfth   → CLI (.c binary)
-\   TCOM "path with spaces/x.tfth"
+\   TCOM window/win.fth          → GUI (.m + .app)   [default / primary]
+\   TCOM-CLI samples/print.fth   → CLI (.c binary)
+\   TCOM "path with spaces/x.fth"
 CREATE TCOM-SRC   256 ALLOT
 CREATE TCOM-OUT   256 ALLOT
 34 CONSTANT TCOM-QUOT
@@ -85,20 +90,19 @@ CREATE TCOM-OUT   256 ALLOT
   DUP 0= IF 2DROP S" TCOM needs a source filename" TCOM-ABORT THEN
   ;
 
-\ True if (ca u) ends with .tfth or .TFTH (5 chars)
-: TCOM-HAS-TFTH  ( c-addr u -- f )
-  DUP 5 < IF 2DROP FALSE EXIT THEN
-  + 5 -  ( ca' )
+\ True if (ca u) ends with .fth or .FTH (4 chars including the dot)
+: TCOM-HAS-FTH  ( c-addr u -- f )
+  DUP 4 < IF 2DROP FALSE EXIT THEN
+  + 4 -  ( ca' )
   DUP C@ [CHAR] . <> IF DROP FALSE EXIT THEN
-  1+ DUP C@ 32 OR [CHAR] t <> IF DROP FALSE EXIT THEN
   1+ DUP C@ 32 OR [CHAR] f <> IF DROP FALSE EXIT THEN
   1+ DUP C@ 32 OR [CHAR] t <> IF DROP FALSE EXIT THEN
   1+     C@ 32 OR [CHAR] h =
   ;
 
-\ Path → same dir, strip .tfth only (keep folder prefix; into TCOM-OUT)
+\ Path → same dir, strip .fth only (keep folder prefix; into TCOM-OUT)
 : TCOM-MAKE-OUT-NAME  ( c-addr u -- )
-  2DUP TCOM-HAS-TFTH IF 5 - THEN
+  2DUP TCOM-HAS-FTH IF 4 - THEN
   DUP 0= IF 2DROP S" TCOM: empty output name" TCOM-ABORT THEN
   250 UMIN TCOM-OUT PLACE
   ;
@@ -116,7 +120,7 @@ CREATE TCOM-OUT   256 ALLOT
   PAD COUNT IMAGE-FILENAME PLACE
   ;
 
-\ Compile path → MAIN Mach-O beside the .tfth (same directory)
+\ Compile path → MAIN Mach-O beside the .fth (same directory)
 : (TCOM)  ( c-addr u -- )
   DUP 250 U> IF 2DROP S" TCOM: path too long" TCOM-ABORT THEN
   2DUP TCOM-SRC PLACE
@@ -158,4 +162,4 @@ TCOM-WARN-ON
 S" 64TCOM ARM64 ready — " TYPE TVERSION CR
 S" HERE-T=" TYPE HERE-T . S"  LIB-CODE-END=" TYPE LIB-CODE-END @ . CR
 S" Native: .RUN-ANS-N   Standalone: SAVE-MACHO-FILE (see .MACHOARM64)" TYPE CR
-S" Try: TCOM window/win.tfth  |  TCOM-CLI samples/print.tfth" TYPE CR
+S" Try: TCOM window/win.fth  |  TCOM-CLI samples/print.fth" TYPE CR

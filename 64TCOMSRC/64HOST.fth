@@ -93,6 +93,23 @@ DECIMAL
 : NOT  ( x -- flag )  0= ;
 [THEN]
 
+\ --- Dual-load line directives (classic F-PC DIRECTIVE / \FPC / \TCOM) ---
+\ Under 64Forth interactive: \ANS true, \TCOM false (rest of \ANS line loads).
+\ Under TCOM (TARGETARM64): flags flipped — see TARGETARM64.fth.
+\ True  → rest of line is interpreted/compiled.
+\ False → rest of line is commented out (like \).
+[UNDEFINED] DIRECTIVE [IF]
+: DIRECTIVE  ( flag "<spaces>name" -- )
+  CREATE , IMMEDIATE
+  DOES> @ 0= IF  POSTPONE \  THEN
+  ;
+[THEN]
+
+[UNDEFINED] \ANS [IF]
+TRUE  DIRECTIVE \ANS          \ ANS Forth / 64Forth host load
+FALSE DIRECTIVE \TCOM         \ TCOM compile path
+[THEN]
+
 \ Inclusive range: lo <= n <= hi  (uses WITHIN: lo <= n < hi+1)
 [UNDEFINED] BETWEEN [IF]
 : BETWEEN  ( n lo hi -- flag )  1+ WITHIN ;
