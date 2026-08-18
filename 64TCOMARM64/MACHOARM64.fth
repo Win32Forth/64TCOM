@@ -64,12 +64,15 @@ VARIABLE MH-P
 VARIABLE MH-T
 VARIABLE MH-N
 VARIABLE MH-FID
+VARIABLE MH-INC-FID                 \ include-file id (avoid >R / PAD clashes)
 VARIABLE MH-BASE-SAVE
 VARIABLE MH-OFF
 VARIABLE MH-SRC
 VARIABLE MH-DST
 VARIABLE MH-J
 VARIABLE MH-W
+2048 CONSTANT MH-IBUF-SIZE
+CREATE MH-IBUF  MH-IBUF-SIZE ALLOT   \ scratch for MH-EMIT-FILE (not PAD)
 
 0 MH-BUF !
 
@@ -197,16 +200,17 @@ $D65F03C0 CONSTANT MH-RET
 : MH-EMIT-B  ( b -- )  PAD C! PAD 1 MH-FID @ WRITE-FILE DROP ;
 
 \ Paste a UTF-8 / ASCII include file (cwd-relative, e.g. tcom-textgrid.inc) into the .m/.c
+\ Uses MH-IBUF — do not READ into PAD (PAD was historically 256 bytes; pictured also uses it).
 : MH-EMIT-FILE  ( c-addr u -- )
   R/O OPEN-FILE IF
     DROP TYPE S" : MACHO include missing" TYPE CR TCOM-ABORT
   THEN
-  >R
+  MH-INC-FID !
   BEGIN
-    PAD 1024 R@ READ-FILE
-    IF  R> CLOSE-FILE DROP  S" MACHO include read error" TYPE CR TCOM-ABORT  THEN
-    DUP 0= IF  DROP R> CLOSE-FILE DROP EXIT  THEN
-    PAD SWAP MH-FID @ WRITE-FILE DROP
+    MH-IBUF MH-IBUF-SIZE MH-INC-FID @ READ-FILE
+    IF  MH-INC-FID @ CLOSE-FILE DROP  S" MACHO include read error" TYPE CR TCOM-ABORT  THEN
+    DUP 0= IF  DROP MH-INC-FID @ CLOSE-FILE DROP EXIT  THEN
+    MH-IBUF SWAP MH-FID @ WRITE-FILE DROP
   AGAIN
   ;
 
