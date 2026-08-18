@@ -773,7 +773,7 @@ VARIABLE SN-P3
   4 HOST-CALL,
   ;
 
-\ TONE# ( freq dur -- ) host slot 12
+\ TONE# ( freq dur -- ) host slot 12 — freq=Hz, dur=tenths of a second (F-PC TONE)
 : BODY-TONE  ( -- )
   BTI,
   X0 X2 MOV-X-X,                      \ X2 = dur

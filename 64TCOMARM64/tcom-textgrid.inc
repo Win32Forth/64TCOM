@@ -368,6 +368,7 @@ static int64_t tcom_host_type(int64_t ca, int64_t u) {
   return 0;
 }
 
+/* TONE: freq = Hz, dur = tenths of a second (F-PC). Stub beeps; ignores both. */
 static int64_t tcom_host_tone(int64_t freq, int64_t dur) {
   (void)freq; (void)dur;
   NSBeep();
