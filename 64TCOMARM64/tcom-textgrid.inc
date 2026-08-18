@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <string.h>
+#include <math.h>
 
 enum { TCOM_COLS = 80, TCOM_ROWS = 25, TCOM_KEYCAP = 64 };
 
@@ -368,11 +370,92 @@ static int64_t tcom_host_type(int64_t ca, int64_t u) {
   return 0;
 }
 
-/* TONE: freq = Hz, dur = tenths of a second (F-PC). Stub beeps; ignores both. */
+static void tcom_wu32(uint8_t *p, int off, uint32_t v) {
+  p[off] = (uint8_t)(v & 255);
+  p[off + 1] = (uint8_t)((v >> 8) & 255);
+  p[off + 2] = (uint8_t)((v >> 16) & 255);
+  p[off + 3] = (uint8_t)((v >> 24) & 255);
+}
+static void tcom_wu16(uint8_t *p, int off, uint16_t v) {
+  p[off] = (uint8_t)(v & 255);
+  p[off + 1] = (uint8_t)((v >> 8) & 255);
+}
+
+/* Minimal mono 16-bit WAV sine (22.05 kHz). */
+static NSData *tcom_sine_wav(double hz, double seconds) {
+  const double sr = 22050.0;
+  int n = (int)(sr * seconds);
+  if (n < 1) n = 1;
+  NSMutableData *d = [NSMutableData dataWithLength:(NSUInteger)(44 + n * 2)];
+  if (!d) return nil;
+  uint8_t *p = (uint8_t *)[d mutableBytes];
+  memcpy(p, "RIFF", 4);
+  tcom_wu32(p, 4, 36 + (uint32_t)(n * 2));
+  memcpy(p + 8, "WAVEfmt ", 8);
+  tcom_wu32(p, 16, 16);
+  tcom_wu16(p, 20, 1);
+  tcom_wu16(p, 22, 1);
+  tcom_wu32(p, 24, (uint32_t)sr);
+  tcom_wu32(p, 28, (uint32_t)(sr * 2));
+  tcom_wu16(p, 32, 2);
+  tcom_wu16(p, 34, 16);
+  memcpy(p + 36, "data", 4);
+  tcom_wu32(p, 40, (uint32_t)(n * 2));
+  {
+    double twopi = 2.0 * 3.141592653589793 * hz;
+    double attack = seconds < 0.04 ? seconds / 4.0 : 0.01;
+    double release = seconds < 0.06 ? seconds / 3.0 : 0.02;
+    int16_t *s = (int16_t *)(p + 44);
+    int i;
+    for (i = 0; i < n; i++) {
+      double t = (double)i / sr;
+      double env = 1.0;
+      double x;
+      if (t < attack) env = t / attack;
+      if (t > seconds - release) env = (seconds - t) / release;
+      if (env < 0.0) env = 0.0;
+      x = sin(twopi * t) * 0.35 * env * 32767.0;
+      if (x > 32767.0) x = 32767.0;
+      if (x < -32767.0) x = -32767.0;
+      s[i] = (int16_t)x;
+    }
+  }
+  return d;
+}
+
+/* TONE: freq = Hz, dur = tenths of a second (F-PC). Plays sine; beeps on failure. */
 static int64_t tcom_host_tone(int64_t freq, int64_t dur) {
-  (void)freq; (void)dur;
-  NSBeep();
-  tcom_pump();
+  double hz = (double)freq;
+  double seconds;
+  struct timeval t0, now;
+  if (hz < 20.0) hz = 20.0;
+  if (hz > 12000.0) hz = 12000.0;
+  if (dur < 0) dur = 0;
+  if (dur > 50) dur = 50; /* F-PC 50 umin */
+  if (dur == 0) return 0;
+  seconds = (double)dur / 10.0;
+  {
+    NSData *wav = tcom_sine_wav(hz, seconds);
+    if (wav) {
+      NSSound *snd = [[NSSound alloc] initWithData:wav];
+      if (snd) [snd play];
+      else NSBeep();
+    } else {
+      NSBeep();
+    }
+  }
+  /* Block for duration like F-PC; keep AppKit alive. */
+  gettimeofday(&t0, NULL);
+  for (;;) {
+    tcom_pump();
+    gettimeofday(&now, NULL);
+    {
+      double elapsed = (double)(now.tv_sec - t0.tv_sec)
+                     + (double)(now.tv_usec - t0.tv_usec) / 1e6;
+      if (elapsed >= seconds) break;
+    }
+    usleep(5000);
+  }
   return 0;
 }
 

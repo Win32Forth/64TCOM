@@ -99,9 +99,19 @@ DECIMAL
 \ True  → rest of line is interpreted/compiled.
 \ False → rest of line is commented out (like \).
 [UNDEFINED] DIRECTIVE [IF]
+\ False directive skips to end of the *current line* only. File SOURCE may
+\ be the whole file — do not set >IN to SOURCE length. Avoid ['] \.
+: SKIP-REST  ( -- )
+  BEGIN
+    >IN @ SOURCE NIP >= IF EXIT THEN
+    SOURCE DROP >IN @ + C@
+    DUP 10 = OVER 13 = OR IF  DROP 1 >IN +! EXIT  THEN
+    DROP 1 >IN +!
+  AGAIN
+  ;
 : DIRECTIVE  ( flag "<spaces>name" -- )
   CREATE , IMMEDIATE
-  DOES> @ 0= IF  POSTPONE \  THEN
+  DOES> @ 0= IF  SKIP-REST  THEN
   ;
 [THEN]
 

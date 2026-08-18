@@ -1,8 +1,18 @@
-\ tetra.fth — Tetris for 64TCOM (64-bit cells)
+\ tetra.fth — Tetris dual-load: 64TCOM .app *and* interactive 64Forth GRAPHICS
 \
+\ TCOM (.app):
 \   FLOAD TARGETARM64.fth
 \   TCOM tetra/tetra.fth
 \   open tetra/tetra.app
+\
+\ ANS / 64Forth (GRAPHICS window — not the console):
+\   S" AppOutput/app-output.fth" FROMLIB INCLUDED
+\   ONLY FORTH ALSO GRAPHICS
+\   S" …/64TCOMARM64/tetra/tetra.fth" INCLUDED
+\   MAIN
+\
+\ \ANS / \TCOM line directives select host-specific bits (DIRECTIVE from
+\ 64HOST under TCOM, or from AppOutput under interactive 64Forth).
 \
 \ Character Tetris after Marc Hawley (TCOM/F-PC). Retargeted for 8-byte cells.
 \ GET-CHAR / AT / KEY? / TONE / CASE etc. are dialect / host prims.
@@ -502,11 +512,13 @@ CREATE NOTES 24 CELLS ALLOT
                 200 OF RROT  whistle            ENDOF
                 208 OF LROT  whistle            ENDOF
                 $20 OF -1 TO alldown            ENDOF
-                $1B OF 0 23 AT BYE              ENDOF
+\TCOM           $1B OF 0 23 AT BYE              ENDOF
+\ANS            $1B OF WINDOW-OFF EXIT          ENDOF
                 UPC
                 [CHAR] S OF sound_on 0= TO sound_on  ENDOF
                 [CHAR] P OF paused   0= TO paused    ENDOF
-                DROP 1000 1 TONE ENDCASE
+\TCOM           DROP 1000 1 TONE ENDCASE
+\ANS            1000 1 TONE ENDCASE
       THEN
                 10TH-ELAPSED
                 TIME.LIMIT >
@@ -622,5 +634,6 @@ CREATE NOTES 24 CELLS ALLOT
   S" TETRA" APP-NAME
   WINDOW
   GAME
-  0
+\TCOM  0                 \ Mach-O exit status
+\ANS   WINDOW-OFF        \ leave graphics window; return to console
 ;

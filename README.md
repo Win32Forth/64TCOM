@@ -6,16 +6,14 @@ It is **not** an F-PC 16-bit translation layer. The compiler director is being r
 
 **Public domain.** 64TCOM, like classic **TCOM** and **F-PC** (Tom Zimmer and contributors), is dedicated to the public domain.
 
-**Current pack:** ARM64 **Version 0.4** (see [`STATUS.md`](STATUS.md)).  
-**Host:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.3+** recommended (1.1.2+ for agent).
+**Current pack:** ARM64 **Version 0.5** (see [`STATUS.md`](STATUS.md)).  
+**Host:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.4+** recommended (GRAPHICS + tetra `\ANS`).
 
-### Version 0.4 (ARM64) — highlight
+### Version 0.5 (ARM64) — highlight
 
-- **TETRA** playable `.app` (`tetra/tetra.fth`) on real AppKit **80×25** text grid
-- `\ANS` / `\TCOM` **DIRECTIVE** dual-load foundation; target sources use **`.fth`** again
-- Growable TSRC buffer; DSP/HOST-CALL stability; `>R`/`R>`/`R@`; CASE/OF hygiene
-- Layer 4 from 0.3: **`WINDOW`** + **`TCOM`** → `.app` / **`TCOM-CLI`** → Terminal
-- **App icon:** 1024×1024 PNG next to the `.fth` (same leaf name), then `TCOM` embeds it
+- **tetra dual-load:** same `tetra/tetra.fth` → Finder `.app` via `TCOM` *and* interactive 64Forth GRAPHICS via `\ANS`
+- Real **`TONE`** (freq=Hz, dur=tenths of a second) in GUI shell; DIRECTIVE line-skip fixed
+- Builds on **0.4:** TETRA `.app`, AppKit 80×25 grid, growable TSRC, `.fth` again
 
 ```forth
 \ Working folder: 64TCOMARM64/

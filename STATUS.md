@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-18 — **Version 0.4**: TETRA playable `.app`; `\ANS`/`\TCOM` DIRECTIVE; growable TSRC; `.fth` again
+**Last updated:** 2026-08-18 — **Version 0.5**: tetra `\ANS` dual-load; real TONE; DIRECTIVE line-skip fix
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
 
@@ -60,7 +60,7 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
 ## YOU ARE HERE
 
 ```text
-  Pack version     0.4    — 64TCOM ARM64 (TVERSION in OPTARM64)
+  Pack version     0.5    — 64TCOM ARM64 (TVERSION in OPTARM64)
   Phase 0–2        DONE
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
@@ -104,10 +104,10 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
 | **0.2** | NEST/VAR; Roadmap B complete; `TSRC-INCLUDE` + Mach-O data page; Layer 1 `hello.fth` MAIN=>42; Layer 2 print (`TYPE#`, `S"`); console build → same-dir executable; `samples/` + README |
 | **0.3** | Layer 2 I/O; Layer 4 text grid + window demo; TCOM=GUI / TCOM-CLI=Terminal |
 | **0.4** | TETRA playable `.app`; real AppKit 80×25 grid; `\ANS`/`\TCOM` DIRECTIVE; growable TSRC; `.fth` again; DSP/HOST-CALL fixes; `>R`/`R>`/`R@` |
+| **0.5** | tetra `\ANS` dual-load; real `TONE` (Hz/tenths); DIRECTIVE skips current line only; host 64Forth 1.1.4 |
 
-**Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.3** (GRAPHICS app-output window; agent from 1.1.2).  
+**Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.4** (GRAPHICS + tetra `\ANS` + real TONE).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  
-Release: https://github.com/Win32Forth/64Forth/releases/tag/v1.1.2 (agent); rebuild **1.1.3** for GRAPHICS  
 
 ---
 
@@ -124,7 +124,7 @@ Classic F-PC/TCOM used `DIRECTIVE` so one application source could load under F-
 | 64Forth interactive | **true** (rest of line loads) | **false** (rest of line commented) |
 | TCOM compile | **false** | **true** |
 
-Same `.fth` sample (e.g. `tetra/tetra.fth`) should `FLOAD` under 64Forth for interactive test and `TCOM` for `.app`. Needs: host-side graphics/sound words for ANS load; `\ANS`/`\TCOM` gates in sources (DIRECTIVE + TSRC recognition already stubbed on the TCOM side).
+Same `.fth` sample (`tetra/tetra.fth`) **does** `INCLUDED` under 64Forth GRAPHICS and `TCOM` for `.app`. Host GRAPHICS + `TONE` ready; `\ANS`/`\TCOM` gates in tetra (Esc / CASE default / MAIN). DIRECTIVE from AppOutput (ANS) or 64HOST+TARGETARM64 flip (TCOM).
 
 ### 64Forth app output window — **not** the console (near-term / design locked)
 
@@ -145,13 +145,13 @@ Input focus: keys go to the graphics window when it is frontmost; console keeps 
 **Started 2026-08-18 (64Forth):**
 - Swift: `Host/AppOutputHost.swift` — NSWindow + grid view, blit, key queue  
 - Kernel: `(APP-OPEN)` `(APP-CLOSE)` `(APP-BLIT)` `(APP-KEY?)` `(APP-KEY)` in `forth.s`  
-- Forth: `Resources/Library/AppOutput/app-output.fth` — `VOCABULARY GRAPHICS` with `WINDOW` `CLS` `AT` `EMIT` `GET-CHAR` `KEY?` `KEY` `APP-NAME` `TIME-RESET` `10TH-ELAPSED` `TENTHS` `TONE` (beep stub) `.` `."` + `GRAPHICS-SMOKE`
-- Host tetra-readiness in 64Forth **after** 1.1.3 push (timers / `.` / pump / `APP-NAME` / `TONE`); soften EMIT blit deferred; **no release until `\ANS` dual-load works**  
+- Forth: `Resources/Library/AppOutput/app-output.fth` — `GRAPHICS` with full TETRA-class set + coalesced EMIT + real `TONE` (Hz / tenths)
+- **`tetra/tetra.fth` dual-load:** `\ANS` under 64Forth GRAPHICS; `\TCOM` for `.app` (Esc / CASE default / MAIN). See `tetra/README.txt`.
 - Console / Facility unchanged. Agent: open returns error (no window).
 
-### Sound (future — remember)
+### Sound
 
-64Forth has **no sound support** today. The **base 64Forth system** should eventually support at least basic sound output (beep / tone / simple samples) for TCOM apps (`TONE`, music) and general use. **Not implementing now** — track as base-system work when graphics dual-load is underway. TCOM already has a `TONE#` stub / `NSBeep` in the GUI shell.
+`TONE` is real on both hosts now: **freq = Hz**, **dur = tenths of a second** (F-PC). 64Forth and TCOM GUI play a sine WAV (fallback beep). Richer polyphony / samples still future base-system work.
 
 ### Retargetability: vocabularies vs string dispatch (later)
 
@@ -463,6 +463,7 @@ Output locals are returned automatically — do not push them before `;` :
 - [x] **0.2** Design docs in `64DESIGN/`
 - [x] **0.3** Public domain + GitHub Win32Forth/64TCOM
 - [x] **0.4** TETRA `.app` + text grid; `\ANS`/`\TCOM`; growable TSRC; `.fth` again
+- [x] **0.5** tetra dual-load + real TONE; DIRECTIVE line-skip fix
 - [x] **1.1** `64HOST.fth` — HOST/COMPILER/TARGET, target mem, DEFER hooks, `U>=`
 - [x] **1.1b** Quiet `TCOM-ANEW`; GEN load chain; GEN tags; cookies
 - [x] **1.2** Symbol table + `64DIR` director (name → type/addr/uses)

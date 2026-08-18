@@ -3,33 +3,44 @@
 
 Source: TETRA.FTH — classic TCOM/F-PC character Tetris (Marc Hawley).
 
-Goal: playable Finder .app via TCOM + AppKit text grid (see project plan).
+Dual-load
+---------
+Same tetra.fth builds a Finder .app via TCOM *and* runs interactively under
+64Forth GRAPHICS (separate char window — not the console). Lines prefixed
+with \ANS or \TCOM select host-specific bits (Esc quit, CASE default, MAIN).
 
-Status
-------
-Cleaned tetra.fth, 64-bit cells, dialect, growable TSRC buffer, and a real
-AppKit **80×25 text grid** for TCOM `.app` builds.
-
-Screen / input (GUI host slots in tcom-textgrid.inc)
-----------------------------------------------------
-  AT CLS EMIT GET-CHAR KEY? KEY TYPE . CR SPACE
-  TIME-RESET 10TH-ELAPSED TENTHS TONE
-  WINDOW APP-NAME
-Nested event pump inside KEY?/KEY/TENTHS so GAME can run before [NSApp run].
-Arrow keys map to classic F-PC codes (200/203/205/208). Char 219 → █.
-
-Dialect also includes: CREATE ALLOT , VALUE TO DO LOOP +LOOP I J
-  CMOVE CELLS CELL+ AND OR NOT 2* 2/ NEGATE MOD / 1- 1+ 2@ SPACES
-  >R R> R@ CASE OF ENDOF ENDCASE BYE EXIT UPC TRUE FALSE
-  !> OFF> ON> +!> ?EXIT
-
-Build
------
+TCOM (.app)
+-----------
   FLOAD TARGETARM64.fth
   TCOM tetra/tetra.fth     \ → tetra/tetra.app (Finder)
   open tetra/tetra.app
 
   TCOM-CLI tetra/tetra.fth \ Terminal binary (grid stubs / stdio)
+
+ANS / 64Forth GRAPHICS
+----------------------
+  Requires 64Forth with AppOutput / GRAPHICS (1.1.3+ tetra-readiness).
+
+  S" AppOutput/app-output.fth" FROMLIB INCLUDED
+  ONLY FORTH ALSO GRAPHICS
+  S" /path/to/64TCOMARM64/tetra/tetra.fth" INCLUDED
+  MAIN
+
+  Esc closes the graphics window and returns to the console (does not BYE).
+
+Screen / input
+--------------
+  AT CLS EMIT GET-CHAR KEY? KEY TYPE . CR SPACE
+  TIME-RESET 10TH-ELAPSED TENTHS TONE
+  WINDOW APP-NAME
+  TONE: freq in Hz, dur in tenths of a second (F-PC)
+
+Arrow keys map to classic F-PC codes (200/203/205/208). Char 219 → █.
+
+Dialect also includes: CREATE ALLOT , VALUE TO DO LOOP +LOOP I J
+  CMOVE CELLS CELL+ AND OR NOT 2* 2/ NEGATE MOD / 1- 1+ 2@ SPACES
+  >R R> R@ CASE OF ENDOF ENDCASE BYE EXIT UPC TRUE FALSE
+  ?EXIT
 
 Controls: arrows move/rotate, Space drop, S sound, P pause, Esc quit.
 

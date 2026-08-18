@@ -6,11 +6,11 @@ Canonical living status is now at project root:
 
 Update STATUS.md when phase boundaries move; keep this file
 aligned at a high level (or treat it as a short checklist).
-Last updated: 2026-08-18 (ARM64 pack Version 0.4; see STATUS.md)
+Last updated: 2026-08-18 (ARM64 pack Version 0.5; see STATUS.md)
 
 YOU ARE HERE
 ------------
-  Pack version     0.4    — 64TCOM ARM64 (TVERSION)
+  Pack version     0.5    — 64TCOM ARM64 (TVERSION)
   Phase 0–2        DONE
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
@@ -76,6 +76,7 @@ Phase checklist
 [x] 0.2  Design docs in 64DESIGN/
 [x] 0.3  Public domain + GitHub Win32Forth/64TCOM
 [x] 0.4  TETRA .app + text grid; \ANS/\TCOM; growable TSRC; .fth again
+[x] 0.5  tetra dual-load + real TONE; DIRECTIVE line-skip fix
 [x] 1.1  64HOST.fth — HOST/COMPILER/TARGET, target mem, DEFER hooks, U>=
 [x] 1.1b Quiet TCOM-ANEW; GEN load chain; GEN tags; cookies
 [x] 1.2  Symbol table + 64DIR director (name → type/addr/uses)
