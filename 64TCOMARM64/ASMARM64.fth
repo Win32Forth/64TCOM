@@ -472,12 +472,37 @@ TCS-CLEAR
   TCS-PUSH                       \ ahead-orig for TTHEN
   ;
 
-\ BEGIN / UNTIL (flag): loop while flag is 0 (exit when flag <> 0)
-\ Loop address in TLOOP-DEST. Non-nested only.
-VARIABLE TLOOP-DEST
+\ BEGIN / UNTIL / AGAIN / WHILE / REPEAT — nestable via TLOOP-STACK
+8 CONSTANT #TLOOP
+CREATE TLOOP-STACK  #TLOOP CELLS ALLOT
+VARIABLE TLOOP-SP
+0 TLOOP-SP !
+VARIABLE TLOOP-DEST                     \ mirror of current top (compat)
+
+: TLOOP-PUSH  ( addr -- )
+  TLOOP-SP @ #TLOOP >= IF
+    DROP S" ASMARM64: BEGIN nest too deep" TYPE CR TCOM-ABORT
+  THEN
+  DUP TLOOP-DEST !
+  TLOOP-STACK TLOOP-SP @ CELLS + !
+  1 TLOOP-SP +!
+  ;
+
+: TLOOP-POP  ( -- addr )
+  TLOOP-SP @ 0= IF
+    S" ASMARM64: UNTIL/AGAIN/REPEAT without BEGIN" TYPE CR TCOM-ABORT
+  THEN
+  -1 TLOOP-SP +!
+  TLOOP-STACK TLOOP-SP @ CELLS + @
+  TLOOP-SP @ IF
+    TLOOP-STACK TLOOP-SP @ 1- CELLS + @ TLOOP-DEST !
+  ELSE
+    0 TLOOP-DEST !
+  THEN
+  ;
 
 : TBEGIN  ( -- )
-  ALIGN4-T HERE-T TLOOP-DEST !
+  ALIGN4-T HERE-T TLOOP-PUSH
   ;
 
 : TUNTIL  ( -- )
@@ -485,17 +510,15 @@ VARIABLE TLOOP-DEST
   X0 X1 MOV-X-X,
   X0 X19 8 LDR-POST,
   ALIGN4-T
-  TLOOP-DEST @ HERE-T - 4 /      \ imm19 = (dest - HERE) / 4
+  TLOOP-POP HERE-T - 4 /           \ imm19 = (dest - HERE) / 4
   X1 SWAP CBZ-X,
   ;
 
-\ Unconditional back to TBEGIN (non-nested; uses TLOOP-DEST)
 : TAGAIN  ( -- )
   ALIGN4-T
-  TLOOP-DEST @ HERE-T - 4 / B-IMM,
+  TLOOP-POP HERE-T - 4 / B-IMM,
   ;
 
-\ BEGIN … WHILE … REPEAT  (non-nested; TLOOP-DEST = BEGIN)
 \ TWHILE: if flag==0 skip to after TREPEAT; else continue (flag dropped)
 \ CBZ origin on TCS (not host data stack) — same hygiene as TIF/TELSE.
 \ TREPEAT: B back to BEGIN; patch WHILE's CBZ to fall-through after REPEAT
@@ -509,7 +532,7 @@ VARIABLE TLOOP-DEST
 
 : TREPEAT  ( -- )
   ALIGN4-T
-  TLOOP-DEST @ HERE-T - 4 / B-IMM,   \ back to BEGIN
+  TLOOP-POP HERE-T - 4 / B-IMM,      \ back to matching BEGIN
   TCS-POP HERE-T SWAP PATCH-CBZ      \ false WHILE → here
   ;
 

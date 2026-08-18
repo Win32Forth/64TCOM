@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-18 — **Version 0.5**: tetra `\ANS` dual-load; real TONE; ANS CASE; MH-EMIT-FILE PAD smash fix
+**Last updated:** 2026-08-18 — **Version 0.5**: TSRC-TOKEN/VALUE fix (gravity); nestable BEGIN; ANS CASE; MH-EMIT-FILE
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
 

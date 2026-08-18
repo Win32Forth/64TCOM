@@ -256,6 +256,7 @@ TSRC-BUF-BOOT
   BEGIN
     TSRC-PEEK DUP 0< IF  DROP TSRC-WORD COUNT EXIT  THEN
     DUP BL <= IF  DROP TSRC-WORD COUNT EXIT  THEN
+    DROP                           \ discard peek; TSRC-GETC re-reads
     TSRC-GETC
     TSRC-WORD C@ 126 U< IF
       TSRC-WORD COUNT + C!
@@ -364,7 +365,8 @@ TSRC-BUF-BOOT
   DEPTH 2 <= IF  2DROP S" VALUE needs initial n" TSRC-ERR  THEN
   CELL-ALIGN-D
   HERE-D >R                      \ n ca u  R: daddr
-  ROT R@ !-D                     \ ca u
+  ROT                            \ ca u n
+  R@ !-D                         \ ca u
   T-CELL ALLOT-D
   SYM-VALUE R> SYM-ADD DROP
   ;
@@ -663,21 +665,17 @@ VARIABLE #CASE-OF
 
   TSRC-IN-COLON @ 0= IF
     \ top-level number → host stack (for , VALUE ALLOT CELLS)
-    OVER C@ >R
-    R@ [CHAR] $ =  R@ [CHAR] - = OR
-    R> [CHAR] 0 [CHAR] 9 1+ WITHIN OR IF
-      2DUP TSRC->NUMBER IF  >R 2DROP R> EXIT  THEN
+    2DUP TSRC->NUMBER IF
+      NIP NIP EXIT                     \ ( ca u n true ) → n
     THEN
     TYPE S"  at top level (VARIABLE CREATE VALUE : FLOAD ALLOT , CELLS)" TSRC-ERR
   THEN
 
   2DUP TSRC-PRIM? IF  EXIT  THEN
 
-  \ Number inside :  (allow leading - and $)
-  OVER C@ >R
-  R@ [CHAR] $ =  R@ [CHAR] - = OR
-  R> [CHAR] 0 [CHAR] 9 1+ WITHIN OR IF
-    2DUP TSRC->NUMBER IF  >R 2DROP R> G, EXIT  THEN
+  \ Number inside :
+  2DUP TSRC->NUMBER IF
+    NIP NIP G, EXIT
   THEN
 
   2DUP SYM-FIND IF
@@ -808,12 +806,14 @@ VARIABLE #CASE-OF
   1 TSRC-LINE !
   FALSE TSRC-IN-COLON !
   BEGIN
-    TSRC-TOKEN DUP
-  WHILE
-    TSRC-DISPATCH
-  REPEAT
-  2DROP
-  TSRC-IN-COLON @ IF  S" unclosed : at EOF" TSRC-ERR  THEN
+    TSRC-TOKEN                     \ ( ca u )
+    DUP 0= IF
+      2DROP
+      TSRC-IN-COLON @ IF  S" unclosed : at EOF" TSRC-ERR  THEN
+      EXIT
+    THEN
+    TSRC-DISPATCH                  \ consumes ( ca u )
+  AGAIN
   ;
 
 : TSRC-INCLUDE  ( ca u -- )
