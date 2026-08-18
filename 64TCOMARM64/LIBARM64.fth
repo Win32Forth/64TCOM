@@ -130,13 +130,11 @@ VARIABLE IO-P4
 : BODY-TYPE  ( -- )
   BTI,
   X0 X2 MOV-X-X,                     \ X2 = u
-  X1 X19 8 LDR-POST,                 \ X1 = c-addr; [X19]=new TOS
-  X0 X19 LDR-X0,                     \ peek new TOS
-  X0 X19 -8 STR-PRE,                 \ save TOS
+  X1 X19 8 LDR-POST,                 \ X1 = c-addr; [X19] = remaining TOS
   X1 X0 MOV-X-X,                     \ X0 = c-addr
   X2 X1 MOV-X-X,                     \ X1 = u
   11 HOST-CALL,
-  X0 X19 8 LDR-POST,
+  X0 X19 8 LDR-POST,                 \ remaining TOS into X0
   ;
 
 : BODY-ETYPE  ( -- )
@@ -364,6 +362,15 @@ VARIABLE IO-P4
   X1 X19 8 LDR-POST,             \ X1=n1, X0=n2
   X0 X1 CMP-X,
   EQ X0 CSET-X,
+  X0 XZR X0 SUB-X-X,             \ 0 or -1
+  ;
+
+: BODY-NEQ  ( -- )   \ <>  ( n1 n2 -- flag )
+  BTI,
+  X1 X19 8 LDR-POST,
+  X0 X1 CMP-X,
+  NE X0 CSET-X,
+  X0 XZR X0 SUB-X-X,
   ;
 
 : BODY-LT  ( -- )    \ <  signed
@@ -371,6 +378,7 @@ VARIABLE IO-P4
   X1 X19 8 LDR-POST,
   X0 X1 CMP-X,                   \ CMP n1, n2
   LT X0 CSET-X,
+  X0 XZR X0 SUB-X-X,             \ 0 or -1
   ;
 
 : BODY-GT  ( -- )    \ >  signed
@@ -378,6 +386,7 @@ VARIABLE IO-P4
   X1 X19 8 LDR-POST,
   X0 X1 CMP-X,
   GT X0 CSET-X,
+  X0 XZR X0 SUB-X-X,             \ 0 or -1
   ;
 
 \ ----- stack -----
@@ -405,13 +414,9 @@ VARIABLE IO-P4
 \ EMIT# ( c -- ) host slot 5 → grid (GUI) or stdout (CLI)
 : BODY-EMIT  ( -- )
   BTI,
-  X0 X1 MOV-X-X,                 \ X1 = c
-  X0 X19 8 LDR-POST,             \ drop c; X0 = prior TOS
-  X0 X19 -8 STR-PRE,             \ save TOS across host
-  X1 X0 MOV-X-X,                 \ X0 = c
   0 X1 MOV-X-IMM64,
-  5 HOST-CALL,
-  X0 X19 8 LDR-POST,
+  5 HOST-CALL,                   \ X0 = c
+  X0 X19 8 LDR-POST,             \ remaining TOS into X0 (LIT left it in memory)
   ;
 
 \ EEMIT# ( c -- ) write one char to stderr
@@ -475,13 +480,20 @@ VARIABLE SN-P3
 \ DOT# ( n -- ) host slot 13 — signed decimal, no trailing blank
 : BODY-DOT  ( -- )
   BTI,
-  X0 X1 MOV-X-X,                     \ X1 = n
-  X0 X19 8 LDR-POST,                 \ drop n; X0 = prior TOS
-  X0 X19 -8 STR-PRE,                 \ save TOS
-  X1 X0 MOV-X-X,                     \ X0 = n
   0 X1 MOV-X-IMM64,
-  13 HOST-CALL,
-  X0 X19 8 LDR-POST,
+  13 HOST-CALL,                      \ X0 = n
+  X0 X19 8 LDR-POST,                 \ remaining TOS into X0
+  ;
+
+\ STACK-HUD# ( line -- ) host slot 14 — depth + top 4 on row `line`
+\ After LIT, remaining stack is already in memory at X19. Draw that,
+\ then LDR-POST so TOS lives only in X0. Peek-without-drop left a
+\ copy in memory; the next LIT STR-PRE'd a second copy (+1 per HUD).
+: BODY-STACKHUD  ( -- )
+  BTI,
+  X19 X1 MOV-X-X,                    \ X1 = remaining stack (TOS in memory)
+  14 HOST-CALL,                      \ X0 = line
+  X0 X19 8 LDR-POST,                 \ remaining TOS into X0
   ;
 
 \ SNUMBER# ( c-addr u -- n ) decimal; leading - ; bad/empty → 0
@@ -556,6 +568,7 @@ VARIABLE SN-P3
 ' BODY-ARGNUM  LIB-PRIM-XT ARG##
 ' BODY-ZEQ     LIB-PRIM-XT ZEQ#
 ' BODY-EQ      LIB-PRIM-XT EQ#
+' BODY-NEQ     LIB-PRIM-XT NEQ#
 ' BODY-LT      LIB-PRIM-XT LT#
 ' BODY-GT      LIB-PRIM-XT GT#
 ' BODY-ROT     LIB-PRIM-XT ROT#
@@ -567,6 +580,7 @@ VARIABLE SN-P3
 ' BODY-ECR     LIB-PRIM-XT ECR#
 ' BODY-SPACE   LIB-PRIM-XT SPACE#
 ' BODY-DOT     LIB-PRIM-XT DOT#
+' BODY-STACKHUD LIB-PRIM-XT STACKHUD#
 ' BODY-SNUMBER LIB-PRIM-XT SNUMBER#
 
 \ WINDOW# ( -- )  host slot 0 → tcom_host_window(); preserves TOS
@@ -584,13 +598,11 @@ VARIABLE SN-P3
 : BODY-APP-NAME  ( -- )
   BTI,
   X0 X2 MOV-X-X,                     \ X2 = u
-  X1 X19 8 LDR-POST,                 \ X1 = c-addr; [X19] = new TOS
-  X0 X19 LDR-X0,                     \ peek new TOS
-  X0 X19 -8 STR-PRE,                 \ save TOS across host call
+  X1 X19 8 LDR-POST,                 \ X1 = c-addr; [X19] = remaining TOS
   X1 X0 MOV-X-X,                     \ X0 = c-addr
   X2 X1 MOV-X-X,                     \ X1 = u
-  1 HOST-CALL,                       \ slot 1
-  X0 X19 8 LDR-POST,                 \ restore TOS
+  1 HOST-CALL,
+  X0 X19 8 LDR-POST,                 \ remaining TOS into X0
   ;
 
 ' BODY-APP-NAME  LIB-PRIM-XT APP-NAME#
@@ -606,7 +618,9 @@ VARIABLE SN-P3
   BTI,  X0 X0 X0 ADD-X-X,  ;          \ 2*
 : BODY-2SLASH  ( -- )
   BTI,
-  $13017C00 X0 (REG) OR X0 (REG) 5 LSHIFT OR W,   \ ASR X0,X0,#1
+  \ 64-bit ASR X0,X0,#1 (SBFM). Was 32-bit ASR W0 — 2/ of -2 became
+  \ 0xFFFFFFFF, so RROT/LROT coords failed VALID? and looked like a no-op.
+  $9341FC00 W,
   ;
 : BODY-NEGATE  ( -- )
   BTI,  X0 XZR X0 SUB-X-X,  ;
@@ -648,15 +662,15 @@ VARIABLE SN-P3
   X0 XZR CMP-X,
   ALIGN4-T HERE-T IO-P2 !
   0 LE B.COND,
-  X0 X19 -8 STR-PRE,                  \ save n across host
+  X0 X20 -8 STR-PRE,                  \ n on RP across host
   BL X0 MOV-X-IMM64,
   0 X1 MOV-X-IMM64,
   5 HOST-CALL,
-  X0 X19 8 LDR-POST,                  \ restore n
+  X0 X20 8 LDR-POST,                  \ restore n
   1 X0 X0 SUB-IMM,
   IO-P1 @ HERE-T - 4 / B-IMM,
   HERE-T IO-P2 @ PATCH-BCOND
-  X0 X19 8 LDR-POST,                  \ drop n
+  X0 X19 8 LDR-POST,                  \ remaining TOS into X0
   ;
 
 ' BODY-AND     LIB-PRIM-XT AND#
@@ -745,9 +759,7 @@ VARIABLE SN-P3
 : BODY-AT  ( -- )
   BTI,
   X0 X2 MOV-X-X,                      \ X2 = y
-  X1 X19 8 LDR-POST,                  \ X1 = x; [X19]=new TOS
-  X0 X19 LDR-X0,                      \ peek new TOS
-  X0 X19 -8 STR-PRE,                  \ save TOS
+  X1 X19 8 LDR-POST,                  \ X1 = x; [X19] = remaining TOS
   X1 X0 MOV-X-X,                      \ X0 = x
   X2 X1 MOV-X-X,                      \ X1 = y
   2 HOST-CALL,
@@ -778,8 +790,6 @@ VARIABLE SN-P3
   BTI,
   X0 X2 MOV-X-X,                      \ X2 = dur
   X1 X19 8 LDR-POST,                  \ X1 = freq
-  X0 X19 LDR-X0,
-  X0 X19 -8 STR-PRE,
   X1 X0 MOV-X-X,                      \ X0 = freq
   X2 X1 MOV-X-X,                      \ X1 = dur
   12 HOST-CALL,
@@ -804,12 +814,8 @@ VARIABLE SN-P3
   ;
 : BODY-TENTHS  ( -- )                 \ ( n -- )
   BTI,
-  X0 X1 MOV-X-X,                      \ X1 = n
-  X0 X19 8 LDR-POST,                  \ drop n
-  X0 X19 -8 STR-PRE,
-  X1 X0 MOV-X-X,
   0 X1 MOV-X-IMM64,
-  10 HOST-CALL,
+  10 HOST-CALL,                       \ X0 = n
   X0 X19 8 LDR-POST,
   ;
 

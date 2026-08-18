@@ -175,6 +175,7 @@ $9A9F17E0 CONSTANT (A64-CSET-X0-EQ)   \ CSET X0, EQ
   X0 X1 MOV-X-X,
   (A64-CMP-X1-XZR) W,
   (A64-CSET-X0-EQ) W,
+  X0 XZR X0 SUB-X-X,             \ Forth flag: 0 or -1 (not C 0/1)
   ;
 
 : ADD-IMM,  ( imm12 xn xd -- )

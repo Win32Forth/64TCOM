@@ -405,6 +405,8 @@ $D65F03C0 CONSTANT MH-RET
 : MH-EMIT-RUN-ASM  ( -- )
   S"   void *dsp = buf + total - 64;" MH-EMIT-S MH-EMIT-NL
   S"   void *rp  = (uint8_t *)dsp - TCOM_RP_BYTES;" MH-EMIT-S MH-EMIT-NL
+  S"   tcom_dsp_floor = data + 8192;" MH-EMIT-S MH-EMIT-NL
+  S"   tcom_dsp0 = (uint64_t)(uintptr_t)dsp;" MH-EMIT-S MH-EMIT-NL
   S"   void *entry = buf + TCOM_ENTRY;" MH-EMIT-S MH-EMIT-NL
   S"   uint64_t result;" MH-EMIT-S MH-EMIT-NL
   S"   __asm__ volatile(" MH-EMIT-S MH-EMIT-NL
@@ -502,6 +504,12 @@ $D65F03C0 CONSTANT MH-RET
   MH-EMIT-LOAD-FIXUPS
   MH-EMIT-RUN-ASM
   S"   if (tcom_gui_opened) {" MH-EMIT-S MH-EMIT-NL
+  S"     fputs(" MH-EMIT-S
+  34 MH-EMIT-B S" TCOM MAIN returned, entering [NSApp run]" MH-EMIT-S
+  92 MH-EMIT-B  110 MH-EMIT-B
+  34 MH-EMIT-B
+  S" , stderr);" MH-EMIT-S MH-EMIT-NL
+  S"     fflush(stderr);" MH-EMIT-S MH-EMIT-NL
   S"     [NSApp run];" MH-EMIT-S MH-EMIT-NL
   S"     return 0;" MH-EMIT-S MH-EMIT-NL
   S"   }" MH-EMIT-S MH-EMIT-NL

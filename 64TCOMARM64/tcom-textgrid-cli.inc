@@ -9,6 +9,8 @@
 
 typedef int64_t (*tcom_host_fn)(int64_t, int64_t);
 
+uint8_t *tcom_dsp_floor = 0;
+uint64_t tcom_dsp0 = 0;
 static int tcom_gui_opened = 0;
 static char tcom_app_name[256] = "64TCOM";
 static int tcom_cx = 0, tcom_cy = 0;
@@ -101,6 +103,11 @@ static int64_t tcom_host_dot(int64_t n, int64_t b) {
   return 0;
 }
 
+static int64_t tcom_host_stackhud(int64_t line_y, int64_t b) {
+  (void)line_y; (void)b;
+  return 0;
+}
+
 static tcom_host_fn host_fn[] = {
   tcom_host_window,
   tcom_host_app_name,
@@ -116,4 +123,5 @@ static tcom_host_fn host_fn[] = {
   tcom_host_type,
   tcom_host_tone,
   tcom_host_dot,
+  tcom_host_stackhud,
 };

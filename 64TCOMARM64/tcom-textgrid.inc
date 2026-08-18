@@ -25,12 +25,13 @@ static NSWindow *tcom_window = nil;
 static NSView *tcom_grid_view = nil;
 static CGFloat tcom_cell_w = 9.0, tcom_cell_h = 16.0;
 static struct timeval tcom_last_pump;
-static uint64_t tcom_dsp0 = 0;
+uint64_t tcom_dsp0 = 0;
 static uint64_t tcom_dsp_min = ~(uint64_t)0;
 static int tcom_dsp_reports = 0;
 
 /* b = Forth DSP (X19) from KEY?/10TH-ELAPSED. Track growth (DSP descends). */
 static int tcom_dsp_samples = 0;
+uint8_t *tcom_dsp_floor = 0;
 static void tcom_note_dsp(int64_t dsp_in) {
   if (dsp_in == 0) return;
   uint64_t dsp = (uint64_t)dsp_in;
@@ -100,8 +101,16 @@ static int64_t tcom_map_keycode(unsigned short kc, NSString *chars) {
 - (BOOL)becomeFirstResponder { return YES; }
 - (void)keyDown:(NSEvent *)event {
   int64_t c = tcom_map_keycode([event keyCode], [event charactersIgnoringModifiers]);
+  if (c == 0x1B) {
+    [NSApp terminate:nil];
+    return;
+  }
   if (c >= 0) tcom_key_push(c);
 }
+- (void)moveUp:(id)sender    { (void)sender; tcom_key_push(200); }
+- (void)moveDown:(id)sender  { (void)sender; tcom_key_push(208); }
+- (void)moveLeft:(id)sender  { (void)sender; tcom_key_push(203); }
+- (void)moveRight:(id)sender { (void)sender; tcom_key_push(205); }
 - (void)drawRect:(NSRect)dirty {
   (void)dirty;
   [[NSColor blackColor] setFill];
@@ -128,11 +137,25 @@ static int64_t tcom_map_keycode(unsigned short kc, NSString *chars) {
 }
 @end
 
-@interface TcomAppDelegate : NSObject <NSApplicationDelegate>
+@interface TcomAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @end
 @implementation TcomAppDelegate
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
   (void)sender; return YES;
+}
+/* Forth pumps nextEvent itself (not [NSApp run]), so terminate: is deferred
+ * and a closed window is then messaged → crash dialog. Exit here instead. */
+- (void)windowWillClose:(NSNotification *)note {
+  (void)note;
+  tcom_gui_opened = 0;
+  tcom_grid_view = nil;
+  tcom_window = nil;
+  _exit(0);
+}
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
+  (void)sender;
+  _exit(0);
+  return NSTerminateNow;
 }
 @end
 
@@ -177,6 +200,7 @@ static void tcom_pump(void) {
                                       inMode:NSDefaultRunLoopMode
                                      dequeue:YES])) {
       [NSApp sendEvent:e];
+      if (!tcom_gui_opened) _exit(0);
     }
     if (tcom_dirty && tcom_grid_view) {
       [tcom_grid_view setNeedsDisplay:YES];
@@ -243,6 +267,7 @@ static int64_t tcom_host_window(int64_t a, int64_t b) {
   tcom_window = [[NSWindow alloc] initWithContentRect:frame
     styleMask:style backing:NSBackingStoreBuffered defer:NO];
   [tcom_window setTitle:[NSString stringWithUTF8String:tcom_app_name]];
+  [tcom_window setDelegate:delegate];
   TcomGridView *view = [[TcomGridView alloc] initWithFrame:NSMakeRect(0, 0, w, h)];
   [view setWantsLayer:YES];
   tcom_grid_view = view;
@@ -250,6 +275,7 @@ static int64_t tcom_host_window(int64_t a, int64_t b) {
   [tcom_window makeKeyAndOrderFront:nil];
   [tcom_window makeFirstResponder:view];
   [app activateIgnoringOtherApps:YES];
+  [app finishLaunching];
   tcom_gui_opened = 1;
   tcom_dirty = 1;
   tcom_pump_flush();
@@ -299,28 +325,25 @@ static int64_t tcom_host_emit(int64_t c, int64_t b) {
 static int64_t tcom_host_keyq(int64_t a, int64_t b) {
   (void)a;
   tcom_note_dsp(b); /* b = Forth X19 DSP; logs only on NEW MIN */
+  if (tcom_dsp_floor && (uint8_t *)(uintptr_t)b &&
+      (uint8_t *)(uintptr_t)b < tcom_dsp_floor)
+    _exit(0);
   tcom_pump();
   if (tcom_kr != tcom_kw) return -1;
-  /* Busy-wait yield — MOVEMENT spins on KEY? until drop time */
-  usleep(1000);
+  /* ~8 ms when idle: responsive keys, not a 1 kHz DSP spin */
+  usleep(8000);
   return 0;
 }
 
 static int64_t tcom_host_key(int64_t a, int64_t b) {
   (void)a; (void)b;
-  for (;;) {
-    tcom_pump();
+  tcom_pump();
+  {
     int64_t c = tcom_key_pop();
     if (c >= 0) return c;
-    /* Block briefly waiting for input */
-    @autoreleasepool {
-      NSEvent *e = [NSApp nextEventMatchingMask:NSEventMaskAny
-                                      untilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]
-                                         inMode:NSDefaultRunLoopMode
-                                        dequeue:YES];
-      if (e) [NSApp sendEvent:e];
-    }
   }
+  /* Non-blocking: WAIT-DROP is KEY? IF KEY — never sleep here. */
+  return 0;
 }
 
 static int64_t tcom_host_timer_reset(int64_t a, int64_t b) {
@@ -348,16 +371,10 @@ static int64_t tcom_host_tenths_elapsed(int64_t a, int64_t b) {
 static int64_t tcom_host_tenths(int64_t n, int64_t b) {
   (void)b;
   if (n < 0) n = 0;
-  gettimeofday(&tcom_t0, NULL);
-  while (tcom_tenths_now() < n) {
-    tcom_pump();
-    @autoreleasepool {
-      NSEvent *e = [NSApp nextEventMatchingMask:NSEventMaskAny
-                                      untilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]
-                                         inMode:NSDefaultRunLoopMode
-                                        dequeue:YES];
-      if (e) [NSApp sendEvent:e];
-    }
+  /* Sleep without nested nextEvent — same stall as TONE-from-MOVEMENT. */
+  {
+    useconds_t us = (useconds_t)n * 100000u;
+    if (us > 0) usleep(us);
   }
   return 0;
 }
@@ -427,7 +444,6 @@ static NSData *tcom_sine_wav(double hz, double seconds) {
 static int64_t tcom_host_tone(int64_t freq, int64_t dur) {
   double hz = (double)freq;
   double seconds;
-  struct timeval t0, now;
   if (hz < 20.0) hz = 20.0;
   if (hz > 12000.0) hz = 12000.0;
   if (dur < 0) dur = 0;
@@ -444,17 +460,13 @@ static int64_t tcom_host_tone(int64_t freq, int64_t dur) {
       NSBeep();
     }
   }
-  /* Block for duration like F-PC; keep AppKit alive. */
-  gettimeofday(&t0, NULL);
-  for (;;) {
-    tcom_pump();
-    gettimeofday(&now, NULL);
-    {
-      double elapsed = (double)(now.tv_sec - t0.tv_sec)
-                     + (double)(now.tv_usec - t0.tv_usec) / 1e6;
-      if (elapsed >= seconds) break;
-    }
-    usleep(5000);
+  /* Block for duration like F-PC. Do NOT nest tcom_pump/nextEvent here —
+     TONE is often called from the same thread that already pumps in KEY?/MAIN;
+     nested nextEvent stalls the game loop after the first MUSIC note. */
+  {
+    useconds_t us = (useconds_t)(seconds * 1000000.0);
+    if (us < 1000) us = 1000;
+    usleep(us);
   }
   return 0;
 }
@@ -465,6 +477,35 @@ static int64_t tcom_host_dot(int64_t n, int64_t b) {
   int len = snprintf(buf, sizeof buf, "%lld", (long long)n);
   if (len < 0) return 0;
   for (int i = 0; i < len; i++) tcom_emit_char((unsigned char)buf[i]);
+  return 0;
+}
+
+/* ( line, DSP ) — remaining stack already in memory at DSP. Caller then
+   LDR-POST so TOS returns to X0. */
+static int64_t tcom_host_stackhud(int64_t line_y, int64_t dsp_in) {
+  char line[81];
+  int64_t tos = 0, n1 = 0, n2 = 0, n3 = 0;
+  int64_t depth = 0;
+  int y, i, len;
+  y = (int)line_y;
+  if (y < 0) y = 0;
+  if (y >= TCOM_ROWS) y = TCOM_ROWS - 1;
+  if (tcom_dsp0 && dsp_in && (uint64_t)dsp_in <= tcom_dsp0)
+    depth = (int64_t)((tcom_dsp0 - (uint64_t)dsp_in) / 8);
+  if (depth >= 1 && dsp_in)
+    tos = *(int64_t *)(uintptr_t)dsp_in;
+  if (depth >= 2 && dsp_in)
+    n1 = *(int64_t *)(uintptr_t)(dsp_in + 8);
+  if (depth >= 3 && dsp_in)
+    n2 = *(int64_t *)(uintptr_t)(dsp_in + 16);
+  if (depth >= 4 && dsp_in)
+    n3 = *(int64_t *)(uintptr_t)(dsp_in + 24);
+  len = snprintf(line, sizeof line, "d=%-4lld %-6lld %-6lld %-6lld %-6lld",
+                 (long long)depth, (long long)tos,
+                 (long long)n1, (long long)n2, (long long)n3);
+  if (len < 0) len = 0;
+  for (i = 0; i < TCOM_COLS; i++)
+    tcom_put_xy(i, y, (i < len) ? (uint8_t)line[i] : 32);
   return 0;
 }
 
@@ -484,4 +525,5 @@ static tcom_host_fn host_fn[] = {
   tcom_host_type,            /* 11 */
   tcom_host_tone,            /* 12 */
   tcom_host_dot,             /* 13 */
+  tcom_host_stackhud,        /* 14 */
 };

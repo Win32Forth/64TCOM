@@ -246,15 +246,13 @@ CREATE BACKUP.ARRAY  0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 ,
         MY.AT GET-CHAR 219 =
         ;
 
-: VALID?.CURR  ( -- tf ) \ check each entry in CURR for validity
-        4 0 DO                  \ 0 1 2 3   the n's for CURR  J
-         I 0 COMP.NM
-         I 1 COMP.NM  OR
-         I 2 COMP.NM  OR
-         I 3 COMP.NM  OR        \ true IF any match for this n
-         I CURR.OPEN?   OR      \ true IF match OR open
-        LOOP AND AND AND        \ they ALL have to be valid
-      0 23 AT                   \ move cursor
+\ Call only after UNDRAW (or on empty field). COMP.NM is not used:
+\ it leaked stack items and crashed the app after a few pieces.
+: VALID?.CURR  ( -- tf )
+        0 CURR.OPEN?
+        1 CURR.OPEN? AND
+        2 CURR.OPEN? AND
+        3 CURR.OPEN? AND
         ;
 
 \\
@@ -269,6 +267,20 @@ CREATE BACKUP.ARRAY  0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 ,
         CURR 3 CELLS + DUP @ 1 + SWAP !
         CURR 5 CELLS + DUP @ 1 + SWAP !
         CURR 7 CELLS + DUP @ 1 + SWAP !
+        ;
+
+\ Extra-row probe for landing: undraw, test, put the piece back.
+\ Hold the flag in R — DRAW.CURR would otherwise use it as CURR's address
+\ (stuck on the floor + crash).
+: CAN-DOWN?  ( -- tf )
+        BACKUP.CURR
+        UNDRAW.CURR
+        DOWN.CURR
+        VALID?.CURR
+        >R
+        RESTORE.CURR
+        DRAW.CURR
+        R>
         ;
 
  0 VALUE paused
@@ -370,8 +382,10 @@ CREATE BACKUP.ARRAY  0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 ,
 
 : NEW.CURR ( Dx Dy n -- ) \ make new entry in CURR
         DUP >R >R       \ save n twice
-        CURR
-        2@  SWAP        \ Dx Dy x0 y0
+        \ Do not use 2@ SWAP: F-PC 2@ is ANS (TOS=[addr]); 64Forth and
+        \ TCOM 2@ are ( addr -- [addr] [addr+cell] ). Fetch x0 y0 explicitly.
+        CURR @          \ Dx Dy x0
+        CURR CELL+ @    \ Dx Dy x0 y0
         ROT             \ Dx x0 y0 Dy
         +               \ Dx x0 Yn
         ROT ROT         \ Yn Dx x0
@@ -483,13 +497,12 @@ CREATE NOTES 24 CELLS ALLOT
 
 
  0 VALUE NOTENUM
--1 VALUE sound_on
+0 VALUE sound_on          \ default off; press S to enable (avoids TONE stall)
 
 : MUSIC
         sound_on
         IF      NOTENUM NOTES + @ 1 TONE
                 NOTENUM CELL+ 24 CELLS MOD TO NOTENUM
-        ELSE    1 TENTHS
         THEN    ;
 
 : whistle
@@ -498,48 +511,69 @@ CREATE NOTES 24 CELLS ALLOT
         THEN    ;
 
 
+\ANS : STACK-HUD  ( line -- )
+\ANS   0 SWAP AT
+\ANS   ." d=" DEPTH .
+\ANS   DEPTH 1 < IF 0 22 AT EXIT THEN DUP .
+\ANS   DEPTH 2 < IF 0 22 AT EXIT THEN OVER .
+\ANS   DEPTH 3 < IF 0 22 AT EXIT THEN 2 PICK .
+\ANS   DEPTH 4 < IF 0 22 AT EXIT THEN 3 PICK .
+\ANS   0 22 AT
+\ANS   ;
+
+: WAIT-DROP
+\        23 STACK-HUD        
+        TIME-RESET
+        BEGIN
+          KEY?
+          IF
+            KEY  CASE
+                    203 OF LEFT  whistle            ENDOF
+                    205 OF RIGHT whistle            ENDOF
+                    200 OF RROT  whistle            ENDOF
+                    208 OF LROT  whistle            ENDOF
+                    $20 OF -1 TO alldown            ENDOF
+\TCOM               $1B OF 0 23 AT BYE              ENDOF
+\ANS                $1B OF WINDOW-OFF EXIT          ENDOF
+                    UPC
+                    [CHAR] S OF sound_on 0= TO sound_on  ENDOF
+                    [CHAR] P OF paused   0= TO paused    ENDOF
+                    ENDCASE
+          THEN
+          10TH-ELAPSED
+          TIME.LIMIT >
+          alldown OR
+        UNTIL
+        ;
+
 : MOVEMENT
         DOWN
         0 TO alldown
-    BEGIN
-        TIME-RESET
         BEGIN
-     KEY?    \ host logs first KEY? on stderr
-     IF
-        KEY  CASE
-                203 OF LEFT  whistle            ENDOF
-                205 OF RIGHT whistle            ENDOF
-                200 OF RROT  whistle            ENDOF
-                208 OF LROT  whistle            ENDOF
-                $20 OF -1 TO alldown            ENDOF
-\TCOM           $1B OF 0 23 AT BYE              ENDOF
-\ANS            $1B OF WINDOW-OFF EXIT          ENDOF
-                UPC
-                [CHAR] S OF sound_on 0= TO sound_on  ENDOF
-                [CHAR] P OF paused   0= TO paused    ENDOF
-                1000 1 TONE ENDCASE                 \ ANS CASE: ENDCASE drops KEY
-      THEN
-                10TH-ELAPSED
-                TIME.LIMIT >
-                alldown OR
-                UNTIL    DOWN
-                alldown 0= IF MUSIC THEN
-                BACKUP.CURR DOWN.CURR VALID?.CURR NOT RESTORE.CURR
-                UNTIL
-                  ;
+          WAIT-DROP
+          DOWN
+          alldown 0= IF MUSIC THEN
+          CAN-DOWN? 0=
+        UNTIL
+\        24 STACK-HUD
+        ;
 
 0 VALUE ROW.NUM
 
-: ROW.FULL? ( n -- tf ) \ check IF row n is full of 32 's   for a y vary x
-        TO ROW.NUM                      \
-        TRUE                            \ t
-        20 0 DO                         \ t each x is I
-        I ROW.NUM MY.AT                 \ t x y --
-        GET-CHAR                        \ t ascii --
-        32 =                            \ t tf --
-        AND                             \ tf --
-        LOOP
-        ;                               \ TRUE IF FULL
+\ Occupied = not 219, same test as VALID?.CURR / CURR.OPEN?.
+\ Step x by 2 — FIELD / SQ / BLSQ are two columns wide.
+: ROW.FULL? ( n -- tf )
+        TO ROW.NUM
+        -1
+        20 0 DO
+          I ROW.NUM MY.AT GET-CHAR
+          219 <> AND
+        2 +LOOP
+        ;
+
+: ROW.WHITEN ( -- )
+        20 0 DO  I ROW.NUM MY.AT BLSQ  2 +LOOP
+        ;
 
 
 0 VALUE SCORE
@@ -575,15 +609,14 @@ CREATE NOTES 24 CELLS ALLOT
 {
 
 : ROW.CHECK
-        17 0 DO                         \ rows y
+        16 0 DO                         \ playfield y 0..15 (not y=16 empty)
           I ROW.FULL?
           IF
-             20 0 DO
-              I J MY.AT 219 EMIT            \ whites the full row
-             LOOP
-          I ROW.DROP
+            ROW.WHITEN
+            I ROW.DROP
           THEN
         LOOP
+\ANS    ?REFRESH
         ;
 
 : SETUP
@@ -607,26 +640,29 @@ CREATE NOTES 24 CELLS ALLOT
 
 
 
-\ End flag kept in a VALUE — do not leave VALID?.CURR on the stack across
-\ MOVEMENT (IF/UNTIL pop a cell while testing X0; that leaked ~381 cells/piece).
-0 VALUE dead?
-
 : GAME
         fill-notes
-      \ FIELD first (it CLSs). SETUP/BORDER paint labels around the field.
-      \ End flag lives in VALUE dead? — never leave it under MOVEMENT on the
-      \ stack (that leaked ~381 cells/piece into DSP → SIGBUS).
       FIELD SETUP BORDER
       BEGIN
         FIGURE.NO 1+ 6 MOD TO FIGURE.NO
         FILL.CURR
-        BACKUP.CURR
-        DOWN.CURR
-        VALID?.CURR 0= TO dead?
+        DRAW.CURR
         MOVEMENT
         ROW.CHECK
-        dead?
+        FILL.CURR
+        VALID?.CURR 0=                 \ spawn cells occupied = game over
       UNTIL
+        2 20 AT ." GAME OVER  ESC quits"
+        BEGIN
+          KEY?
+          IF
+            KEY 27 =
+            IF
+\TCOM           0 23 AT BYE
+\ANS            WINDOW-OFF EXIT
+            THEN
+          THEN
+        AGAIN
     ;
 
 : MAIN
