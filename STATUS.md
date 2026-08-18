@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-18 — **Version 0.5**: tetra `\ANS` dual-load; real TONE; DIRECTIVE line-skip fix
+**Last updated:** 2026-08-18 — **Version 0.5**: tetra `\ANS` dual-load; real TONE; ANS-compatible CASE
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
 
@@ -124,7 +124,7 @@ Classic F-PC/TCOM used `DIRECTIVE` so one application source could load under F-
 | 64Forth interactive | **true** (rest of line loads) | **false** (rest of line commented) |
 | TCOM compile | **false** | **true** |
 
-Same `.fth` sample (`tetra/tetra.fth`) **does** `INCLUDED` under 64Forth GRAPHICS and `TCOM` for `.app`. Host GRAPHICS + `TONE` ready; `\ANS`/`\TCOM` gates in tetra (Esc / CASE default / MAIN). DIRECTIVE from AppOutput (ANS) or 64HOST+TARGETARM64 flip (TCOM).
+Same `.fth` sample (`tetra/tetra.fth`) **does** `INCLUDED` under 64Forth GRAPHICS and `TCOM` for `.app`. Host GRAPHICS + `TONE` ready; `\ANS`/`\TCOM` gates in tetra (Esc / MAIN). **CASE is ANS-compatible** (`ENDCASE` drops the selector). DIRECTIVE from AppOutput (ANS) or 64HOST+TARGETARM64 flip (TCOM).
 
 ### 64Forth app output window — **not** the console (near-term / design locked)
 
@@ -146,7 +146,8 @@ Input focus: keys go to the graphics window when it is frontmost; console keeps 
 - Swift: `Host/AppOutputHost.swift` — NSWindow + grid view, blit, key queue  
 - Kernel: `(APP-OPEN)` `(APP-CLOSE)` `(APP-BLIT)` `(APP-KEY?)` `(APP-KEY)` in `forth.s`  
 - Forth: `Resources/Library/AppOutput/app-output.fth` — `GRAPHICS` with full TETRA-class set + coalesced EMIT + real `TONE` (Hz / tenths)
-- **`tetra/tetra.fth` dual-load:** `\ANS` under 64Forth GRAPHICS; `\TCOM` for `.app` (Esc / CASE default / MAIN). See `tetra/README.txt`.
+- **`tetra/tetra.fth` dual-load:** `\ANS` under 64Forth GRAPHICS; `\TCOM` for `.app` (Esc / MAIN). See `tetra/README.txt`.
+- **CASE OF ENDOF ENDCASE:** ANS-compatible in TSRC (`ENDCASE` emits `DROP#`); do not put a default-arm `DROP` before `ENDCASE`.
 - Console / Facility unchanged. Agent: open returns error (no window).
 
 ### Sound

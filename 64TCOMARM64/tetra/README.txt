@@ -7,7 +7,8 @@ Dual-load
 ---------
 Same tetra.fth builds a Finder .app via TCOM *and* runs interactively under
 64Forth GRAPHICS (separate char window — not the console). Lines prefixed
-with \ANS or \TCOM select host-specific bits (Esc quit, CASE default, MAIN).
+with \ANS or \TCOM select host-specific bits (Esc quit, MAIN).
+CASE OF ENDOF ENDCASE follows ANS (ENDCASE drops the selector).
 
 TCOM (.app)
 -----------

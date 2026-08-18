@@ -576,9 +576,12 @@ VARIABLE #CASE-OF
   ELSE  TYPE S"  missing for CASE" TCOM-ABORT  THEN
   ;
 : TCASE  ( -- )  0 #CASE-OF ! ;
-\ OF: OVER = IF DROP  (drop selector on match). Default clause must DROP
-\ the selector; ENDCASE only closes THENs (no trailing DROP) so a match
-\ path does not under-consume the data stack.
+\ ANS-compatible CASE (same as 64Forth / ANS Core Ext):
+\   OF:     OVER = IF DROP   (selector consumed on match)
+\   ENDOF:  ELSE
+\   ENDCASE: DROP then resolve THENs
+\ Match paths skip the ENDCASE DROP via ELSE…THEN; the default arm
+\ must NOT DROP the selector (ENDCASE does that).
 : TOF  ( -- )
   S" OVER#" (CASE-CALL)
   S" EQ#"   (CASE-CALL)
@@ -588,6 +591,7 @@ VARIABLE #CASE-OF
   ;
 : TENDOF  ( -- )  TELSE ;
 : TENDCASE  ( -- )
+  S" DROP#" (CASE-CALL)              \ ANS: drop selector (default / fall-through)
   BEGIN #CASE-OF @ WHILE  TTHEN  -1 #CASE-OF +!  REPEAT
   ;
 

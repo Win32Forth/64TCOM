@@ -517,8 +517,7 @@ CREATE NOTES 24 CELLS ALLOT
                 UPC
                 [CHAR] S OF sound_on 0= TO sound_on  ENDOF
                 [CHAR] P OF paused   0= TO paused    ENDOF
-\TCOM           DROP 1000 1 TONE ENDCASE
-\ANS            1000 1 TONE ENDCASE
+                1000 1 TONE ENDCASE                 \ ANS CASE: ENDCASE drops KEY
       THEN
                 10TH-ELAPSED
                 TIME.LIMIT >
