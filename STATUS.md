@@ -100,6 +100,7 @@ Eventually that binary *is* the app (or is linked into one), with a small C/runt
   Control hygiene  DONE   — TIF/TELSE + TWHILE/TREPEAT use TCS (host stack safe)
   Layer 4 window   MVP    — host-call `WINDOW#` / `APP-NAME#`; `/MACHO-GUI` → AppKit `.m`
                            `TCOM` → binary + `.app` (Finder); `TCOM-CLI` → Terminal tools
+                           Icon: 1024×1024 `name.png` beside `.tfth` → embedded `.icns`
                            demos in `window/` (sibling of `samples/`)
   Product path     OPEN   — more dialect on demand; text/draw in window next
 ```

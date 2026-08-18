@@ -589,6 +589,32 @@ CREATE MH-NAME  128 ALLOT
     S" </dict>" MH-EMIT-S MH-EMIT-NL
     S" </plist>" MH-EMIT-S MH-EMIT-NL
     S" EOF" MH-EMIT-S MH-EMIT-NL
+    \ Optional icon: drop NAME.png (ideally 1024x1024) beside the .tfth / output.
+    \ Build converts PNG → .icns into Contents/Resources and sets CFBundleIconFile.
+    S" if [ -f " MH-EMIT-S 34 MH-EMIT-B S" $NAME.png" MH-EMIT-S 34 MH-EMIT-B S"  ]; then" MH-EMIT-S MH-EMIT-NL
+    S"   mkdir -p " MH-EMIT-S 34 MH-EMIT-B S" $APP/Contents/Resources" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+    S"   ICONSET=" MH-EMIT-S 34 MH-EMIT-B S" $NAME.iconset" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+    S"   rm -rf " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+    S"   mkdir -p " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+    S"   PNG=" MH-EMIT-S 34 MH-EMIT-B S" $NAME.png" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+    S"   sips -z 16 16     " MH-EMIT-S 34 MH-EMIT-B S" $PNG" MH-EMIT-S 34 MH-EMIT-B S"  --out " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET/icon_16x16.png" MH-EMIT-S 34 MH-EMIT-B S"  >/dev/null" MH-EMIT-S MH-EMIT-NL
+    S"   sips -z 32 32     " MH-EMIT-S 34 MH-EMIT-B S" $PNG" MH-EMIT-S 34 MH-EMIT-B S"  --out " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET/icon_16x16@2x.png" MH-EMIT-S 34 MH-EMIT-B S"  >/dev/null" MH-EMIT-S MH-EMIT-NL
+    S"   sips -z 32 32     " MH-EMIT-S 34 MH-EMIT-B S" $PNG" MH-EMIT-S 34 MH-EMIT-B S"  --out " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET/icon_32x32.png" MH-EMIT-S 34 MH-EMIT-B S"  >/dev/null" MH-EMIT-S MH-EMIT-NL
+    S"   sips -z 64 64     " MH-EMIT-S 34 MH-EMIT-B S" $PNG" MH-EMIT-S 34 MH-EMIT-B S"  --out " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET/icon_32x32@2x.png" MH-EMIT-S 34 MH-EMIT-B S"  >/dev/null" MH-EMIT-S MH-EMIT-NL
+    S"   sips -z 128 128   " MH-EMIT-S 34 MH-EMIT-B S" $PNG" MH-EMIT-S 34 MH-EMIT-B S"  --out " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET/icon_128x128.png" MH-EMIT-S 34 MH-EMIT-B S"  >/dev/null" MH-EMIT-S MH-EMIT-NL
+    S"   sips -z 256 256   " MH-EMIT-S 34 MH-EMIT-B S" $PNG" MH-EMIT-S 34 MH-EMIT-B S"  --out " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET/icon_128x128@2x.png" MH-EMIT-S 34 MH-EMIT-B S"  >/dev/null" MH-EMIT-S MH-EMIT-NL
+    S"   sips -z 256 256   " MH-EMIT-S 34 MH-EMIT-B S" $PNG" MH-EMIT-S 34 MH-EMIT-B S"  --out " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET/icon_256x256.png" MH-EMIT-S 34 MH-EMIT-B S"  >/dev/null" MH-EMIT-S MH-EMIT-NL
+    S"   sips -z 512 512   " MH-EMIT-S 34 MH-EMIT-B S" $PNG" MH-EMIT-S 34 MH-EMIT-B S"  --out " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET/icon_256x256@2x.png" MH-EMIT-S 34 MH-EMIT-B S"  >/dev/null" MH-EMIT-S MH-EMIT-NL
+    S"   sips -z 512 512   " MH-EMIT-S 34 MH-EMIT-B S" $PNG" MH-EMIT-S 34 MH-EMIT-B S"  --out " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET/icon_512x512.png" MH-EMIT-S 34 MH-EMIT-B S"  >/dev/null" MH-EMIT-S MH-EMIT-NL
+    S"   sips -z 1024 1024 " MH-EMIT-S 34 MH-EMIT-B S" $PNG" MH-EMIT-S 34 MH-EMIT-B S"  --out " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET/icon_512x512@2x.png" MH-EMIT-S 34 MH-EMIT-B S"  >/dev/null" MH-EMIT-S MH-EMIT-NL
+    S"   iconutil -c icns " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET" MH-EMIT-S 34 MH-EMIT-B S"  -o " MH-EMIT-S 34 MH-EMIT-B S" $APP/Contents/Resources/$BIN.icns" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+    S"   rm -rf " MH-EMIT-S 34 MH-EMIT-B S" $ICONSET" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+    S"   /usr/libexec/PlistBuddy -c " MH-EMIT-S 34 MH-EMIT-B S" Add :CFBundleIconFile string $BIN" MH-EMIT-S 34 MH-EMIT-B
+      S"  " MH-EMIT-S 34 MH-EMIT-B S" $APP/Contents/Info.plist" MH-EMIT-S 34 MH-EMIT-B
+      S"  >/dev/null 2>&1 || /usr/libexec/PlistBuddy -c " MH-EMIT-S 34 MH-EMIT-B S" Set :CFBundleIconFile $BIN" MH-EMIT-S 34 MH-EMIT-B
+      S"  " MH-EMIT-S 34 MH-EMIT-B S" $APP/Contents/Info.plist" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+    S"   echo Icon: ./$NAME.png → $APP/Contents/Resources/$BIN.icns" MH-EMIT-S MH-EMIT-NL
+    S" fi" MH-EMIT-S MH-EMIT-NL
     S" codesign --force -s - " MH-EMIT-S 34 MH-EMIT-B S" $APP" MH-EMIT-S 34 MH-EMIT-B
       S"  >/dev/null 2>&1 || true" MH-EMIT-S MH-EMIT-NL
     S" echo Built ./$NAME and ./$APP" MH-EMIT-S MH-EMIT-NL

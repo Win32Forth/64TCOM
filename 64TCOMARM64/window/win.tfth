@@ -2,7 +2,11 @@
 \
 \   FLOAD TARGETARM64.fth
 \   TCOM window/win.tfth
-\   ./window/win
+\   open window/win.app          \ or double-click in Finder
+\
+\ Optional Finder icon: place a 1024×1024 PNG beside this file as
+\   window/win.png
+\ then rebuild with TCOM (see window/README.txt).
 \
 \ Sets the menu-bar / window title via APP-NAME, then opens a blank
 \ NSWindow. Stays until quit (close button or Cmd-Q).

@@ -5,9 +5,9 @@ GUI demos for Layer 4 (AppKit). Sibling of samples/ (CLI tools).
 
 What ships
 ----------
-  Distributed:  *.tfth  and this README.txt
+  Distributed:  *.tfth, optional *.png (1024×1024 app icons), and this README.txt
   Not shipped:  generated binaries and intermediates
-                (name, name.m, name-build.sh, name.bin)
+                (name, name.m, name-build.sh, name.bin, name.app/)
 
 Requirements
 ------------
@@ -22,6 +22,22 @@ Build (64Forth console)
   → window/win           (Terminal binary)
   → window/win.app       (Finder double-clickable bundle)
   → window/win.m, -build.sh, .bin
+
+Icon
+----
+  For the .app to show a custom Finder icon, put a **1024×1024 PNG** in the
+  **same folder as the .tfth source**, with the **same leaf name**:
+
+    window/win.tfth
+    window/win.png          ← required for an icon (1024×1024 pixels)
+
+  Then run TCOM (rebuild). The build converts the PNG to an .icns inside
+  the .app (Contents/Resources) and sets CFBundleIconFile.
+  Without that PNG, the app still builds; Finder shows the default icon.
+
+  Tip: Finder may cache icons — reopen the folder or relaunch Finder if
+  the new icon does not appear immediately. Ship the .png with sources;
+  .icns / .iconset are generated and not kept beside the source.
 
 Run
 ---

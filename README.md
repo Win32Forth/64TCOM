@@ -15,11 +15,13 @@ It is **not** an F-PC 16-bit translation layer. The compiler director is being r
 - Layer 4 MVP: **`WINDOW`** + **`TCOM`** → AppKit window + `.app` (`window/win.tfth`)
 - Multi-file `.tfth` (`FLOAD`/`INCLUDE`), richer dialect, args/print from 0.2
 - Ship **`.tfth` + docs**; regenerate with **`TCOM`** (GUI) / **`TCOM-CLI`** (Terminal)
+- **App icon:** place a **1024×1024 PNG** next to the `.tfth` with the same leaf name
+  (e.g. `window/win.png` beside `window/win.tfth`), then `TCOM` embeds it in the `.app`
 
 ```forth
 \ Working folder: 64TCOMARM64/
 FLOAD TARGETARM64.fth
-TCOM window/win.tfth            \ GUI + .app (primary)
+TCOM window/win.tfth            \ GUI + .app (primary); needs win.png for Finder icon
 TCOM-CLI samples/hello.tfth     \ Terminal / exit status
 ```
 
