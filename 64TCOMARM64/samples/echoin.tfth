@@ -1,7 +1,7 @@
 \ echoin.tfth — stdin sample (ACCEPT + LINE-BUF)
 \
 \   FLOAD TARGETARM64.fth
-\   TCOM samples/echoin.tfth
+\   TCOM-CLI samples/echoin.tfth
 \   echo hello | ./samples/echoin
 
 VARIABLE N

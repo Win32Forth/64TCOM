@@ -2,7 +2,8 @@
 =======================
 
 These are *target* programs for the restricted dialect (.tfth). They are not
-loaded with FLOAD as host 64Forth source. Build them with the pack word TCOM.
+loaded with FLOAD as host 64Forth source. Build them with **TCOM-CLI**
+(Terminal / exit-status tools). GUI apps use **TCOM** — see ../window/.
 
 What ships
 ----------
@@ -19,22 +20,22 @@ Build a sample (64Forth console)
 --------------------------------
   FLOAD TARGETARM64.fth
 
-  TCOM samples/hello.tfth
-  TCOM samples/print.tfth
-  TCOM samples/args.tfth
-  TCOM samples/add.tfth
-  TCOM samples/multi.tfth
-  TCOM samples/err.tfth
-  TCOM samples/echoin.tfth
-  TCOM samples/fcat.tfth
-  TCOM samples/fwrite.tfth
+  TCOM-CLI samples/hello.tfth
+  TCOM-CLI samples/print.tfth
+  TCOM-CLI samples/args.tfth
+  TCOM-CLI samples/add.tfth
+  TCOM-CLI samples/multi.tfth
+  TCOM-CLI samples/err.tfth
+  TCOM-CLI samples/echoin.tfth
+  TCOM-CLI samples/fcat.tfth
+  TCOM-CLI samples/fwrite.tfth
 
 Paths with spaces must be quoted:
 
-  TCOM "path with spaces/foo.tfth"
+  TCOM-CLI "path with spaces/foo.tfth"
 
-TCOM always uses MAIN as the executable entry point. The output base name is
-the source path without the .tfth suffix, in the same directory as the source:
+TCOM-CLI always uses MAIN as the executable entry point. The output base name
+is the source path without the .tfth suffix, in the same directory as the source:
 
   samples/hello.tfth  →  samples/hello  (+ .c, -build.sh, .bin)
   samples/print.tfth  →  samples/print  (+ .c, -build.sh, .bin)
@@ -105,8 +106,8 @@ Optional demos (after FLOAD TARGETARM64.fth)
   PRINT-DEMO   rebuilds/checks print on sim + native + Mach-O
 
 Also available:  c-addr u TSRC-BUILD  (always names the default image
-tcomarm64 in the pack folder — prefer TCOM for samples)
+tcomarm64 in the pack folder — prefer TCOM-CLI for samples)
 
-GUI demos live in the sibling folder ../window/ (TCOM-GUI, WINDOW).
+GUI demos live in the sibling folder ../window/ (build with TCOM).
 
 Public domain.

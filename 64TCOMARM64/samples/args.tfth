@@ -2,7 +2,7 @@
 \
 \ How to build (from 64Forth, working folder = 64TCOMARM64/):
 \   FLOAD TARGETARM64.fth
-\   TCOM samples/args.tfth
+\   TCOM-CLI samples/args.tfth
 \
 \ Run examples (from 64TCOMARM64/):
 \   ./samples/args

@@ -59,6 +59,8 @@ node_modules/
 64TCOMARM64/window/win.bin
 64TCOMARM64/window/win.m
 64TCOMARM64/window/win-build.sh
+64TCOMARM64/window/win.app/
+64TCOMARM64/window/*.app/
 64TCOMARM64/window/*.bin
 64TCOMARM64/samples/err
 64TCOMARM64/samples/err.bin

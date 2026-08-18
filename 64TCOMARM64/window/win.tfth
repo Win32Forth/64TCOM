@@ -1,13 +1,15 @@
-\ win.tfth — Layer 4 blank-window MVP (WINDOW)
+\ win.tfth — Layer 4 blank-window MVP (APP-NAME + WINDOW)
 \
 \   FLOAD TARGETARM64.fth
-\   TCOM-GUI window/win.tfth
+\   TCOM window/win.tfth
 \   ./window/win
 \
-\ Opens one blank NSWindow titled "64TCOM" and stays until quit
-\ (close the window or Cmd-Q). CLI TCOM is unchanged.
+\ Sets the menu-bar / window title via APP-NAME, then opens a blank
+\ NSWindow. Stays until quit (close button or Cmd-Q).
+\ Default name is "64TCOM" if APP-NAME is omitted.
 
 : MAIN
+  S" Demo" APP-NAME
   WINDOW
   0
 ;

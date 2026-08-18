@@ -643,6 +643,21 @@ VARIABLE SN-P3
 
 ' BODY-WINDOW  LIB-PRIM-XT WINDOW#
 
+\ APP-NAME# ( c-addr u -- )  host slot 1 → set menu / default window title
+: BODY-APP-NAME  ( -- )
+  BTI,
+  X0 X2 MOV-X-X,                     \ X2 = u
+  X1 X19 8 LDR-POST,                 \ X1 = c-addr; [X19] = new TOS
+  X0 X19 LDR-X0,                     \ peek new TOS
+  X0 X19 -8 STR-PRE,                 \ save TOS across host call
+  X1 X0 MOV-X-X,                     \ X0 = c-addr
+  X2 X1 MOV-X-X,                     \ X1 = u
+  1 HOST-CALL,                       \ slot 1
+  X0 X19 8 LDR-POST,                 \ restore TOS
+  ;
+
+' BODY-APP-NAME  LIB-PRIM-XT APP-NAME#
+
 HERE-T LIB-CODE-END !
 SYM-N @ LIB-SYM-N !
 ?QUIET 0= IF

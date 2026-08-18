@@ -1,7 +1,7 @@
 \ fcat.tfth — file read sample (OPEN-R READ CLOSE)
 \
 \   FLOAD TARGETARM64.fth
-\   TCOM samples/fcat.tfth
+\   TCOM-CLI samples/fcat.tfth
 \   ./samples/fcat samples/hello.tfth
 \
 \ Exit 0 ok, 1 usage, 2 open fail.

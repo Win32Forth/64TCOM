@@ -51,9 +51,10 @@ INCLUDE ../64TCOMSRC/64SRC.fth
   SAVE-MACHO-FILE
   ;
 
-\ ----- TCOM path …  — parse filename, build next to source (MAIN entry) -----
-\   TCOM samples/print.tfth     → samples/print  (+ .c .bin -build.sh)
-\   TCOM "path with spaces/x.tfth"  → path with spaces/x
+\ ----- TCOM / TCOM-CLI — parse filename, build next to source (MAIN entry) -----
+\   TCOM window/win.tfth          → GUI (.m + .app)   [default / primary]
+\   TCOM-CLI samples/print.tfth   → CLI (.c binary)
+\   TCOM "path with spaces/x.tfth"
 CREATE TCOM-SRC   256 ALLOT
 CREATE TCOM-OUT   256 ALLOT
 34 CONSTANT TCOM-QUOT
@@ -133,16 +134,17 @@ CREATE TCOM-OUT   256 ALLOT
   SAVE-MACHO-FILE
   ;
 
+\ Primary build: AppKit GUI shell + .app bundle (Layer 4)
 : TCOM  ( "<spaces>path" | "<spaces>\"path with spaces\"" -- )
-  /NOMACHO-GUI
-  TCOM-PARSE-PATH (TCOM)
-  ;
-
-\ Layer 4 GUI build: same as TCOM but AppKit .m shell + run loop
-: TCOM-GUI  ( "<spaces>path" | "<spaces>\"path with spaces\"" -- )
   /MACHO-GUI
   TCOM-PARSE-PATH (TCOM)
   /NOMACHO-GUI
+  ;
+
+\ CLI / Terminal build: plain .c trampoline (exit status, no AppKit)
+: TCOM-CLI  ( "<spaces>path" | "<spaces>\"path with spaces\"" -- )
+  /NOMACHO-GUI
+  TCOM-PARSE-PATH (TCOM)
   ;
 
 TCOM-ORDER
@@ -156,4 +158,4 @@ TCOM-WARN-ON
 S" 64TCOM ARM64 ready — " TYPE TVERSION CR
 S" HERE-T=" TYPE HERE-T . S"  LIB-CODE-END=" TYPE LIB-CODE-END @ . CR
 S" Native: .RUN-ANS-N   Standalone: SAVE-MACHO-FILE (see .MACHOARM64)" TYPE CR
-S" Try: TCOM samples/print.tfth  |  TCOM-GUI window/win.tfth" TYPE CR
+S" Try: TCOM window/win.tfth  |  TCOM-CLI samples/print.tfth" TYPE CR

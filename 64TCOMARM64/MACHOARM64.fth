@@ -408,16 +408,23 @@ $D65F03C0 CONSTANT MH-RET
   ;
 
 : MH-EMIT-CLI-HOST  ( -- )
-  S" typedef int64_t (*tcom_host_fn)(void);" MH-EMIT-S MH-EMIT-NL
+  S" typedef int64_t (*tcom_host_fn)(int64_t, int64_t);" MH-EMIT-S MH-EMIT-NL
   S" static int tcom_gui_opened = 0;" MH-EMIT-S MH-EMIT-NL
-  S" static int64_t tcom_host_window(void) { (void)tcom_gui_opened; return -1; }" MH-EMIT-S MH-EMIT-NL
-  S" static tcom_host_fn host_fn[] = { tcom_host_window };" MH-EMIT-S MH-EMIT-NL
+  S" static char tcom_app_name[256] = " MH-EMIT-S 34 MH-EMIT-B S" 64TCOM" MH-EMIT-S 34 MH-EMIT-B S" ;" MH-EMIT-S MH-EMIT-NL
+  S" static int64_t tcom_host_window(int64_t a, int64_t b) { (void)a; (void)b; (void)tcom_gui_opened; return -1; }" MH-EMIT-S MH-EMIT-NL
+  S" static int64_t tcom_host_app_name(int64_t ca, int64_t u) {" MH-EMIT-S MH-EMIT-NL
+  S"   size_t n = (size_t)u; if (n > 255u) n = 255u;" MH-EMIT-S MH-EMIT-NL
+  S"   if (!ca || n == 0) { strcpy(tcom_app_name, " MH-EMIT-S 34 MH-EMIT-B S" 64TCOM" MH-EMIT-S 34 MH-EMIT-B S" ); return 0; }" MH-EMIT-S MH-EMIT-NL
+  S"   memcpy(tcom_app_name, (const void *)(uintptr_t)ca, n); tcom_app_name[n] = 0; return 0;" MH-EMIT-S MH-EMIT-NL
+  S" }" MH-EMIT-S MH-EMIT-NL
+  S" static tcom_host_fn host_fn[] = { tcom_host_window, tcom_host_app_name };" MH-EMIT-S MH-EMIT-NL
   MH-EMIT-NL
   ;
 
 : MH-EMIT-GUI-HOST  ( -- )
-  S" typedef int64_t (*tcom_host_fn)(void);" MH-EMIT-S MH-EMIT-NL
+  S" typedef int64_t (*tcom_host_fn)(int64_t, int64_t);" MH-EMIT-S MH-EMIT-NL
   S" static int tcom_gui_opened = 0;" MH-EMIT-S MH-EMIT-NL
+  S" static char tcom_app_name[256] = " MH-EMIT-S 34 MH-EMIT-B S" 64TCOM" MH-EMIT-S 34 MH-EMIT-B S" ;" MH-EMIT-S MH-EMIT-NL
   S" @interface TcomAppDelegate : NSObject <NSApplicationDelegate>" MH-EMIT-S MH-EMIT-NL
   S" @end" MH-EMIT-S MH-EMIT-NL
   S" @implementation TcomAppDelegate" MH-EMIT-S MH-EMIT-NL
@@ -425,25 +432,40 @@ $D65F03C0 CONSTANT MH-RET
   S"   (void)sender; return YES;" MH-EMIT-S MH-EMIT-NL
   S" }" MH-EMIT-S MH-EMIT-NL
   S" @end" MH-EMIT-S MH-EMIT-NL
-  \ Minimal menubar: app menu titled 64TCOM + Quit (Cmd-Q).
-  \ Without this, macOS shows only the process name (e.g. Win) and Cmd-Q does nothing.
+  \ Menubar from tcom_app_name (default 64TCOM) + Quit (Cmd-Q).
   S" static void tcom_install_main_menu(NSApplication *app) {" MH-EMIT-S MH-EMIT-NL
-  S"   if ([app mainMenu] != nil) return;" MH-EMIT-S MH-EMIT-NL
+  S"   NSString *name = [NSString stringWithUTF8String:tcom_app_name];" MH-EMIT-S MH-EMIT-NL
+  S"   NSString *quit = [@" MH-EMIT-S 34 MH-EMIT-B S" Quit " MH-EMIT-S 34 MH-EMIT-B
+  S"  stringByAppendingString:name];" MH-EMIT-S MH-EMIT-NL
+  S"   if ([app mainMenu] != nil) {" MH-EMIT-S MH-EMIT-NL
+  S"     NSMenuItem *appItem = [[app mainMenu] itemAtIndex:0];" MH-EMIT-S MH-EMIT-NL
+  S"     NSMenu *appMenu = [appItem submenu];" MH-EMIT-S MH-EMIT-NL
+  S"     [appMenu setTitle:name];" MH-EMIT-S MH-EMIT-NL
+  S"     if ([appMenu numberOfItems] > 0) [[appMenu itemAtIndex:0] setTitle:quit];" MH-EMIT-S MH-EMIT-NL
+  S"     return;" MH-EMIT-S MH-EMIT-NL
+  S"   }" MH-EMIT-S MH-EMIT-NL
   S"   NSMenu *menubar = [NSMenu new];" MH-EMIT-S MH-EMIT-NL
   S"   NSMenuItem *appItem = [NSMenuItem new];" MH-EMIT-S MH-EMIT-NL
   S"   [menubar addItem:appItem];" MH-EMIT-S MH-EMIT-NL
-  S"   NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@" MH-EMIT-S
-    34 MH-EMIT-B S" 64TCOM" MH-EMIT-S 34 MH-EMIT-B S" ];" MH-EMIT-S MH-EMIT-NL
+  S"   NSMenu *appMenu = [[NSMenu alloc] initWithTitle:name];" MH-EMIT-S MH-EMIT-NL
   S"   NSMenuItem *quitItem = [[NSMenuItem alloc]" MH-EMIT-S MH-EMIT-NL
-  S"     initWithTitle:@" MH-EMIT-S 34 MH-EMIT-B S" Quit 64TCOM" MH-EMIT-S 34 MH-EMIT-B
-  S"  action:@selector(terminate:) keyEquivalent:@" MH-EMIT-S
+  S"     initWithTitle:quit action:@selector(terminate:) keyEquivalent:@" MH-EMIT-S
     34 MH-EMIT-B S" q" MH-EMIT-S 34 MH-EMIT-B S" ];" MH-EMIT-S MH-EMIT-NL
   S"   [quitItem setTarget:app];" MH-EMIT-S MH-EMIT-NL
   S"   [appMenu addItem:quitItem];" MH-EMIT-S MH-EMIT-NL
   S"   [appItem setSubmenu:appMenu];" MH-EMIT-S MH-EMIT-NL
   S"   [app setMainMenu:menubar];" MH-EMIT-S MH-EMIT-NL
   S" }" MH-EMIT-S MH-EMIT-NL
-  S" static int64_t tcom_host_window(void) {" MH-EMIT-S MH-EMIT-NL
+  S" static int64_t tcom_host_app_name(int64_t ca, int64_t u) {" MH-EMIT-S MH-EMIT-NL
+  S"   size_t n = (size_t)u; if (n > 255u) n = 255u;" MH-EMIT-S MH-EMIT-NL
+  S"   if (!ca || n == 0) strcpy(tcom_app_name, " MH-EMIT-S 34 MH-EMIT-B S" 64TCOM" MH-EMIT-S 34 MH-EMIT-B S" );" MH-EMIT-S MH-EMIT-NL
+  S"   else { memcpy(tcom_app_name, (const void *)(uintptr_t)ca, n); tcom_app_name[n] = 0; }" MH-EMIT-S MH-EMIT-NL
+  S"   NSApplication *app = [NSApplication sharedApplication];" MH-EMIT-S MH-EMIT-NL
+  S"   if ([app mainMenu] != nil) tcom_install_main_menu(app);" MH-EMIT-S MH-EMIT-NL
+  S"   return 0;" MH-EMIT-S MH-EMIT-NL
+  S" }" MH-EMIT-S MH-EMIT-NL
+  S" static int64_t tcom_host_window(int64_t a, int64_t b) {" MH-EMIT-S MH-EMIT-NL
+  S"   (void)a; (void)b;" MH-EMIT-S MH-EMIT-NL
   S"   NSApplication *app = [NSApplication sharedApplication];" MH-EMIT-S MH-EMIT-NL
   S"   [app setActivationPolicy:NSApplicationActivationPolicyRegular];" MH-EMIT-S MH-EMIT-NL
   S"   static TcomAppDelegate *delegate = nil;" MH-EMIT-S MH-EMIT-NL
@@ -454,13 +476,13 @@ $D65F03C0 CONSTANT MH-RET
   S"                      NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;" MH-EMIT-S MH-EMIT-NL
   S"   NSWindow *win = [[NSWindow alloc] initWithContentRect:frame" MH-EMIT-S MH-EMIT-NL
   S"     styleMask:style backing:NSBackingStoreBuffered defer:NO];" MH-EMIT-S MH-EMIT-NL
-  S"   [win setTitle:@" MH-EMIT-S 34 MH-EMIT-B S" 64TCOM" MH-EMIT-S 34 MH-EMIT-B S" ];" MH-EMIT-S MH-EMIT-NL
+  S"   [win setTitle:[NSString stringWithUTF8String:tcom_app_name]];" MH-EMIT-S MH-EMIT-NL
   S"   [win makeKeyAndOrderFront:nil];" MH-EMIT-S MH-EMIT-NL
   S"   [app activateIgnoringOtherApps:YES];" MH-EMIT-S MH-EMIT-NL
   S"   tcom_gui_opened = 1;" MH-EMIT-S MH-EMIT-NL
   S"   return 0;" MH-EMIT-S MH-EMIT-NL
   S" }" MH-EMIT-S MH-EMIT-NL
-  S" static tcom_host_fn host_fn[] = { tcom_host_window };" MH-EMIT-S MH-EMIT-NL
+  S" static tcom_host_fn host_fn[] = { tcom_host_window, tcom_host_app_name };" MH-EMIT-S MH-EMIT-NL
   MH-EMIT-NL
   ;
 
@@ -540,8 +562,37 @@ CREATE MH-NAME  128 ALLOT
     S"  " MH-EMIT-S
     34 MH-EMIT-B S" $NAME.m" MH-EMIT-S 34 MH-EMIT-B
     MH-EMIT-NL
-    S" echo Built ./$NAME" MH-EMIT-S MH-EMIT-NL
-    S" echo Run: ./$NAME  #(GUI — blank window until quit)" MH-EMIT-S MH-EMIT-NL
+    \ Minimal .app bundle for Finder double-click (no Terminal)
+    S" BIN=$(basename " MH-EMIT-S 34 MH-EMIT-B S" $NAME" MH-EMIT-S 34 MH-EMIT-B S" )" MH-EMIT-S MH-EMIT-NL
+    S" APP=" MH-EMIT-S 34 MH-EMIT-B S" $NAME.app" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+    S" rm -rf " MH-EMIT-S 34 MH-EMIT-B S" $APP" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+    S" mkdir -p " MH-EMIT-S 34 MH-EMIT-B S" $APP/Contents/MacOS" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+    S" cp " MH-EMIT-S 34 MH-EMIT-B S" $NAME" MH-EMIT-S 34 MH-EMIT-B S"  " MH-EMIT-S
+      34 MH-EMIT-B S" $APP/Contents/MacOS/$BIN" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+    S" chmod +x " MH-EMIT-S 34 MH-EMIT-B S" $APP/Contents/MacOS/$BIN" MH-EMIT-S 34 MH-EMIT-B MH-EMIT-NL
+    S" cat > " MH-EMIT-S 34 MH-EMIT-B S" $APP/Contents/Info.plist" MH-EMIT-S 34 MH-EMIT-B S" <<EOF" MH-EMIT-S MH-EMIT-NL
+    S" <?xml version=" MH-EMIT-S 34 MH-EMIT-B S" 1.0" MH-EMIT-S 34 MH-EMIT-B
+      S"  encoding=" MH-EMIT-S 34 MH-EMIT-B S" UTF-8" MH-EMIT-S 34 MH-EMIT-B S" ?>" MH-EMIT-S MH-EMIT-NL
+    S" <!DOCTYPE plist PUBLIC " MH-EMIT-S
+      34 MH-EMIT-B S" -//Apple//DTD PLIST 1.0//EN" MH-EMIT-S 34 MH-EMIT-B S"  " MH-EMIT-S
+      34 MH-EMIT-B S" http://www.apple.com/DTDs/PropertyList-1.0.dtd" MH-EMIT-S 34 MH-EMIT-B S" >" MH-EMIT-S MH-EMIT-NL
+    S" <plist version=" MH-EMIT-S 34 MH-EMIT-B S" 1.0" MH-EMIT-S 34 MH-EMIT-B S" >" MH-EMIT-S MH-EMIT-NL
+    S" <dict>" MH-EMIT-S MH-EMIT-NL
+    S"   <key>CFBundleExecutable</key><string>$BIN</string>" MH-EMIT-S MH-EMIT-NL
+    S"   <key>CFBundleIdentifier</key><string>com.win32forth.64tcom.$BIN</string>" MH-EMIT-S MH-EMIT-NL
+    S"   <key>CFBundleName</key><string>$BIN</string>" MH-EMIT-S MH-EMIT-NL
+    S"   <key>CFBundlePackageType</key><string>APPL</string>" MH-EMIT-S MH-EMIT-NL
+    S"   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>" MH-EMIT-S MH-EMIT-NL
+    S"   <key>CFBundleShortVersionString</key><string>0.3</string>" MH-EMIT-S MH-EMIT-NL
+    S"   <key>NSHighResolutionCapable</key><true/>" MH-EMIT-S MH-EMIT-NL
+    S"   <key>NSPrincipalClass</key><string>NSApplication</string>" MH-EMIT-S MH-EMIT-NL
+    S" </dict>" MH-EMIT-S MH-EMIT-NL
+    S" </plist>" MH-EMIT-S MH-EMIT-NL
+    S" EOF" MH-EMIT-S MH-EMIT-NL
+    S" codesign --force -s - " MH-EMIT-S 34 MH-EMIT-B S" $APP" MH-EMIT-S 34 MH-EMIT-B
+      S"  >/dev/null 2>&1 || true" MH-EMIT-S MH-EMIT-NL
+    S" echo Built ./$NAME and ./$APP" MH-EMIT-S MH-EMIT-NL
+    S" echo Run: ./$NAME   or   open ./$APP   #(Finder double-click OK)" MH-EMIT-S MH-EMIT-NL
   ELSE
     S" cc -arch arm64 -O2 -o " MH-EMIT-S
     34 MH-EMIT-B S" $NAME" MH-EMIT-S 34 MH-EMIT-B
@@ -705,7 +756,7 @@ VARIABLE MH-SYS-N
   S"   Phase 3.5: true BLR via C fixup (default); /INLINE-CALLS = paste leaves" TYPE CR
   S"   Emits NAME.c|.m + NAME-build.sh; auto-cc via SYSTEM if ?MACHO-BUILD" TYPE CR
   S"   /MACHO-BUILD (default)  /NOMACHO-BUILD  (emit sources only)" TYPE CR
-  S"   /MACHO-GUI  → AppKit .m + run loop after WINDOW" TYPE CR
+  S"   /MACHO-GUI  → AppKit .m + .app (TCOM primary; TCOM-CLI is CLI)" TYPE CR
   S"   Entry: use  S" TYPE 34 EMIT S" ANS" TYPE 34 EMIT
   S"  MACHO-ENTRY-SET  or MACHO-ENTRY-COLD" TYPE CR
   S"   Requires 64Forth 1.0.5+ for SYSTEM auto-build" TYPE CR

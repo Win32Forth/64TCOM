@@ -18,23 +18,34 @@ Requirements
 Build (64Forth console)
 -----------------------
   FLOAD TARGETARM64.fth
-  TCOM-GUI window/win.tfth
-  → window/win  (+ .m, -build.sh, .bin)
+  TCOM window/win.tfth
+  → window/win           (Terminal binary)
+  → window/win.app       (Finder double-clickable bundle)
+  → window/win.m, -build.sh, .bin
 
 Run
 ---
-  ./window/win
+  Terminal:   ./window/win
+  Finder:     double-click window/win.app
+              or:  open window/win.app
 
-  A blank window titled "64TCOM" should appear and stay until you
-  close it (red button) or Quit 64TCOM (menu / Cmd-Q).
-  Launch from Terminal for this MVP; a Finder .app bundle comes later.
-  The menu bar app name is "64TCOM" (not the binary leaf name).
+  A blank window should appear (sample uses APP-NAME "Demo") and stay
+  until you close it (red button) or Quit <name> (menu / Cmd-Q).
+
+  Bundle folder name follows the output leaf (win.app). The menu-bar
+  title still comes from APP-NAME at runtime (e.g. "Demo").
 
 Dialect
 -------
+  APP-NAME ( c-addr u -- )  set menu-bar app name and default window title.
+                   Call before WINDOW. Default if omitted: "64TCOM".
   WINDOW   ( -- )  open a blank NSWindow via the GUI shell host call.
-                   Only useful with TCOM-GUI (AppKit .m shell).
-                   Under plain TCOM the host stub is a no-op (-1).
+                   Only useful with TCOM (AppKit .m + .app).
+                   Under TCOM-CLI the host stub is a no-op (-1).
+
+Example
+-------
+  : MAIN  S" MyApp" APP-NAME  WINDOW  0 ;
 
 See also: samples/ for CLI tools (print, args, fcat, …).
 

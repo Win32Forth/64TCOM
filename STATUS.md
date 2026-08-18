@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-17 — **Version 0.3**: Layer 2 I/O + Layer 4 `WINDOW` / `TCOM-GUI`
+**Last updated:** 2026-08-17 — **Version 0.3**: Layer 2 I/O + Layer 4 `WINDOW` / `TCOM` (GUI primary; `TCOM-CLI` for Terminal)
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
 
@@ -46,8 +46,9 @@ S" samples/hello.tfth" TSRC-BUILD   \ image + SAVE-MACHO entry MAIN → ./tcomar
 S" ./tcomarm64" SYSTEM .            \ exit status 42
 
 \ Preferred console form (output next to source, no .tfth):
-TCOM samples/print.tfth             \ → samples/print  (entry MAIN)
-TCOM "path with spaces/foo.tfth"    \ → path with spaces/foo
+TCOM window/win.tfth                \ → window/win + window/win.app (GUI, primary)
+TCOM-CLI samples/print.tfth         \ → samples/print  (CLI / Terminal)
+TCOM "path with spaces/foo.tfth"    \ → GUI build; quote paths with spaces
 ```
 
 ### Why `.tfth` (not `.fth`) for target sources
@@ -89,7 +90,7 @@ Eventually that binary *is* the app (or is linked into one), with a small C/runt
                            samples/hello.tfth → MAIN => 42 (sim + native + Mach-O)
   Layer 2 print    DONE   — TYPE# (Darwin write SVC); dialect S" / TYPE / ."
                            samples/print.tfth → "Hello, 64TCOM\n" + exit 0 (all paths)
-  Console build    DONE   — `TCOM path.tfth` → same-dir leaf (MAIN); quoted OK
+  Console build    DONE   — `TCOM` (GUI) / `TCOM-CLI` (Terminal) → same-dir leaf (MAIN)
   Layer 2 args     DONE   — ARGCOUNT ARG1 ARG2 ARG# (1-based user argv; Mach-O fill)
   Dialect grow     DONE   — 0= = < > * ROT NIP 2DUP EMIT CR SPACE . S>N; samples/add
   Multi-file       DONE   — FLOAD/INCLUDE in .tfth (nested); samples/multi + math.tfth
@@ -97,18 +98,18 @@ Eventually that binary *is* the app (or is linked into one), with a small C/runt
                            files OPEN-R/W CLOSE READ WRITE (Darwin SVC + CS)
                            samples: err, echoin, fcat, fwrite
   Control hygiene  DONE   — TIF/TELSE + TWHILE/TREPEAT use TCS (host stack safe)
-  Layer 4 window   MVP    — host-call `WINDOW#`; `/MACHO-GUI` → AppKit `.m` + run loop
-                           `TCOM-GUI window/win.tfth` → blank NSWindow until quit
+  Layer 4 window   MVP    — host-call `WINDOW#` / `APP-NAME#`; `/MACHO-GUI` → AppKit `.m`
+                           `TCOM` → binary + `.app` (Finder); `TCOM-CLI` → Terminal tools
                            demos in `window/` (sibling of `samples/`)
-  Product path     OPEN   — more dialect on demand; title/draw/.app next
+  Product path     OPEN   — more dialect on demand; text/draw in window next
 ```
 **Pack version history**
 
 | Version | Notes |
 |---------|--------|
 | **0.1** | First ARM64 pack: prims, SIM, native, SAVE-MACHO, true BLR, IF demos |
-| **0.2** | NEST/VAR; Roadmap B complete; `TSRC-INCLUDE` + Mach-O data page; Layer 1 `hello.tfth` MAIN=>42; Layer 2 print (`TYPE#`, `S"`); console **`TCOM path.tfth`** → same-dir executable; `samples/` + README (`.tfth` only in dist) |
-| **0.3** | Layer 2 I/O (stderr/stdin/files); `TWHILE` on TCS; Layer 4 MVP `WINDOW` + `TCOM-GUI` / AppKit; `window/win.tfth`; dialect grow + multi-file carried from late 0.2 |
+| **0.2** | NEST/VAR; Roadmap B complete; `TSRC-INCLUDE` + Mach-O data page; Layer 1 `hello.tfth` MAIN=>42; Layer 2 print (`TYPE#`, `S"`); console build → same-dir executable; `samples/` + README (`.tfth` only in dist) |
+| **0.3** | Layer 2 I/O; `TWHILE` on TCS; Layer 4 MVP `WINDOW`/`APP-NAME` + AppKit `.app`; **`TCOM`** = GUI primary, **`TCOM-CLI`** = Terminal; `window/win.tfth` |
 
 **Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.2** (agent channel shipped; ANS/Hayes + agent green on install).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  
@@ -289,7 +290,7 @@ T: BUMP
 | Mach-O `tcom_data[]` + data MOV fixup | `MACHOARM64.fth` |
 | Sample sources + howto | `64TCOMARM64/samples/*.tfth`, `samples/README.txt` |
 | Pack demo | `SRC-DEMO` → `SRCDEMO.fth` |
-| Console build | `TCOM samples/hello.tfth` → `samples/hello` (MAIN) |
+| Console build | `TCOM-CLI samples/hello.tfth` → `samples/hello`; `TCOM window/win.tfth` → `.app` |
 | One-shot build helper | `TSRC-BUILD` (ca u — path) in `TARGETARM64.fth` |
 
 **Dialect:** `VARIABLE`, `: … ;`, numbers/`$hex`, `IF ELSE THEN`, `BEGIN UNTIL AGAIN WHILE REPEAT`, `@ ! + - DUP DROP SWAP OVER`, **`S" …"` / `TYPE` / `." …"`** (Layer 2), other names → symbol compile.

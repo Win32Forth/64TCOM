@@ -12,15 +12,15 @@ It is **not** an F-PC 16-bit translation layer. The compiler director is being r
 ### Version 0.3 (ARM64) — highlight
 
 - CLI I/O: stderr / stdin / files (`ETYPE`, `ACCEPT`, `OPEN-R`/`READ`/`WRITE`, …)
-- Layer 4 MVP: **`WINDOW`** + **`TCOM-GUI`** → blank AppKit window (`window/win.tfth`)
+- Layer 4 MVP: **`WINDOW`** + **`TCOM`** → AppKit window + `.app` (`window/win.tfth`)
 - Multi-file `.tfth` (`FLOAD`/`INCLUDE`), richer dialect, args/print from 0.2
-- Ship **`.tfth` + docs**; regenerate with `TCOM` / `TCOM-GUI`
+- Ship **`.tfth` + docs**; regenerate with **`TCOM`** (GUI) / **`TCOM-CLI`** (Terminal)
 
 ```forth
 \ Working folder: 64TCOMARM64/
 FLOAD TARGETARM64.fth
-TCOM samples/hello.tfth
-TCOM-GUI window/win.tfth
+TCOM window/win.tfth            \ GUI + .app (primary)
+TCOM-CLI samples/hello.tfth     \ Terminal / exit status
 ```
 
 ---
