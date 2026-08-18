@@ -145,7 +145,8 @@ Input focus: keys go to the graphics window when it is frontmost; console keeps 
 **Started 2026-08-18 (64Forth):**
 - Swift: `Host/AppOutputHost.swift` — NSWindow + grid view, blit, key queue  
 - Kernel: `(APP-OPEN)` `(APP-CLOSE)` `(APP-BLIT)` `(APP-KEY?)` `(APP-KEY)` in `forth.s`  
-- Forth: `Resources/Library/AppOutput/app-output.fth` — `VOCABULARY GRAPHICS` with classic `WINDOW` `CLS` `AT` `EMIT` `GET-CHAR` `KEY?` `KEY` + `GRAPHICS-SMOKE`  
+- Forth: `Resources/Library/AppOutput/app-output.fth` — `VOCABULARY GRAPHICS` with `WINDOW` `CLS` `AT` `EMIT` `GET-CHAR` `KEY?` `KEY` `APP-NAME` `TIME-RESET` `10TH-ELAPSED` `TENTHS` `TONE` (beep stub) `.` `."` + `GRAPHICS-SMOKE`
+- Host tetra-readiness in 64Forth **after** 1.1.3 push (timers / `.` / pump / `APP-NAME` / `TONE`); soften EMIT blit deferred; **no release until `\ANS` dual-load works**  
 - Console / Facility unchanged. Agent: open returns error (no window).
 
 ### Sound (future — remember)
