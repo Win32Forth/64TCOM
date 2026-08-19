@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-19 — **Version 0.7**: defining/search-order, ANS files, double/string extras, PARSE/WORD/SOURCE; remaining work listed below
+**Last updated:** 2026-08-19 — **Version 0.7**; debugger plan (shared Forth UI, ITC vs TCOM backends) recorded below
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
 
@@ -183,6 +183,35 @@ Defining words are **compile-time TSRC** (no resident target compiler). `CREATE 
 ## Future / potential work (architecture & dual-load)
 
 Tracked here so it is not lost; not blocking current TETRA/grid polish.
+
+### Debugger (64Forth + 64TCOM)
+
+**Not started.** One Forth-facing tool with **pluggable backends**, not two programs. Console stays the debug surface (log, `.S`, `SEE`, agent). SZ-EDITOR gutter can wait until `STEP` exists.
+
+**Same words** from the 64Forth console (later `--agent`):
+
+| Word | Meaning |
+|------|--------|
+| `.S` `R.S` | data / return stacks |
+| `SEE` `DUMP` `WORDS` | inspect |
+| `BREAK` `UNBREAK` | named breakpoint |
+| `GO` `STEP` `NEXT` `FINISH` | run / into / over / out |
+| `WHERE` | current xt / taddr (+ source if known) |
+
+**Pack hooks** (fill these; don’t rewrite `.S`/`STEP` per CPU): `DBG-FETCH` `DBG-STORE` `DBG-STACK` `DBG-RSTACK` `DBG-PC@` `DBG-BREAK` `DBG-STEP` `DBG-GO`.
+
+| Backend | How |
+|---------|-----|
+| **64Forth ITC** | Instrument `NEXT` (or `DEBUG-NEXT`); IP/W, kernel SP/RP; Hyper `SEE`/VIEW. No simulator. `STEP` = one threaded xt. |
+| **TCOM ARM64** | (1) **`SIMARM64` first** — break on taddr, stacks = X0 + X19. (2) In-process native: `BRK`/trampoline + `CALL-NATIVE` until trap. (3) Standalone `.app` stub later; don’t block on “debugger inside tetra.” `SEE` = `SYM-*` + disassemble, not ITC decompile. |
+| **Other TCOM CPU** | Simulator required until gdbstub/JTAG/serial exists. Static listing/xref/`SEE` still work. |
+| **Real hardware** | Remote protocol (gdb RSP is enough); Forth words unchanged. |
+
+**`STEP` is a Forth step**, not one machine insn (TCOM ARM64: until next `BLR`/`RET`). Offer `ISTEP` later.
+
+**Build order:** (1) inspect on 64Forth; (2) same inspect on TCOM via `SYM`/sim memory; (3) TCOM sim stepper + `BREAK`; (4) 64Forth `DEBUG-NEXT`; (5) native TCOM traps; (6) optional remote stub. Listing/xref share the same symbol/source maps.
+
+**Don’t:** freeze the 80×25 grid as a debugger UI; use Xcode/lldb on `forth.s` as the product; require a resident TCOM compiler in the `.app` for `SEE`; design pixel-graphics debugging first.
 
 ### Dual-load: `\ANS` / `\TCOM` (near-term)
 
@@ -557,7 +586,7 @@ Output locals are returned automatically — do not push them before `;` :
       Mach-O: C main fixup loop (same pattern) before `mprotect`  
       Fallback: `/INLINE-CALLS` (old Phase 3.3 paste leaves)  
       Detail: [`64DESIGN/Phase 3.5 ARM64 notes.txt`](64DESIGN/Phase%203.5%20ARM64%20notes.txt)
-- [ ] **4.0** Utilities (listing, xref, debugger) in `64TCOMUTILS`
+- [ ] **4.0** Utilities (listing, xref, debugger) in `64TCOMUTILS` — see **Debugger (64Forth + 64TCOM)** below
 
 ---
 
