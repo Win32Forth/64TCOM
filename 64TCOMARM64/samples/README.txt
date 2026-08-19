@@ -91,6 +91,34 @@ What each sample does
     ./samples/fwrite path  — write a fixed line (OPEN-W WRITE CLOSE)
     exit 0 ok, 1 usage, 2 open fail
 
+  wave.fth
+    Stack/memory/execute smoke (2DROP XOR ABS C@ +! EXECUTE ['])
+    TCOM-CLI samples/wave.fth  →  exit 0
+
+  stackcmp.fth
+    Stack extras + compares (PICK ROLL DEPTH WITHIN U< …)
+    TCOM-CLI samples/stackcmp.fth  →  exit 0
+
+  numeric.fth
+    Pictured numeric (<# # HOLD SIGN #> .) and BASE
+    TCOM-CLI samples/numeric.fth  →  exit 0
+
+  memdbl.fth
+    Memory + double (2! FILL ERASE COUNT MOVE D+ S>D)
+    TCOM-CLI samples/memdbl.fth  →  exit 0
+
+  arith.fth
+    Signed / MOD /MOD */ */MOD (SM/REM, toward zero)
+    TCOM-CLI samples/arith.fth  →  exit 0
+
+  xheap.fth
+    CATCH THROW ALLOCATE FREE RESIZE
+    TCOM-CLI samples/xheap.fth  →  exit 0
+
+  shiftloop.fth
+    LSHIFT RSHIFT UNLOOP ?DO
+    TCOM-CLI samples/shiftloop.fth  →  exit 0
+
   CLI / dialect words (after pack load):
     ARGCOUNT ARG1 ARG2 ARG#
     0=  =  <  >   + - *   ROT NIP 2DUP

@@ -407,8 +407,8 @@ VARIABLE IO-P4
 : BODY-2DUP  ( -- )  \ ( a b -- a b a b )
   BTI,
   X1 X19 LDR-X0,                 \ X1=a, X0=b
-  X1 X19 -8 STR-PRE,
-  X0 X19 -8 STR-PRE,
+  X0 X19 -8 STR-PRE,             \ a b b
+  X1 X19 -8 STR-PRE,             \ a b a b
   ;
 
 \ EMIT# ( c -- ) host slot 5 → grid (GUI) or stdout (CLI)
@@ -616,6 +616,38 @@ VARIABLE SN-P3
   BTI,  -1 X1 MOV-X-IMM64,  X1 X0 X0 EOR-X,  ;
 : BODY-2STAR  ( -- )
   BTI,  X0 X0 X0 ADD-X-X,  ;          \ 2*
+: BODY-LSHIFT  ( -- )                 \ ( x u -- x' )
+  BTI,
+  X1 X19 8 LDR-POST,                  \ x; X0=u
+  64 X2 MOV-X-IMM64,
+  X2 X0 CMP-X,                        \ CMP u, 64
+  ALIGN4-T HERE-T IO-P1 !
+  0 LO B.COND,
+  0 X0 MOV-X-IMM64,
+  ALIGN4-T HERE-T IO-P2 !
+  0 B-IMM,
+  HERE-T IO-P1 @ PATCH-BCOND
+  X0 X1 X0 LSL-X,
+  HERE-T IO-P2 @ PATCH-B
+  ;
+: BODY-RSHIFT  ( -- )                 \ ( x u -- x' ) logical
+  BTI,
+  X1 X19 8 LDR-POST,
+  64 X2 MOV-X-IMM64,
+  X2 X0 CMP-X,
+  ALIGN4-T HERE-T IO-P1 !
+  0 LO B.COND,
+  0 X0 MOV-X-IMM64,
+  ALIGN4-T HERE-T IO-P2 !
+  0 B-IMM,
+  HERE-T IO-P1 @ PATCH-BCOND
+  X0 X1 X0 LSR-X,
+  HERE-T IO-P2 @ PATCH-B
+  ;
+: BODY-UNLOOP  ( -- )
+  BTI,
+  16 X20 X20 ADD-IMM,
+  ;
 : BODY-2SLASH  ( -- )
   BTI,
   \ 64-bit ASR X0,X0,#1 (SBFM). Was 32-bit ASR W0 — 2/ of -2 became
@@ -627,13 +659,446 @@ VARIABLE SN-P3
 : BODY-CELLS  ( -- )
   BTI,  3 X0 X0 LSL-IMM,              \ * 8
   ;
-: BODY-2FETCH  ( -- )                 \ ( a -- x y )  2@
+: BODY-2FETCH  ( -- )                 \ ( a -- x y )  2@  y=[a+8]
   BTI,
-  X0 X1 MOV-X-X,
-  X1 X0 LDR-X0,                       \ x = [a]
+  X0 X1 MOV-X-X,                      \ X1 = a
+  X0 X1 LDR-X0,                       \ X0 = [a]
   X0 X19 -8 STR-PRE,
   8 X1 X1 ADD-IMM,
-  X1 X0 LDR-X0,                       \ y = [a+8]
+  X0 X1 LDR-X0,                       \ X0 = [a+8]
+  ;
+
+: BODY-2STORE  ( -- )                 \ ( x y a -- )  matches 2@
+  BTI,
+  X1 X19 8 LDR-POST,                  \ y
+  X2 X19 8 LDR-POST,                  \ x
+  X2 X0 STR-X0,                       \ [a]=x
+  8 X0 X3 ADD-IMM,
+  X1 X3 STR-X0,                       \ [a+8]=y
+  X0 X19 8 LDR-POST,
+  ;
+
+: BODY-CELLMINUS  ( -- )
+  BTI,  8 X0 X0 SUB-IMM,
+  ;
+
+: BODY-COUNT  ( -- )                  \ ( c-addr -- c-addr+1 u )
+  BTI,
+  X1 X0 LDRB-X,                       \ u
+  1 X0 X0 ADD-IMM,
+  X0 X19 -8 STR-PRE,
+  X1 X0 MOV-X-X,
+  ;
+
+: BODY-FILL  ( -- )                   \ ( c-addr u char -- )
+  BTI,
+  X0 X3 MOV-X-X,                      \ char
+  X2 X19 8 LDR-POST,                  \ u
+  X1 X19 8 LDR-POST,                  \ c-addr
+  X0 X19 8 LDR-POST,                  \ TOS
+  ALIGN4-T HERE-T IO-P1 !
+  X2 XZR CMP-X,
+  ALIGN4-T HERE-T IO-P2 !
+  0 EQ B.COND,
+  X3 X1 STRB-X,
+  1 X1 X1 ADD-IMM,
+  1 X2 X2 SUB-IMM,
+  IO-P1 @ HERE-T - 4 / B-IMM,
+  HERE-T IO-P2 @ PATCH-BCOND
+  ;
+
+: BODY-ERASE  ( -- )                  \ ( c-addr u -- )
+  BTI,
+  X2 X0 MOV-X-X,                      \ u
+  X1 X19 8 LDR-POST,                  \ c-addr
+  X0 X19 8 LDR-POST,
+  0 X3 MOV-X-IMM64,
+  ALIGN4-T HERE-T IO-P1 !
+  X2 XZR CMP-X,
+  ALIGN4-T HERE-T IO-P2 !
+  0 EQ B.COND,
+  X3 X1 STRB-X,
+  1 X1 X1 ADD-IMM,
+  1 X2 X2 SUB-IMM,
+  IO-P1 @ HERE-T - 4 / B-IMM,
+  HERE-T IO-P2 @ PATCH-BCOND
+  ;
+
+: BODY-CFETCH  ( -- )                 \ ( addr -- char )
+  BTI,
+  X0 X0 LDRB-X,
+  ;
+
+: BODY-CSTORE  ( -- )                 \ ( char addr -- )
+  BTI,
+  X1 X19 8 LDR-POST,
+  X1 X0 STRB-X,
+  X0 X19 8 LDR-POST,
+  ;
+
+: BODY-PLUSSTORE  ( -- )              \ ( n addr -- )
+  BTI,
+  X1 X19 8 LDR-POST,                  \ n
+  X2 X0 LDR-X0,                       \ [addr]
+  X1 X2 X2 ADD-X-X,
+  X2 X0 STR-X0,
+  X0 X19 8 LDR-POST,
+  ;
+
+: BODY-2DROP  ( -- )
+  BTI,
+  X0 X19 8 LDR-POST,
+  X0 X19 8 LDR-POST,
+  ;
+
+: BODY-XOR  ( -- )
+  BTI,
+  X1 X19 8 LDR-POST,
+  X0 X1 X0 EOR-X,
+  ;
+
+: BODY-ZLT  ( -- )                    \ 0<
+  BTI,
+  XZR X0 CMP-X,                       \ CMP X0, #0
+  MI X0 CSET-X,
+  X0 XZR X0 SUB-X-X,
+  ;
+
+: BODY-ABS  ( -- )
+  BTI,
+  XZR X0 CMP-X,                       \ CMP X0, #0
+  ALIGN4-T HERE-T IO-P1 !
+  0 PL B.COND,
+  X0 XZR X0 SUB-X-X,
+  HERE-T IO-P1 @ PATCH-BCOND
+  ;
+
+: BODY-MIN  ( -- )                    \ ( n1 n2 -- min )
+  BTI,
+  X1 X19 8 LDR-POST,                  \ n1; X0=n2
+  X0 X1 CMP-X,                        \ CMP n1, n2
+  ALIGN4-T HERE-T IO-P1 !
+  0 GE B.COND,                        \ n1 >= n2 keep n2
+  X1 X0 MOV-X-X,
+  HERE-T IO-P1 @ PATCH-BCOND
+  ;
+
+: BODY-MAX  ( -- )
+  BTI,
+  X1 X19 8 LDR-POST,
+  X0 X1 CMP-X,
+  ALIGN4-T HERE-T IO-P1 !
+  0 LE B.COND,
+  X1 X0 MOV-X-X,
+  HERE-T IO-P1 @ PATCH-BCOND
+  ;
+
+: BODY-PICK  ( -- )                   \ ( xu … x0 u -- xu … x0 xu )
+  BTI,
+  3 X0 X1 LSL-IMM,                    \ u cells
+  X1 X19 X2 ADD-X-X,
+  X0 X2 LDR-X0,
+  ;
+
+: BODY-2SWAP  ( -- )                  \ ( x1 x2 x3 x4 -- x3 x4 x1 x2 )
+  BTI,
+  X0 X4 MOV-X-X,                      \ x4
+  X1 X19 0 LDR-OFF,                   \ x3
+  X2 X19 8 LDR-OFF,                   \ x2
+  X3 X19 16 LDR-OFF,                  \ x1
+  X2 X0 MOV-X-X,
+  X3 X19 0 STR-OFF,
+  X4 X19 8 STR-OFF,
+  X1 X19 16 STR-OFF,
+  ;
+
+: BODY-2OVER  ( -- )                  \ ( x1 x2 x3 x4 -- x1 x2 x3 x4 x1 x2 )
+  BTI,
+  X1 X19 8 LDR-OFF,                   \ x2
+  X2 X19 16 LDR-OFF,                  \ x1
+  X0 X19 -8 STR-PRE,                  \ push x4
+  X2 X19 -8 STR-PRE,                  \ push x1
+  X1 X0 MOV-X-X,
+  ;
+
+: BODY-TUCK  ( -- )                   \ ( x1 x2 -- x2 x1 x2 )
+  BTI,
+  X1 X19 LDR-X0,                      \ x1
+  X0 X19 STR-X0,                      \ under = x2
+  X1 X19 -8 STR-PRE,
+  ;
+
+: BODY-QDUP  ( -- )                   \ ?DUP
+  BTI,
+  XZR X0 CMP-X,
+  ALIGN4-T HERE-T IO-P1 !
+  0 EQ B.COND,
+  X0 X19 -8 STR-PRE,
+  HERE-T IO-P1 @ PATCH-BCOND
+  ;
+
+: BODY-ROLL  ( -- )                   \ ( xu … x0 u -- x_{u-1} … x0 xu )
+  BTI,
+  X0 X1 MOV-X-X,                      \ u
+  ALIGN4-T HERE-T IO-P1 !
+  X1 0 CBZ-X,                         \ 0 ROLL = DROP u
+  3 X1 X2 LSL-IMM,
+  X2 X19 X3 ADD-X-X,
+  X4 X3 LDR-X0,                       \ xu
+  ALIGN4-T HERE-T IO-P2 !             \ slide loop
+  X1 XZR CMP-X,
+  ALIGN4-T HERE-T IO-P3 !
+  0 EQ B.COND,
+  1 X1 X1 SUB-IMM,
+  3 X1 X5 LSL-IMM,
+  X5 X19 X6 ADD-X-X,
+  X7 X6 LDR-X0,
+  8 X6 X6 ADD-IMM,
+  X7 X6 STR-X0,
+  IO-P2 @ HERE-T - 4 / B-IMM,
+  HERE-T IO-P3 @ PATCH-BCOND
+  8 X19 X19 ADD-IMM,
+  X4 X0 MOV-X-X,
+  ALIGN4-T HERE-T IO-P2 !
+  0 B-IMM,
+  HERE-T IO-P1 @ PATCH-CBZ
+  X0 X19 8 LDR-POST,
+  HERE-T IO-P2 @ PATCH-B
+  ;
+
+: BODY-DEPTH  ( -- n )                \ host slot 15; (dsp0-X19)/8 then push
+  BTI,
+  X0 X2 MOV-X-X,
+  X19 X1 MOV-X-X,
+  0 X0 MOV-X-IMM64,
+  15 HOST-CALL,
+  X2 X19 -8 STR-PRE,
+  ;
+
+: BODY-ZGT  ( -- )                    \ 0>
+  BTI,
+  XZR X0 CMP-X,
+  GT X0 CSET-X,
+  X0 XZR X0 SUB-X-X,
+  ;
+
+: BODY-ZNE  ( -- )                    \ 0<>
+  BTI,
+  XZR X0 CMP-X,
+  NE X0 CSET-X,
+  X0 XZR X0 SUB-X-X,
+  ;
+
+: BODY-LE  ( -- )                     \ <=
+  BTI,
+  X1 X19 8 LDR-POST,
+  X0 X1 CMP-X,
+  LE X0 CSET-X,
+  X0 XZR X0 SUB-X-X,
+  ;
+
+: BODY-GE  ( -- )                     \ >=
+  BTI,
+  X1 X19 8 LDR-POST,
+  X0 X1 CMP-X,
+  GE X0 CSET-X,
+  X0 XZR X0 SUB-X-X,
+  ;
+
+: BODY-ULT  ( -- )                    \ U<
+  BTI,
+  X1 X19 8 LDR-POST,
+  X0 X1 CMP-X,
+  LO X0 CSET-X,
+  X0 XZR X0 SUB-X-X,
+  ;
+
+: BODY-UGT  ( -- )                    \ U>
+  BTI,
+  X1 X19 8 LDR-POST,
+  X0 X1 CMP-X,
+  HI X0 CSET-X,
+  X0 XZR X0 SUB-X-X,
+  ;
+
+: BODY-WITHIN  ( -- )                 \ ( n1 n2 n3 -- flag )  (n1-n2) U< (n3-n2)
+  BTI,
+  X1 X19 8 LDR-POST,                  \ n2; X0=n3
+  X2 X19 8 LDR-POST,                  \ n1
+  X1 X2 X2 SUB-X-X,                   \ n1-n2
+  X1 X0 X0 SUB-X-X,                   \ n3-n2
+  X0 X2 CMP-X,                        \ CMP n1-n2, n3-n2
+  LO X0 CSET-X,
+  X0 XZR X0 SUB-X-X,
+  ;
+
+\ Pictured numeric: BASE/HLD/PIC at fixed daddrs; X16 = tcom_data0 (slot 16)
+: (TCOM-DATA0-X16,)  ( -- )
+  X1 X20 -8 STR-PRE,                  \ C host clobbers X0–X18
+  X0 X20 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  16 HOST-CALL,
+  X0 X16 MOV-X-X,
+  X0 X20 8 LDR-POST,
+  X1 X20 8 LDR-POST,
+  ;
+
+: (PIC-HOLD-X1,)  ( -- )              \ HOLD char in X1; uses X16
+  (TCOM-DATA0-X16,)
+  TCOM-HLD-DADDR X2 MOV-X-IMM64,
+  X2 X16 X3 ADD-X-X,
+  X4 X3 LDR-X0,
+  1 X4 X4 SUB-IMM,
+  X4 X3 STR-X0,
+  X1 X4 STRB-X,
+  ;
+
+: BODY-LTSHARP  ( -- )                \ <#
+  BTI,
+  (TCOM-DATA0-X16,)
+  TCOM-PIC-END X2 MOV-X-IMM64,
+  X2 X16 X3 ADD-X-X,
+  TCOM-HLD-DADDR X2 MOV-X-IMM64,
+  X2 X16 X4 ADD-X-X,
+  X3 X4 STR-X0,
+  ;
+
+: BODY-HOLD  ( -- )                   \ ( char -- )
+  BTI,
+  X0 X1 MOV-X-X,
+  X0 X19 8 LDR-POST,
+  (PIC-HOLD-X1,)
+  ;
+
+: BODY-SIGN  ( -- )                   \ ( n -- )
+  BTI,
+  XZR X0 CMP-X,
+  X0 X19 8 LDR-POST,
+  ALIGN4-T HERE-T IO-P1 !
+  0 PL B.COND,
+  45 X1 MOV-X-IMM64,
+  (PIC-HOLD-X1,)
+  HERE-T IO-P1 @ PATCH-BCOND
+  ;
+
+: BODY-SHARPGT  ( -- )                \ ( xd -- c-addr u )
+  BTI,
+  X0 X19 8 LDR-POST,                  \ drop hi
+  (TCOM-DATA0-X16,)
+  TCOM-HLD-DADDR X2 MOV-X-IMM64,
+  X2 X16 X3 ADD-X-X,
+  X1 X3 LDR-X0,                       \ c-addr = HLD
+  TCOM-PIC-END X2 MOV-X-IMM64,
+  X2 X16 X4 ADD-X-X,
+  X1 X4 X0 SUB-X-X,                   \ u
+  X1 X19 STR-X0,                      \ replace lo with c-addr
+  ;
+
+: BODY-SHARP  ( -- )                  \ ( ud -- ud' ) slot 17 HOLD digit, 18 qhi
+  BTI,
+  X0 X1 MOV-X-X,                      \ X1 = hi
+  X0 X19 LDR-X0,                      \ X0 = lo
+  17 HOST-CALL,                       \ X0 = qlo; digit HOLDed
+  X0 X19 STR-X0,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  18 HOST-CALL,                       \ X0 = qhi
+  ;
+
+: BODY-EXEC  ( -- )                   \ EXECUTE ( xt -- ) xt = taddr
+  BTI,
+  X0 X1 MOV-X-X,
+  X0 X19 8 LDR-POST,                  \ TOS for callee
+  (BASE-X16,)
+  X1 X16 X16 ADD-X-X,
+  (A64-STP-X30-XZR-SP) W,
+  X16 BLR-X,
+  (A64-LDP-X30-XZR-SP) W,
+  ;
+
+: BODY-CATCH  ( -- )                  \ ( i*x xt -- j*x 0 | i*x n )
+  BTI,
+  X0 X21 MOV-X-X,                     \ xt
+  X0 X19 8 LDR-POST,
+  (TCOM-DATA0-X16,)
+  TCOM-HANDLER-DADDR X2 MOV-X-IMM64,
+  X2 X16 X3 ADD-X-X,
+  X4 X3 LDR-X0,                       \ prev
+  X30 X20 -8 STR-PRE,                 \ CALL-ABS return (LDP)
+  X19 X20 -8 STR-PRE,                 \ DSP
+  $910003E5 W,                        \ ADD X5, SP, #0
+  X5 X20 -8 STR-PRE,                  \ C stack (CALL-ABS STPs)
+  X4 X20 -8 STR-PRE,
+  X20 X3 STR-X0,
+  (BASE-X16,)
+  X21 X16 X16 ADD-X-X,
+  X16 BLR-X,
+  (TCOM-DATA0-X16,)
+  TCOM-HANDLER-DADDR X2 MOV-X-IMM64,
+  X2 X16 X3 ADD-X-X,
+  X4 X20 8 LDR-POST,
+  X4 X3 STR-X0,
+  X5 X20 8 LDR-POST,                  \ discard saved SP
+  X19 X20 8 LDR-POST,                 \ discard saved DSP
+  X30 X20 8 LDR-POST,                 \ CALL-ABS LDP
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  ;
+
+: BODY-THROW  ( -- )                  \ ( n -- | n )
+  BTI,
+  XZR X0 CMP-X,
+  ALIGN4-T HERE-T IO-P1 !
+  0 NE B.COND,
+  X0 X19 8 LDR-POST,
+  ALIGN4-T HERE-T IO-P2 !
+  0 B-IMM,
+  HERE-T IO-P1 @ PATCH-BCOND
+  X0 X21 MOV-X-X,
+  (TCOM-DATA0-X16,)
+  TCOM-HANDLER-DADDR X2 MOV-X-IMM64,
+  X2 X16 X3 ADD-X-X,
+  X20 X3 LDR-X0,
+  X20 XZR CMP-X,
+  ALIGN4-T HERE-T IO-P3 !
+  0 NE B.COND,
+  X21 X0 MOV-X-X,
+  1 X16 MOV-X-IMM64,
+  $80 SVC,
+  HERE-T IO-P3 @ PATCH-BCOND
+  X4 X20 8 LDR-POST,
+  X4 X3 STR-X0,
+  X5 X20 8 LDR-POST,
+  $910000BF W,                        \ ADD SP, X5, #0
+  X19 X20 8 LDR-POST,
+  X30 X20 8 LDR-POST,
+  X21 X0 MOV-X-X,
+  HERE-T IO-P2 @ PATCH-B
+  ;
+
+: BODY-ALLOC  ( -- )                  \ ( u -- a-addr ior )
+  BTI,
+  25 HOST-CALL,
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  24 HOST-CALL,
+  ;
+
+: BODY-FREE  ( -- )                   \ ( a-addr -- ior )
+  BTI,
+  26 HOST-CALL,
+  ;
+
+: BODY-RESIZE  ( -- )                 \ ( a-addr u -- a-addr2 ior )
+  BTI,
+  X1 X19 8 LDR-POST,
+  27 HOST-CALL,
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  24 HOST-CALL,
   ;
 
 \ CMOVE ( src dest u -- )  forward byte copy
@@ -656,6 +1121,140 @@ VARIABLE SN-P3
   HERE-T IO-P2 @ PATCH-BCOND
   ;
 
+: BODY-CMOVEUP  ( -- )                \ CMOVE>  high-to-low
+  BTI,
+  X0 X3 MOV-X-X,
+  X2 X19 8 LDR-POST,                  \ dest
+  X1 X19 8 LDR-POST,                  \ src
+  X0 X19 8 LDR-POST,
+  X3 X1 X1 ADD-X-X,
+  X3 X2 X2 ADD-X-X,
+  ALIGN4-T HERE-T IO-P1 !
+  X3 XZR CMP-X,
+  ALIGN4-T HERE-T IO-P2 !
+  0 EQ B.COND,
+  1 X1 X1 SUB-IMM,
+  1 X2 X2 SUB-IMM,
+  X4 X1 LDRB-X,
+  X4 X2 STRB-X,
+  1 X3 X3 SUB-IMM,
+  IO-P1 @ HERE-T - 4 / B-IMM,
+  HERE-T IO-P2 @ PATCH-BCOND
+  ;
+
+: BODY-MOVE  ( -- )                   \ ( src dest u -- ) overlap-safe
+  BTI,
+  X0 X3 MOV-X-X,                      \ u
+  X2 X19 8 LDR-POST,                  \ dest
+  X1 X19 8 LDR-POST,                  \ src
+  X0 X19 8 LDR-POST,
+  X1 X2 CMP-X,                        \ dest ? src
+  ALIGN4-T HERE-T IO-P3 !
+  0 LS B.COND,                        \ dest <= src → forward
+  X3 X1 X4 ADD-X-X,                   \ src+u
+  X4 X2 CMP-X,                        \ dest ? src+u
+  ALIGN4-T HERE-T IO-P4 !
+  0 LO B.COND,                        \ dest < src+u → backward
+  HERE-T IO-P3 @ PATCH-BCOND
+  ALIGN4-T HERE-T IO-P1 !
+  X3 XZR CMP-X,
+  ALIGN4-T HERE-T IO-P2 !
+  0 EQ B.COND,
+  X4 X1 LDRB-X,
+  X4 X2 STRB-X,
+  1 X1 X1 ADD-IMM,
+  1 X2 X2 ADD-IMM,
+  1 X3 X3 SUB-IMM,
+  IO-P1 @ HERE-T - 4 / B-IMM,
+  HERE-T IO-P2 @ PATCH-BCOND
+  ALIGN4-T HERE-T IO-P1 !
+  0 B-IMM,
+  HERE-T IO-P4 @ PATCH-BCOND
+  X3 X1 X1 ADD-X-X,
+  X3 X2 X2 ADD-X-X,
+  ALIGN4-T HERE-T IO-P3 !
+  X3 XZR CMP-X,
+  ALIGN4-T HERE-T IO-P2 !
+  0 EQ B.COND,
+  1 X1 X1 SUB-IMM,
+  1 X2 X2 SUB-IMM,
+  X4 X1 LDRB-X,
+  X4 X2 STRB-X,
+  1 X3 X3 SUB-IMM,
+  IO-P3 @ HERE-T - 4 / B-IMM,
+  HERE-T IO-P2 @ PATCH-BCOND
+  HERE-T IO-P1 @ PATCH-B
+  ;
+
+: BODY-DPLUS  ( -- )                  \ ( d1 d2 -- d1+d2 )
+  BTI,
+  X1 X19 8 LDR-POST,                  \ lo2
+  X2 X19 8 LDR-POST,                  \ hi1
+  X3 X19 LDR-X0,                      \ lo1
+  X1 X3 X3 ADDS-X,                    \ lo'
+  X3 X19 STR-X0,
+  X0 X2 X0 ADC-X,                     \ hi'
+  ;
+
+: BODY-DMINUS  ( -- )                 \ ( d1 d2 -- d1-d2 )
+  BTI,
+  X1 X19 8 LDR-POST,                  \ lo2
+  X2 X19 8 LDR-POST,                  \ hi1
+  X3 X19 LDR-X0,                      \ lo1
+  X1 X3 X3 SUBS-X,
+  X3 X19 STR-X0,
+  X0 X2 X0 SBC-X,
+  ;
+
+: BODY-STOD  ( -- )                   \ S>D  ( n -- d )
+  BTI,
+  X0 X19 -8 STR-PRE,
+  XZR X0 CMP-X,
+  MI X0 CSET-X,
+  X0 XZR X0 SUB-X-X,                  \ 0 or -1
+  ;
+
+: BODY-DTOS  ( -- )                   \ D>S  ( d -- n )
+  BTI,
+  X0 X19 8 LDR-POST,
+  ;
+
+: BODY-UMSTAR  ( -- )                 \ UM*  ( u1 u2 -- ud ) TOS=hi
+  BTI,
+  X1 X19 LDR-X0,                      \ u1
+  19 HOST-CALL,                       \ X0=lo
+  X0 X19 STR-X0,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  24 HOST-CALL,                       \ hi
+  ;
+
+: BODY-MSTAR  ( -- )                  \ M*  ( n1 n2 -- d ) TOS=hi
+  BTI,
+  X1 X19 LDR-X0,
+  20 HOST-CALL,
+  X0 X19 STR-X0,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  24 HOST-CALL,
+  ;
+
+: (BODY-DIV3)  ( slot -- )            \ ( d n -- rem quot )  compile-time slot
+  X0 X3 MOV-X-X,                      \ den
+  X1 X19 8 LDR-POST,                  \ hi
+  X2 X19 8 LDR-POST,                  \ lo
+  X3 X0 MOV-X-X,
+  HOST-CALL,
+  X0 X19 -8 STR-PRE,                  \ rem
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  24 HOST-CALL,                       \ quot
+  ;
+
+: BODY-UMMOD  ( -- )  BTI,  21 (BODY-DIV3)  ;
+: BODY-SMREM  ( -- )  BTI,  22 (BODY-DIV3)  ;
+: BODY-FMMOD  ( -- )  BTI,  23 (BODY-DIV3)  ;
+
 : BODY-SPACES  ( -- )                 \ ( n -- ) via host emit
   BTI,
   ALIGN4-T HERE-T IO-P1 !
@@ -677,11 +1276,64 @@ VARIABLE SN-P3
 ' BODY-OR      LIB-PRIM-XT OR#
 ' BODY-INVERT  LIB-PRIM-XT INVERT#
 ' BODY-2STAR   LIB-PRIM-XT 2STAR#
+' BODY-LSHIFT  LIB-PRIM-XT LSHIFT#
+' BODY-RSHIFT  LIB-PRIM-XT RSHIFT#
+' BODY-UNLOOP  LIB-PRIM-XT UNLOOP#
 ' BODY-2SLASH  LIB-PRIM-XT 2SLASH#
 ' BODY-NEGATE  LIB-PRIM-XT NEGATE#
 ' BODY-CELLS   LIB-PRIM-XT CELLS#
 ' BODY-2FETCH  LIB-PRIM-XT 2FETCH#
+' BODY-2STORE    LIB-PRIM-XT 2STORE#
+' BODY-CELLMINUS LIB-PRIM-XT CELLMINUS#
+' BODY-COUNT     LIB-PRIM-XT COUNT#
+' BODY-FILL      LIB-PRIM-XT FILL#
+' BODY-ERASE     LIB-PRIM-XT ERASE#
+' BODY-CFETCH    LIB-PRIM-XT CFETCH#
+' BODY-CSTORE    LIB-PRIM-XT CSTORE#
+' BODY-PLUSSTORE LIB-PRIM-XT PLUSSTORE#
+' BODY-2DROP     LIB-PRIM-XT 2DROP#
+' BODY-XOR       LIB-PRIM-XT XOR#
+' BODY-ZLT       LIB-PRIM-XT ZLT#
+' BODY-ABS       LIB-PRIM-XT ABS#
+' BODY-MIN       LIB-PRIM-XT MIN#
+' BODY-MAX       LIB-PRIM-XT MAX#
+' BODY-PICK      LIB-PRIM-XT PICK#
+' BODY-2SWAP     LIB-PRIM-XT 2SWAP#
+' BODY-2OVER     LIB-PRIM-XT 2OVER#
+' BODY-TUCK      LIB-PRIM-XT TUCK#
+' BODY-QDUP      LIB-PRIM-XT QDUP#
+' BODY-ROLL      LIB-PRIM-XT ROLL#
+' BODY-DEPTH     LIB-PRIM-XT DEPTH#
+' BODY-ZGT       LIB-PRIM-XT ZGT#
+' BODY-ZNE       LIB-PRIM-XT ZNE#
+' BODY-LE        LIB-PRIM-XT LE#
+' BODY-GE        LIB-PRIM-XT GE#
+' BODY-ULT       LIB-PRIM-XT ULT#
+' BODY-UGT       LIB-PRIM-XT UGT#
+' BODY-WITHIN    LIB-PRIM-XT WITHIN#
+' BODY-EXEC      LIB-PRIM-XT EXEC#
+' BODY-CATCH     LIB-PRIM-XT CATCH#
+' BODY-THROW     LIB-PRIM-XT THROW#
+' BODY-ALLOC     LIB-PRIM-XT ALLOC#
+' BODY-FREE      LIB-PRIM-XT FREE#
+' BODY-RESIZE    LIB-PRIM-XT RESIZE#
+' BODY-LTSHARP   LIB-PRIM-XT LTSHARP#
+' BODY-HOLD      LIB-PRIM-XT HOLD#
+' BODY-SIGN      LIB-PRIM-XT SIGN#
+' BODY-SHARP     LIB-PRIM-XT SHARP#
+' BODY-SHARPGT   LIB-PRIM-XT SHARPGT#
 ' BODY-CMOVE   LIB-PRIM-XT CMOVE#
+' BODY-CMOVEUP LIB-PRIM-XT CMOVEUP#
+' BODY-MOVE    LIB-PRIM-XT MOVE#
+' BODY-DPLUS   LIB-PRIM-XT DPLUS#
+' BODY-DMINUS  LIB-PRIM-XT DMINUS#
+' BODY-STOD    LIB-PRIM-XT STOD#
+' BODY-DTOS    LIB-PRIM-XT DTOS#
+' BODY-UMSTAR  LIB-PRIM-XT UMSTAR#
+' BODY-MSTAR   LIB-PRIM-XT MSTAR#
+' BODY-UMMOD   LIB-PRIM-XT UMMOD#
+' BODY-SMREM   LIB-PRIM-XT SMREM#
+' BODY-FMMOD   LIB-PRIM-XT FMMOD#
 ' BODY-SPACES  LIB-PRIM-XT SPACES#
 
 \ MOD# ( n1 n2 -- n3 )  rem = n1 - (n1/n2)*n2  (UDIV; ok for TETRA non-neg)

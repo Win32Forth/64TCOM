@@ -150,6 +150,18 @@ VARIABLE A64-A
   A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
   ;
 
+: ADC-X,  ( xm xn xd -- )              \ Xd = Xn + Xm + C
+  A64-D ! A64-N ! A64-M !
+  $9A000000 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
+: SBC-X,  ( xm xn xd -- )              \ Xd = Xn - Xm - ~C
+  A64-D ! A64-N ! A64-M !
+  $DA000000 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
 : SUBS-X,  ( xm xn xd -- )
   A64-D ! A64-N ! A64-M !
   $EB000000 A64-M @ (REG) 16 LSHIFT OR
@@ -187,6 +199,30 @@ $9A9F17E0 CONSTANT (A64-CSET-X0-EQ)   \ CSET X0, EQ
 : SUB-IMM,  ( imm12 xn xd -- )
   A64-D ! A64-N ! A64-I !
   $D1000000 A64-I @ $FFF AND 10 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
+\ 64-bit LSR Xd,Xn,#uimm (UBFM alias)
+: LSR-IMM,  ( uimm xn xd -- )
+  A64-D ! A64-N ! A64-I !
+  A64-I @ 0= IF  A64-N @ A64-D @ MOV-X-X, EXIT  THEN
+  A64-I @ 63 U> IF S" LSR-IMM 0..63" TCOM-ABORT THEN
+  $D3400000
+  A64-I @ $3F AND 16 LSHIFT OR        \ immr = shift
+  63 10 LSHIFT OR                     \ imms = 63
+  A64-N @ (REG) 5 LSHIFT OR
+  A64-D @ (REG) OR W,
+  ;
+
+\ LSL/LSR Xd, Xn, Xm  (shift count in Xm, bits 5:0)
+: LSL-X,  ( xm xn xd -- )
+  A64-D ! A64-N ! A64-M !
+  $9AC02000 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: LSR-X,  ( xm xn xd -- )
+  A64-D ! A64-N ! A64-M !
+  $9AC02400 A64-M @ (REG) 16 LSHIFT OR
   A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
   ;
 
@@ -435,7 +471,18 @@ $A8C17FFE CONSTANT (A64-LDP-X30-XZR-SP)   \ LDP X30, XZR, [SP], #16
 32 CONSTANT #TCS
 CREATE TCS  #TCS CELLS ALLOT
 VARIABLE TCSP
-: TCS-CLEAR  ( -- )  0 TCSP ! ;
+16 CONSTANT #TLEAVE
+CREATE TLEAVE-SITE  #TLEAVE CELLS ALLOT
+8 CONSTANT #TLEAVE-NEST
+CREATE TLEAVE-MARK  #TLEAVE-NEST CELLS ALLOT
+VARIABLE TLEAVE-N
+VARIABLE TLEAVE-SP
+0 TLEAVE-N !
+0 TLEAVE-SP !
+
+: TLEAVE-RESET  ( -- )  0 TLEAVE-N !  0 TLEAVE-SP ! ;
+
+: TCS-CLEAR  ( -- )  0 TCSP !  TLEAVE-RESET ;
 : TCS-PUSH  ( x -- )
   TCSP @ #TCS U>= IF S" TIF control stack overflow" TCOM-ABORT THEN
   TCSP @ CELLS TCS + !  1 TCSP +!
@@ -617,8 +664,15 @@ CREATE LL-FWD  #LLAB CELLS ALLOT
 \ ----- DO / LOOP / +LOOP / I / J (RP = X20; bias = 1<<63) -----
 $444F0001 CONSTANT DO-SYS                 \ TCS marker
 
-: TDO  ( -- )
-  \ ( limit index -- )  X0=index, [X19]=limit
+: TDO-NEST  ( -- )
+  TLEAVE-SP @ #TLEAVE-NEST U>= IF
+    S" DO nest too deep" TCOM-ABORT
+  THEN
+  TLEAVE-N @ TLEAVE-SP @ CELLS TLEAVE-MARK + !
+  1 TLEAVE-SP +!
+  ;
+
+: TDO-FRAME  ( -- )
   X0 X1 MOV-X-X,                         \ X1 = index
   X2 X19 8 LDR-POST,                     \ X2 = limit; drop
   X0 X19 8 LDR-POST,                     \ new TOS
@@ -631,6 +685,56 @@ $444F0001 CONSTANT DO-SYS                 \ TCS marker
   DO-SYS TCS-PUSH
   ;
 
+: TDO  ( -- )
+  TDO-NEST
+  TDO-FRAME
+  ;
+
+VARIABLE TQDO-NE
+
+: (TLEAVE-B)  ( -- )
+  TLEAVE-N @ #TLEAVE U>= IF S" too many LEAVE" TCOM-ABORT THEN
+  ALIGN4-T HERE-T
+  0 B-IMM,
+  TLEAVE-N @ CELLS TLEAVE-SITE + !
+  1 TLEAVE-N +!
+  ;
+
+: TQDO  ( -- )
+  \ ?DO: if limit==index drop both and skip to after LOOP (no RP frame)
+  TDO-NEST
+  X1 X19 LDR-X0,                         \ X1=limit
+  X0 X1 X2 SUB-X-X,                      \ X2 = limit - index
+  ALIGN4-T HERE-T TQDO-NE !              \ CBZ site
+  X2 0 CBZ-X,
+  ALIGN4-T HERE-T  0 B-IMM,              \ B to TDO-FRAME
+  >R
+  HERE-T TQDO-NE @ PATCH-CBZ             \ equal → drop/skip
+  X0 X19 8 LDR-POST,
+  X0 X19 8 LDR-POST,
+  TLEAVE-SP @ 0= IF S" ?DO without nest" TCOM-ABORT THEN
+  (TLEAVE-B)
+  R> HERE-T SWAP PATCH-B                 \ not equal → frame
+  TDO-FRAME
+  ;
+
+: TLEAVE-PATCH  ( -- )
+  TLEAVE-SP @ 0= IF  EXIT  THEN
+  -1 TLEAVE-SP +!
+  TLEAVE-SP @ CELLS TLEAVE-MARK + @
+  BEGIN  DUP TLEAVE-N @ < WHILE
+    HERE-T OVER CELLS TLEAVE-SITE + @ PATCH-B
+    1+
+  REPEAT
+  TLEAVE-N !
+  ;
+
+: TLEAVE  ( -- )
+  TLEAVE-SP @ 0= IF S" LEAVE without DO" TCOM-ABORT THEN
+  16 X20 X20 ADD-IMM,                    \ UNLOOP
+  (TLEAVE-B)
+  ;
+
 : TLOOP  ( -- )
   TCS-POP DO-SYS <> IF S" LOOP without DO" TCOM-ABORT THEN
   TCS-POP >R                             \ dest
@@ -641,6 +745,7 @@ $444F0001 CONSTANT DO-SYS                 \ TCS marker
   ALIGN4-T
   R@ HERE-T - 4 / VC B.COND,             \ continue if no overflow
   16 X20 X20 ADD-IMM,                    \ UNLOOP
+  TLEAVE-PATCH
   R> DROP
   ;
 
@@ -655,6 +760,7 @@ $444F0001 CONSTANT DO-SYS                 \ TCS marker
   ALIGN4-T
   R@ HERE-T - 4 / VC B.COND,
   16 X20 X20 ADD-IMM,
+  TLEAVE-PATCH
   R> DROP
   ;
 

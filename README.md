@@ -6,14 +6,20 @@ It is **not** an F-PC 16-bit translation layer. The compiler director is being r
 
 **Public domain.** 64TCOM, like classic **TCOM** and **F-PC** (Tom Zimmer and contributors), is dedicated to the public domain.
 
-**Current pack:** ARM64 **Version 0.5** (see [`STATUS.md`](STATUS.md)).  
+**Current pack:** ARM64 **Version 0.6** (see [`STATUS.md`](STATUS.md)).  
 **Host:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.4+** recommended (GRAPHICS + tetra `\ANS`).
 
-### Version 0.5 (ARM64) — highlight
+### Version 0.6 (ARM64) — highlight
+
+- **TSRC dialect waves:** stack/compare, pictured numeric, memory/double, signed `/`, `CATCH`/`THROW`, heap, `LSHIFT`/`RSHIFT`, `UNLOOP`/`?DO`
+- Samples: `wave` `stackcmp` `numeric` `memdbl` `arith` `xheap` `shiftloop` (sources only)
+- Host consume + `STACK-HUD` stack-neutral; tetra row-clear on both hosts; `<>` mapped
+- Builds on **0.5:** tetra dual-load, real `TONE`, DIRECTIVE line-skip
+
+### Version 0.5 (ARM64)
 
 - **tetra dual-load:** same `tetra/tetra.fth` → Finder `.app` via `TCOM` *and* interactive 64Forth GRAPHICS via `\ANS`
 - Real **`TONE`** (freq=Hz, dur=tenths of a second) in GUI shell; DIRECTIVE line-skip fixed
-- Builds on **0.4:** TETRA `.app`, AppKit 80×25 grid, growable TSRC, `.fth` again
 
 ```forth
 \ Working folder: 64TCOMARM64/

@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-18 — **Version 0.5**: TSRC-TOKEN/VALUE fix (gravity); nestable BEGIN; ANS CASE; MH-EMIT-FILE
+**Last updated:** 2026-08-18 — **Version 0.6**: TSRC dialect waves (stack/compare/numeric/memory/arith/exceptions/heap/shift/loops); remaining TSRC gaps listed below
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
 
@@ -20,8 +20,8 @@
 | **Layer 4** | Own window(s); Finder `.app` | **In progress** — 80×25 text grid + `TETRA` `.app` |
 
 ```text
-  Layer 4  Text grid + TETRA.app (playable polish + dual-load next)   ← you are here
-  Layer 3  More dialect / services (env·sockets not planned yet)
+  Layer 4  Text grid + TETRA.app (playable on TCOM + 64Forth)   ← you are here
+  Layer 3  More dialect / services (defining words + search order still open)
   Layer 2  CLI: print + args + I/O DONE
   Layer 1  Compile a Forth source file into a complete image     DONE
   Layer 0  Codegen foundation (calls, control, lib, sim/native/Mach-O)   DONE
@@ -60,7 +60,7 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
 ## YOU ARE HERE
 
 ```text
-  Pack version     0.5    — 64TCOM ARM64 (TVERSION in OPTARM64)
+  Pack version     0.6    — 64TCOM ARM64 (TVERSION in OPTARM64)
   Phase 0–2        DONE
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
@@ -94,7 +94,20 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
                            `TCOM` → `.app`; `TCOM-CLI` → Terminal; icon from `name.png`
                            demos: `window/win.fth`, `tetra/tetra.fth` → `tetra.app`
   Bugfix         DONE   — SWAP/OVER/ROT/2DUP used LDR-X0 with a stray offset (X0↔X19)
-  Product path     OPEN   — TETRA playability polish; more dialect on demand
+  Dialect wave   DONE   — `C@` `C!` `+!` `2DROP` `XOR` `0<` `ABS` `MIN` `MAX`
+                           `PICK` `LEAVE` `EXECUTE` `[']`; `samples/wave.fth`
+  Stack/compare  DONE   — `2SWAP` `2OVER` `TUCK` `?DUP` `ROLL` `DEPTH`
+                           `0>` `0<>` `<=` `>=` `U<` `U>` `WITHIN`; `samples/stackcmp.fth`
+  Numeric text   DONE   — `<#` `#` `#S` `#>` `HOLD` `SIGN` `U.` `.` `.R` `U.R`
+                           `HEX` `DECIMAL` `BASE`; `samples/numeric.fth`
+  Memory/double  DONE   — `2!` `CELL-` `FILL` `ERASE` `MOVE` `CMOVE>` `COUNT`
+                           `D+` `D-` `S>D` `D>S`; `samples/memdbl.fth`
+  Arithmetic     DONE   — signed `/` `MOD` `/MOD` `*/` `*/MOD` `M*` `UM*`
+                           `UM/MOD` `SM/REM` `FM/MOD`; `samples/arith.fth`
+  Except/heap    DONE   — `CATCH` `THROW` `ALLOCATE` `FREE` `RESIZE`;
+                           `samples/xheap.fth`
+  Shift/loops    DONE   — `LSHIFT` `RSHIFT` `UNLOOP` `?DO`; `samples/shiftloop.fth`
+  Product path     OPEN   — more dialect on demand (table below)
 ```
 **Pack version history**
 
@@ -105,9 +118,38 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
 | **0.3** | Layer 2 I/O; Layer 4 text grid + window demo; TCOM=GUI / TCOM-CLI=Terminal |
 | **0.4** | TETRA playable `.app`; real AppKit 80×25 grid; `\ANS`/`\TCOM` DIRECTIVE; growable TSRC; `.fth` again; DSP/HOST-CALL fixes; `>R`/`R>`/`R@` |
 | **0.5** | tetra `\ANS` dual-load; real `TONE` (Hz/tenths); DIRECTIVE skips current line only; host 64Forth 1.1.4 |
+| **0.6** | Dialect waves: stack/compare, pictured `.`, memory/double, signed `/`, CATCH/THROW, ALLOCATE, LSHIFT/RSHIFT, UNLOOP/?DO; samples `wave`…`shiftloop`; host consume + STACK-HUD; tetra rows on both hosts |
 
 **Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.4** (GRAPHICS + tetra `\ANS` + real TONE).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  
+
+### Target dialect — still missing (Layer 3, on demand)
+
+Restricted TSRC, not ANS CORE. Names not in this table (and not already mapped) compile as `?`.  
+**Shipped** (`samples/wave.fth`, `stackcmp.fth`, `numeric.fth`, `memdbl.fth`, `arith.fth`, `xheap.fth`, `shiftloop.fth`):  
+`2DROP` `2SWAP` `2OVER` `TUCK` `?DUP` `PICK` `ROLL` `DEPTH`  
+`0<` `0>` `0<>` `<=` `>=` `U<` `U>` `WITHIN`  
+`XOR` `ABS` `MIN` `MAX` `C@` `C!` `+!` `LEAVE` `EXECUTE` `[']`  
+`<#` `HOLD` `SIGN` `#` `#>` `.`  `2!` `CELL-` `FILL` `ERASE` `COUNT` `CMOVE>` `MOVE`  
+`D+` `D-` `S>D` `D>S`  signed `/` `MOD` `/MOD` `*/` `*/MOD`  
+`CATCH` `THROW` `ALLOCATE` `FREE` `RESIZE`  `LSHIFT` `RSHIFT` `UNLOOP` `?DO`.
+
+| Class | Still missing |
+|-------|----------------|
+| Stack | *(none from this list)* |
+| Compare | *(none from this list)* |
+| Logic / shift | *(done — `samples/shiftloop.fth`)* |
+| Arithmetic | *(done — signed `/` `MOD` `/MOD` `*/` `*/MOD` via `SM/REM`; `samples/arith.fth`)* |
+| Memory | *(done — `samples/memdbl.fth`)* |
+| Loop extras | *(done — `UNLOOP` `?DO`; `samples/shiftloop.fth`)* |
+| Defining | `CONSTANT` `DOES>` `:NONAME` `RECURSE` `IMMEDIATE` `[` `]` `LITERAL` `POSTPONE` |
+| Numeric text | *(done — `.` is pictured + `SPACE`; `samples/numeric.fth`, `samples/memdbl.fth`)* |
+| Double | *(done — `D+` `D-` `S>D` `D>S`; `2*`/`2/` remain single-cell)* |
+| Exceptions | *(done — `CATCH` `THROW`; uncaught `THROW` exits; `samples/xheap.fth`)* |
+| Heap | *(done — `ALLOCATE` `FREE` `RESIZE` via malloc; `samples/xheap.fth`)* |
+| Search order | `VOCABULARY` `ALSO` `ONLY` `DEFINITIONS` `'` `FIND` |
+
+`/` `MOD` `/MOD` `*/` `*/MOD` are **signed toward zero** (`SM/REM`). `DIV#` remains unsigned `UDIV`. `LIT#` is still a no-op stub.
 
 ---
 
@@ -465,6 +507,7 @@ Output locals are returned automatically — do not push them before `;` :
 - [x] **0.3** Public domain + GitHub Win32Forth/64TCOM
 - [x] **0.4** TETRA `.app` + text grid; `\ANS`/`\TCOM`; growable TSRC; `.fth` again
 - [x] **0.5** tetra dual-load + real TONE; DIRECTIVE line-skip fix
+- [x] **0.6** TSRC dialect waves + samples; STACK-HUD / host consume; signed `/`; CATCH/THROW; heap
 - [x] **1.1** `64HOST.fth` — HOST/COMPILER/TARGET, target mem, DEFER hooks, `U>=`
 - [x] **1.1b** Quiet `TCOM-ANEW`; GEN load chain; GEN tags; cookies
 - [x] **1.2** Symbol table + `64DIR` director (name → type/addr/uses)
@@ -889,30 +932,23 @@ Native and Mach-O default to true BLR (fixup `.quad` → base+taddr).
 | `BRANCH#` / `ZBRANCH#` | Done (relocatable) |
 | `TIF`/`TELSE`/`TTHEN` + loops | Done (`IF-DEMO`) |
 | Dialect `IF`…`REPEAT` via `TSRC` | Done (maps to pack emitters) |
-| Later: `DO`/`LOOP` | Open when a source needs it |
+| `DO`/`LOOP`/`+LOOP`/`LEAVE` | **Done** |
 
 #### 3. Memory model for real data — **VARIABLE done; frames open**
 
 | Need | Status |
 |------|--------|
 | `@` `!` + `VARIABLE` | **Done** — daddr, `COMP-DATA-ADDR`, Mach-O `tcom_data[]` |
-| `C@` `C!` `2@` `2!` | Open when sources need them |
+| `C@` `C!` `2@` `+!` | **Done** |
+| `2!` | Open |
 | Locals / frame | Open — `STP`/`LDP` when non-leaf needs it |
 
 #### 4. Widen the library (compiler-visible), not the full ISA
 
 Real generation uses **cookies / LIB prims**, not every encoding.
 
-**First wave of useful prims** (after call + control work):
-
-| Class | Examples |
-|-------|----------|
-| Stack | `ROT` `NIP` `TUCK` `2DUP` `2DROP` `?DUP` |
-| Logic/compare | `AND` `OR` `XOR` `0=` `0<` `=` `<` (flags → TOS) |
-| Multiply/div (as needed) | `MUL` then later div |
-| Memory | `C@` `C!` `+!` |
-| Control | `EXIT` already; real branch prims |
-| Call | `EXECUTE` / `EXEC#` if not solid |
+**First wave of useful prims** — **done** (`samples/wave.fth`).  
+See **Target dialect — still missing** above for the rest.
 
 Each prim is a few emitters you mostly already have (`AND-X,`, `SUBS`, `CBNZ`, …).
 

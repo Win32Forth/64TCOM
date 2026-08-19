@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <stdlib.h>
 
 enum { TCOM_COLS = 80, TCOM_ROWS = 25, TCOM_KEYCAP = 64 };
 
@@ -26,6 +27,7 @@ static NSView *tcom_grid_view = nil;
 static CGFloat tcom_cell_w = 9.0, tcom_cell_h = 16.0;
 static struct timeval tcom_last_pump;
 uint64_t tcom_dsp0 = 0;
+uint8_t *tcom_data0 = 0;
 static uint64_t tcom_dsp_min = ~(uint64_t)0;
 static int tcom_dsp_reports = 0;
 
@@ -509,6 +511,131 @@ static int64_t tcom_host_stackhud(int64_t line_y, int64_t dsp_in) {
   return 0;
 }
 
+/* ( unused, DSP ) — memory cells below TOS; LIT always spills, so this is DEPTH */
+static int64_t tcom_host_depth(int64_t a, int64_t dsp_in) {
+  (void)a;
+  if (!tcom_dsp0 || !dsp_in || (uint64_t)dsp_in > tcom_dsp0) return 0;
+  return (int64_t)((tcom_dsp0 - (uint64_t)dsp_in) / 8);
+}
+
+static int64_t tcom_host_data0(int64_t a, int64_t b) {
+  (void)a; (void)b;
+  return (int64_t)(uintptr_t)tcom_data0;
+}
+
+static uint64_t tcom_sharp_hi;
+
+static void tcom_pic_hold(uint8_t ch) {
+  uint64_t hld;
+  if (!tcom_data0) return;
+  memcpy(&hld, tcom_data0 + 4888, 8);
+  hld--;
+  memcpy(tcom_data0 + 4888, &hld, 8);
+  *(uint8_t *)(uintptr_t)hld = ch;
+}
+
+/* ( lo, hi ) → qlo; HOLDs one digit; qhi via slot 18 */
+static int64_t tcom_host_sharp(int64_t lo, int64_t hi) {
+  uint64_t base = 10, r;
+  unsigned __int128 n, q;
+  if (tcom_data0)
+    memcpy(&base, tcom_data0 + 4880, 8);
+  if (base < 2 || base > 36) base = 10;
+  n = ((unsigned __int128)(uint64_t)hi << 64) | (uint64_t)lo;
+  q = n / base;
+  r = (uint64_t)(n % base);
+  tcom_sharp_hi = (uint64_t)(q >> 64);
+  tcom_pic_hold((uint8_t)((r < 10) ? ('0' + r) : ('A' + (r - 10))));
+  return (int64_t)(uint64_t)q;
+}
+
+static int64_t tcom_host_sharphi(int64_t a, int64_t b) {
+  (void)a; (void)b;
+  return (int64_t)tcom_sharp_hi;
+}
+
+static uint64_t tcom_aux;
+
+static int64_t tcom_host_aux(int64_t a, int64_t b) {
+  (void)a; (void)b;
+  return (int64_t)tcom_aux;
+}
+
+static int64_t tcom_host_alloc(int64_t u, int64_t b) {
+  void *p;
+  (void)b;
+  if (u < 0) { tcom_aux = -1; return 0; }
+  p = malloc((size_t)u);
+  tcom_aux = p ? 0 : -1;
+  return (int64_t)(uintptr_t)p;
+}
+
+static int64_t tcom_host_free(int64_t addr, int64_t b) {
+  (void)b;
+  if (addr) free((void *)(uintptr_t)addr);
+  tcom_aux = 0;
+  return 0;
+}
+
+static int64_t tcom_host_resize(int64_t u, int64_t addr) {
+  void *p2;
+  if (u < 0) { tcom_aux = -1; return addr; }
+  p2 = realloc((void *)(uintptr_t)addr, (size_t)u);
+  if (!p2) { tcom_aux = -1; return addr; }
+  tcom_aux = 0;
+  return (int64_t)(uintptr_t)p2;
+}
+
+static int64_t tcom_host_umstar(int64_t u2, int64_t u1) {
+  unsigned __int128 p = (unsigned __int128)(uint64_t)u1 * (uint64_t)u2;
+  tcom_aux = (uint64_t)(p >> 64);
+  return (int64_t)(uint64_t)p;
+}
+
+static int64_t tcom_host_mstar(int64_t n2, int64_t n1) {
+  __int128 p = (__int128)n1 * n2;
+  tcom_aux = (uint64_t)((__int128)p >> 64);
+  return (int64_t)(uint64_t)p;
+}
+
+/* X0=den X1=hi X2=lo (third arg; Forth sets X2) */
+static int64_t tcom_host_ummod(int64_t den, int64_t hi, int64_t lo) {
+  unsigned __int128 n, d;
+  if (den == 0) { tcom_aux = 0; return 0; }
+  d = (uint64_t)den;
+  n = ((unsigned __int128)(uint64_t)hi << 64) | (uint64_t)lo;
+  tcom_aux = (uint64_t)(n / d);
+  return (int64_t)(uint64_t)(n % d);
+}
+
+static int64_t tcom_host_smrem(int64_t den, int64_t hi, int64_t lo) {
+  __int128 n, d, q, r;
+  if (den == 0) { tcom_aux = 0; return 0; }
+  n = hi;
+  n = (n << 64) | (__int128)(uint64_t)lo;
+  d = den;
+  q = n / d;
+  r = n % d;
+  tcom_aux = (uint64_t)q;
+  return (int64_t)r;
+}
+
+static int64_t tcom_host_fmmod(int64_t den, int64_t hi, int64_t lo) {
+  __int128 n, d, q, r;
+  if (den == 0) { tcom_aux = 0; return 0; }
+  n = hi;
+  n = (n << 64) | (__int128)(uint64_t)lo;
+  d = den;
+  q = n / d;
+  r = n % d;
+  if (r != 0 && ((n < 0) != (d < 0))) {
+    q -= 1;
+    r += d;
+  }
+  tcom_aux = (uint64_t)q;
+  return (int64_t)r;
+}
+
 /* Slot order must match LIBARM64 HOST-CALL numbers */
 static tcom_host_fn host_fn[] = {
   tcom_host_window,          /* 0 */
@@ -526,4 +653,17 @@ static tcom_host_fn host_fn[] = {
   tcom_host_tone,            /* 12 */
   tcom_host_dot,             /* 13 */
   tcom_host_stackhud,        /* 14 */
+  tcom_host_depth,           /* 15 */
+  tcom_host_data0,           /* 16 */
+  tcom_host_sharp,           /* 17 */
+  tcom_host_sharphi,         /* 18 */
+  tcom_host_umstar,          /* 19 */
+  tcom_host_mstar,           /* 20 */
+  (tcom_host_fn)tcom_host_ummod,  /* 21  X2=lo */
+  (tcom_host_fn)tcom_host_smrem,  /* 22  X2=lo */
+  (tcom_host_fn)tcom_host_fmmod,  /* 23  X2=lo */
+  tcom_host_aux,             /* 24 */
+  tcom_host_alloc,           /* 25 */
+  tcom_host_free,            /* 26 */
+  tcom_host_resize,          /* 27 */
 };
