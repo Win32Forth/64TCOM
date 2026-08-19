@@ -127,6 +127,20 @@ What each sample does
     VOCABULARY ALSO ONLY DEFINITIONS ' FIND
     TCOM-CLI samples/search.fth  →  exit 0
 
+  files.fth
+    ANS File-Access (CREATE-FILE OPEN-FILE READ-LINE WRITE-LINE
+    FILE-SIZE FILE-POSITION REPOSITION-FILE RESIZE-FILE
+    FLUSH-FILE FILE-STATUS RENAME-FILE DELETE-FILE R/O W/O R/W BIN)
+    TCOM-CLI samples/files.fth  →  exit 0
+
+  extras.fth
+    D< D= DNEGATE DABS D2* M+
+    -TRAILING /STRING COMPARE SEARCH BLANK SLITERAL
+    PARSE WORD SOURCE SOURCE! >IN
+    PREVIOUS WORDLIST GET-ORDER SET-ORDER
+    ABORT"
+    TCOM-CLI samples/extras.fth  →  exit 0
+
   CLI / dialect words (after pack load):
     ARGCOUNT ARG1 ARG2 ARG#
     0=  =  <  >   + - *   ROT NIP 2DUP
@@ -134,7 +148,13 @@ What each sample does
     CHAR c  [CHAR] c              (ASCII code of next word's first char)
     ETYPE EEMIT ECR                 (stderr)
     KEY ACCEPT LINE-BUF             (stdin)
-    OPEN-R OPEN-W CLOSE READ WRITE  (files; Darwin errno → fail/-1)
+    OPEN-R OPEN-W CLOSE READ WRITE  (legacy TCOM; Darwin errno → fail/-1)
+    R/O W/O R/W BIN
+    OPEN-FILE CREATE-FILE CLOSE-FILE
+    READ-FILE WRITE-FILE READ-LINE WRITE-LINE
+    FILE-SIZE FILE-POSITION REPOSITION-FILE RESIZE-FILE
+    FLUSH-FILE FILE-STATUS DELETE-FILE RENAME-FILE
+    INCLUDED path  (top-level synonym for FLOAD)
     FLOAD path.fth  |  INCLUDE path.fth   (top-level; relative to this file)
     Comments:  \ to EOL   ( … )   \\ … {   or   } … {  (multi-line)
 

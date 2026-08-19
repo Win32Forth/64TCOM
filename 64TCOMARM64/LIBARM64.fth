@@ -725,6 +725,35 @@ VARIABLE SN-P3
   HERE-T IO-P2 @ PATCH-BCOND
   ;
 
+: BODY-NTRAIL  ( -- )                 \ -TRAILING ( c-addr u -- c-addr u' )
+  BTI,
+  X1 X19 LDR-X0,                      \ c-addr; TOS=u
+  ALIGN4-T HERE-T IO-P1 !
+  X0 XZR CMP-X,
+  ALIGN4-T HERE-T IO-P2 !
+  0 EQ B.COND,
+  X0 X1 X2 ADD-X-X,
+  1 X2 X2 SUB-IMM,
+  X3 X2 LDRB-X,
+  BL X4 MOV-X-IMM64,
+  X4 X3 CMP-X,
+  ALIGN4-T HERE-T IO-P3 !
+  0 NE B.COND,
+  1 X0 X0 SUB-IMM,
+  IO-P1 @ HERE-T - 4 / B-IMM,
+  HERE-T IO-P3 @ PATCH-BCOND
+  HERE-T IO-P2 @ PATCH-BCOND
+  ;
+
+: BODY-SLASHSTR  ( -- )               \ /STRING ( c-addr u n -- c-addr' u' )
+  BTI,
+  X1 X19 8 LDR-POST,                  \ u
+  X2 X19 8 LDR-POST,                  \ c-addr
+  X0 X2 X2 ADD-X-X,
+  X0 X1 X0 SUB-X-X,
+  X2 X19 -8 STR-PRE,
+  ;
+
 : BODY-CFETCH  ( -- )                 \ ( addr -- char )
   BTI,
   X0 X0 LDRB-X,
@@ -1111,6 +1140,218 @@ VARIABLE SN-P3
   24 HOST-CALL,                       \ TOS = 0 | 1 | -1
   ;
 
+: BODY-AUX-IOR  ( -- )                \ emit: push X0 then TOS=aux
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  24 HOST-CALL,
+  ;
+
+: BODY-OPENF  ( -- )                  \ ( c-addr u fam -- fid ior )
+  BTI,
+  X0 X2 MOV-X-X,
+  X1 X19 8 LDR-POST,
+  X0 X19 8 LDR-POST,
+  0 X3 MOV-X-IMM64,
+  29 HOST-CALL,
+  BODY-AUX-IOR
+  ;
+
+: BODY-CREATF  ( -- )                 \ ( c-addr u fam -- fid ior )
+  BTI,
+  X0 X2 MOV-X-X,
+  X1 X19 8 LDR-POST,
+  X0 X19 8 LDR-POST,
+  1 X3 MOV-X-IMM64,
+  29 HOST-CALL,
+  BODY-AUX-IOR
+  ;
+
+: BODY-READF  ( -- )                  \ ( c-addr u1 fileid -- u2 ior )
+  BTI,
+  X0 X2 MOV-X-X,
+  X1 X19 8 LDR-POST,
+  X0 X19 8 LDR-POST,
+  30 HOST-CALL,
+  BODY-AUX-IOR
+  ;
+
+: BODY-WRITEF  ( -- )                 \ ( c-addr u fileid -- ior )
+  BTI,
+  X0 X2 MOV-X-X,
+  X1 X19 8 LDR-POST,
+  X0 X19 8 LDR-POST,
+  31 HOST-CALL,
+  ;
+
+: BODY-RDLINE  ( -- )                 \ ( c-addr u1 fileid -- u2 flag ior )
+  BTI,
+  X0 X2 MOV-X-X,
+  X1 X19 8 LDR-POST,
+  X0 X19 8 LDR-POST,
+  32 HOST-CALL,
+  X0 X19 -8 STR-PRE,                  \ u2
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  33 HOST-CALL,                       \ flag
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  24 HOST-CALL,                       \ ior
+  ;
+
+: BODY-WRLINE  ( -- )                 \ ( c-addr u fileid -- ior )
+  BTI,
+  X0 X2 MOV-X-X,
+  X1 X19 8 LDR-POST,
+  X0 X19 8 LDR-POST,
+  34 HOST-CALL,
+  ;
+
+: BODY-UNLINK  ( -- )                 \ ( c-addr u -- ior )
+  BTI,
+  X0 X1 MOV-X-X,
+  X0 X19 8 LDR-POST,
+  35 HOST-CALL,
+  ;
+
+: BODY-RENAME  ( -- )                 \ ( c-addr1 u1 c-addr2 u2 -- ior )
+  BTI,
+  X0 X3 MOV-X-X,                      \ u2
+  X1 X19 8 LDR-POST,                  \ ca2
+  X1 X2 MOV-X-X,
+  X1 X19 8 LDR-POST,                  \ u1
+  X0 X19 8 LDR-POST,                  \ ca1
+  36 HOST-CALL,
+  ;
+
+: BODY-FSIZE  ( -- )                  \ ( fileid -- ud ior )
+  BTI,
+  0 X1 MOV-X-IMM64,
+  37 HOST-CALL,
+  X0 X19 -8 STR-PRE,                  \ lo
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  33 HOST-CALL,                       \ hi
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  24 HOST-CALL,
+  ;
+
+: BODY-FPOS  ( -- )                   \ ( fileid -- ud ior )
+  BTI,
+  1 X1 MOV-X-IMM64,
+  37 HOST-CALL,
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  33 HOST-CALL,
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  24 HOST-CALL,
+  ;
+
+: BODY-FLUSHF  ( -- )                 \ ( fileid -- ior )
+  BTI,
+  2 X1 MOV-X-IMM64,
+  37 HOST-CALL,
+  ;
+
+: BODY-REPOS  ( -- )                  \ ( ud fileid -- ior )
+  BTI,
+  X0 X2 MOV-X-X,                      \ fid
+  X1 X19 8 LDR-POST,                  \ hi
+  X0 X19 8 LDR-POST,                  \ lo
+  X2 X1 MOV-X-X,
+  0 X2 MOV-X-IMM64,
+  38 HOST-CALL,
+  ;
+
+: BODY-FTRUNC  ( -- )                 \ ( ud fileid -- ior )
+  BTI,
+  X0 X2 MOV-X-X,
+  X1 X19 8 LDR-POST,
+  X0 X19 8 LDR-POST,
+  X2 X1 MOV-X-X,
+  1 X2 MOV-X-IMM64,
+  38 HOST-CALL,
+  ;
+
+: BODY-FSTAT  ( -- )                  \ ( c-addr u -- x ior )
+  BTI,
+  X0 X1 MOV-X-X,
+  X0 X19 8 LDR-POST,
+  39 HOST-CALL,
+  BODY-AUX-IOR
+  ;
+
+: BODY-COMPARE  ( -- )                \ ( ca1 u1 ca2 u2 -- n )
+  BTI,
+  X0 X3 MOV-X-X,
+  X1 X19 8 LDR-POST,
+  X1 X2 MOV-X-X,
+  X1 X19 8 LDR-POST,
+  X0 X19 8 LDR-POST,
+  40 HOST-CALL,
+  ;
+
+: BODY-SEARCH  ( -- )                 \ ( ca1 u1 ca2 u2 -- ca3 u3 flag )
+  BTI,
+  X0 X3 MOV-X-X,
+  X1 X19 8 LDR-POST,
+  X1 X2 MOV-X-X,
+  X1 X19 8 LDR-POST,
+  X0 X19 8 LDR-POST,
+  41 HOST-CALL,
+  X0 X7 MOV-X-X,                      \ flag
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  24 HOST-CALL,                       \ caddr3
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  33 HOST-CALL,                       \ u3
+  X0 X19 -8 STR-PRE,
+  X7 X0 MOV-X-X,
+  ;
+
+: BODY-PARSE  ( -- )                  \ ( delim -- c-addr u )
+  BTI,
+  42 HOST-CALL,                       \ u
+  X0 X2 MOV-X-X,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  24 HOST-CALL,                       \ c-addr
+  X0 X19 -8 STR-PRE,
+  X2 X0 MOV-X-X,
+  ;
+
+: BODY-WORD  ( -- )                   \ ( delim -- c-addr )
+  BTI,
+  43 HOST-CALL,
+  ;
+
+: BODY-SRCSET  ( -- )                 \ SOURCE! ( c-addr u -- )
+  BTI,
+  X1 X19 8 LDR-POST,                  \ c-addr; X0=u
+  44 HOST-CALL,
+  X0 X19 8 LDR-POST,                  \ remaining TOS
+  ;
+
+: BODY-SOURCE  ( -- )                 \ ( -- c-addr u )
+  BTI,
+  X0 X19 -8 STR-PRE,                  \ save TOS
+  45 HOST-CALL,                       \ u
+  X0 X2 MOV-X-X,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  24 HOST-CALL,
+  X0 X19 -8 STR-PRE,
+  X2 X0 MOV-X-X,
+  ;
+
 \ CMOVE ( src dest u -- )  forward byte copy
 : BODY-CMOVE  ( -- )
   BTI,
@@ -1229,6 +1470,85 @@ VARIABLE SN-P3
   X0 X19 8 LDR-POST,
   ;
 
+: BODY-DNEG  ( -- )                   \ DNEGATE ( d -- -d )
+  BTI,
+  X1 X19 8 LDR-POST,                  \ lo
+  -1 X2 MOV-X-IMM64,
+  X2 X1 X1 EOR-X,
+  X2 X0 X0 EOR-X,
+  1 X3 MOV-X-IMM64,
+  X3 X1 X1 ADDS-X,
+  XZR X0 X0 ADC-X,
+  X1 X19 -8 STR-PRE,
+  ;
+
+: BODY-DABS  ( -- )                   \ DABS ( d -- |d| )
+  BTI,
+  XZR X0 CMP-X,
+  ALIGN4-T HERE-T IO-P1 !
+  0 MI B.COND,
+  ALIGN4-T HERE-T IO-P2 !
+  0 B-IMM,
+  HERE-T IO-P1 @ PATCH-BCOND
+  X1 X19 8 LDR-POST,
+  -1 X2 MOV-X-IMM64,
+  X2 X1 X1 EOR-X,
+  X2 X0 X0 EOR-X,
+  1 X3 MOV-X-IMM64,
+  X3 X1 X1 ADDS-X,
+  XZR X0 X0 ADC-X,
+  X1 X19 -8 STR-PRE,
+  HERE-T IO-P2 @ PATCH-B
+  ;
+
+: BODY-D2STAR  ( -- )                 \ D2* ( d -- d*2 )
+  BTI,
+  X1 X19 8 LDR-POST,
+  X1 X1 X1 ADDS-X,
+  X0 X0 X0 ADC-X,
+  X1 X19 -8 STR-PRE,
+  ;
+
+: BODY-MPLUS  ( -- )                  \ M+ ( d n -- d )
+  BTI,
+  X1 X19 8 LDR-POST,                  \ hi
+  X2 X19 8 LDR-POST,                  \ lo
+  X0 X2 X2 ADDS-X,
+  XZR X1 X0 ADC-X,
+  X2 X19 -8 STR-PRE,
+  ;
+
+: BODY-DEQ  ( -- )                    \ D= ( d1 d2 -- flag )
+  BTI,
+  X1 X19 8 LDR-POST,                  \ lo2
+  X2 X19 8 LDR-POST,                  \ hi1
+  X3 X19 8 LDR-POST,                  \ lo1
+  X1 X3 X3 EOR-X,
+  X0 X2 X2 EOR-X,
+  X2 X3 X0 ORR-X,
+  T0=,
+  ;
+
+: BODY-DLT  ( -- )                    \ D< ( d1 d2 -- flag )
+  BTI,
+  X1 X19 8 LDR-POST,                  \ lo2
+  X2 X19 8 LDR-POST,                  \ hi1
+  X3 X19 8 LDR-POST,                  \ lo1 ; X0=hi2
+  X0 X2 CMP-X,
+  ALIGN4-T HERE-T IO-P1 !
+  0 EQ B.COND,
+  X0 X2 CMP-X,
+  LT X0 CSET-X,
+  X0 XZR X0 SUB-X-X,
+  ALIGN4-T HERE-T IO-P2 !
+  0 B-IMM,
+  HERE-T IO-P1 @ PATCH-BCOND
+  X1 X3 CMP-X,
+  LO X0 CSET-X,
+  X0 XZR X0 SUB-X-X,
+  HERE-T IO-P2 @ PATCH-B
+  ;
+
 : BODY-UMSTAR  ( -- )                 \ UM*  ( u1 u2 -- ud ) TOS=hi
   BTI,
   X1 X19 LDR-X0,                      \ u1
@@ -1298,6 +1618,8 @@ VARIABLE SN-P3
 ' BODY-COUNT     LIB-PRIM-XT COUNT#
 ' BODY-FILL      LIB-PRIM-XT FILL#
 ' BODY-ERASE     LIB-PRIM-XT ERASE#
+' BODY-NTRAIL    LIB-PRIM-XT NTRAIL#
+' BODY-SLASHSTR  LIB-PRIM-XT SLSTR#
 ' BODY-CFETCH    LIB-PRIM-XT CFETCH#
 ' BODY-CSTORE    LIB-PRIM-XT CSTORE#
 ' BODY-PLUSSTORE LIB-PRIM-XT PLUSSTORE#
@@ -1328,6 +1650,26 @@ VARIABLE SN-P3
 ' BODY-FREE      LIB-PRIM-XT FREE#
 ' BODY-RESIZE    LIB-PRIM-XT RESIZE#
 ' BODY-FIND      LIB-PRIM-XT FIND#
+' BODY-OPENF   LIB-PRIM-XT OPENF#
+' BODY-CREATF  LIB-PRIM-XT CREATF#
+' BODY-READF   LIB-PRIM-XT READF#
+' BODY-WRITEF  LIB-PRIM-XT WRITEF#
+' BODY-RDLINE  LIB-PRIM-XT RDLINE#
+' BODY-WRLINE  LIB-PRIM-XT WRLINE#
+' BODY-UNLINK  LIB-PRIM-XT UNLINK#
+' BODY-RENAME  LIB-PRIM-XT RENAME#
+' BODY-FSIZE   LIB-PRIM-XT FSIZE#
+' BODY-FPOS    LIB-PRIM-XT FPOS#
+' BODY-FLUSHF  LIB-PRIM-XT FLUSHF#
+' BODY-REPOS   LIB-PRIM-XT REPOS#
+' BODY-FTRUNC  LIB-PRIM-XT FTRUNC#
+' BODY-FSTAT   LIB-PRIM-XT FSTAT#
+' BODY-COMPARE LIB-PRIM-XT CMPSTR#
+' BODY-SEARCH  LIB-PRIM-XT SEARCH#
+' BODY-PARSE   LIB-PRIM-XT PARSE#
+' BODY-WORD    LIB-PRIM-XT WORD#
+' BODY-SRCSET  LIB-PRIM-XT SRCSET#
+' BODY-SOURCE  LIB-PRIM-XT SOURCE#
 ' BODY-LTSHARP   LIB-PRIM-XT LTSHARP#
 ' BODY-HOLD      LIB-PRIM-XT HOLD#
 ' BODY-SIGN      LIB-PRIM-XT SIGN#
@@ -1337,6 +1679,12 @@ VARIABLE SN-P3
 ' BODY-CMOVEUP LIB-PRIM-XT CMOVEUP#
 ' BODY-MOVE    LIB-PRIM-XT MOVE#
 ' BODY-DPLUS   LIB-PRIM-XT DPLUS#
+' BODY-DNEG    LIB-PRIM-XT DNEG#
+' BODY-DABS    LIB-PRIM-XT DABS#
+' BODY-D2STAR  LIB-PRIM-XT D2STAR#
+' BODY-MPLUS   LIB-PRIM-XT MPLUS#
+' BODY-DEQ     LIB-PRIM-XT DEQ#
+' BODY-DLT     LIB-PRIM-XT DLT#
 ' BODY-DMINUS  LIB-PRIM-XT DMINUS#
 ' BODY-STOD    LIB-PRIM-XT STOD#
 ' BODY-DTOS    LIB-PRIM-XT DTOS#

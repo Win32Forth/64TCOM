@@ -556,7 +556,7 @@ CREATE MH-NAME  128 ALLOT
     S"   <key>CFBundleName</key><string>$BIN</string>" MH-EMIT-S MH-EMIT-NL
     S"   <key>CFBundlePackageType</key><string>APPL</string>" MH-EMIT-S MH-EMIT-NL
     S"   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>" MH-EMIT-S MH-EMIT-NL
-    S"   <key>CFBundleShortVersionString</key><string>0.6</string>" MH-EMIT-S MH-EMIT-NL
+    S"   <key>CFBundleShortVersionString</key><string>0.7</string>" MH-EMIT-S MH-EMIT-NL
     S"   <key>NSHighResolutionCapable</key><true/>" MH-EMIT-S MH-EMIT-NL
     S"   <key>NSPrincipalClass</key><string>NSApplication</string>" MH-EMIT-S MH-EMIT-NL
     S" </dict>" MH-EMIT-S MH-EMIT-NL

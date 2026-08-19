@@ -8,7 +8,7 @@ TCOM-ANEW OPTARM64
 FORTH DEFINITIONS
 DECIMAL
 
-: (TVER-ARM64)  ( -- )  ." 64TCOM ARM64 Version 0.6" ;
+: (TVER-ARM64)  ( -- )  ." 64TCOM ARM64 Version 0.7" ;
 ' (TVER-ARM64) IS TVERSION
 
 /LOW-HIGH
@@ -330,7 +330,7 @@ VARIABLE DATA-RELOC-N
 \ Host-call relocs (GUI / C helpers): .quad site patched to &host_fn[slot]
 \ Magic in .quad = $C0DE000000000000 | slot  (never a valid code taddr)
 $C0DE000000000000 CONSTANT HOST-CALL-MAGIC
-64 CONSTANT #HOST-RELOC
+128 CONSTANT #HOST-RELOC
 CREATE HOST-RELOC-OFF  #HOST-RELOC CELLS ALLOT   \ taddr of .quad
 CREATE HOST-RELOC-SLOT #HOST-RELOC CELLS ALLOT   \ host fn index
 VARIABLE HOST-RELOC-N
@@ -429,7 +429,12 @@ $A8C153F3 CONSTANT (A64-LDP-X19-X20-SP)   \ LDP X19, X20, [SP], #16
 4896 136 + CONSTANT TCOM-PIC-END      \ 5032
 5032 CONSTANT TCOM-HANDLER-DADDR      \ CATCH nest (0 = none)
 5040 CONSTANT TCOM-FIND-DADDR         \ daddr of FIND name table (0 = none)
-5048 CONSTANT TCOM-HANDLER-END        \ reserved low data end (includes FIND ptr)
+5048 CONSTANT TCOM-IN-DADDR           \ >IN
+5056 CONSTANT TCOM-SRC-ADDR-DADDR     \ SOURCE c-addr (0 = LINE-BUF)
+5064 CONSTANT TCOM-SRC-LEN-DADDR      \ SOURCE u
+5072 CONSTANT TCOM-WORD-DADDR         \ WORD counted pad
+256 CONSTANT /TCOM-WORD
+5328 CONSTANT TCOM-HANDLER-END        \ reserved low data end
 
 \ Compile-time words (TSRC host-exec): leave c-addr u or n at runtime
 : ARGCOUNT  ( -- )  TCOM-ARGC-DADDR COMP-DATA-ADDR COMP-FETCH ;

@@ -30,7 +30,7 @@ ABI (3.0c)
   X19 = DSP (push STR X0,[X19,#-8]!)
   Cell = 8 bytes. Cold sets X19 to top of data image, X0 = 0.
 
-What the pack emits (v0.6; 3.0c foundations)
+What the pack emits (v0.7; 3.0c foundations)
 ----------------------
   COMP-SINGLE n   → push TOS; MOV X0,#n
   COMP-CALL taddr → LDR X16; BLR; B+3; .quad taddr (offset; native adds base)

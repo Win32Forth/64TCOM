@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-18 — **Version 0.6**: TSRC dialect waves (stack/compare/numeric/memory/arith/exceptions/heap/shift/loops); remaining TSRC gaps listed below
+**Last updated:** 2026-08-19 — **Version 0.7**: defining/search-order, ANS files, double/string extras, PARSE/WORD/SOURCE; remaining work listed below
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
 
@@ -21,7 +21,7 @@
 
 ```text
   Layer 4  Text grid + TETRA.app (playable on TCOM + 64Forth)   ← you are here
-  Layer 3  More dialect / services (defining words + search order still open)
+  Layer 3  Dialect waves done; extras + utilities next
   Layer 2  CLI: print + args + I/O DONE
   Layer 1  Compile a Forth source file into a complete image     DONE
   Layer 0  Codegen foundation (calls, control, lib, sim/native/Mach-O)   DONE
@@ -51,7 +51,7 @@ TCOM-CLI samples/print.fth         \ → samples/print  (CLI / Terminal)
 TCOM "path with spaces/foo.fth"    \ → GUI build; quote paths with spaces
 ```
 
-### Source extension: `.fth` again (not `.fth`)
+### Source extension: `.fth` 
 
 Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will use `\ANS` / `\TCOM` line directives (like classic `\FPC` / `\TCOM`), not a separate extension, to distinguish interactive 64Forth load from TCOM compile. Host pack sources remain `.fth` as well; context (TCOM vs `FLOAD`) decides the loader.
 
@@ -60,7 +60,7 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
 ## YOU ARE HERE
 
 ```text
-  Pack version     0.6    — 64TCOM ARM64 (TVERSION in OPTARM64)
+  Pack version     0.7    — 64TCOM ARM64 (TVERSION in OPTARM64)
   Phase 0–2        DONE
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
@@ -119,14 +119,17 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
 | **0.4** | TETRA playable `.app`; real AppKit 80×25 grid; `\ANS`/`\TCOM` DIRECTIVE; growable TSRC; `.fth` again; DSP/HOST-CALL fixes; `>R`/`R>`/`R@` |
 | **0.5** | tetra `\ANS` dual-load; real `TONE` (Hz/tenths); DIRECTIVE skips current line only; host 64Forth 1.1.4 |
 | **0.6** | Dialect waves: stack/compare, pictured `.`, memory/double, signed `/`, CATCH/THROW, ALLOCATE, LSHIFT/RSHIFT, UNLOOP/?DO; samples `wave`…`shiftloop`; host consume + STACK-HUD; tetra rows on both hosts |
+| **0.7** | Defining words + search order; ANS File-Access; `D<`/`COMPARE`/`PARSE`/`ABORT"` extras; samples `defining` `search` `files` `extras` |
 
 **Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.4** (GRAPHICS + tetra `\ANS` + real TONE).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  
 
-### Target dialect — still missing (Layer 3, on demand)
+### Target dialect — remaining (Layer 3 extras + product)
+
+Planned waves (stack through ANS files) are **done**. Extra items on the stack were the HUD/EMIT class; file/`FIND` prims consume and replace TOS like `ALLOCATE`/`CLOSE`.
 
 Restricted TSRC, not ANS CORE. Names not in this table (and not already mapped) compile as `?`.  
-**Shipped** (`samples/wave.fth`, `stackcmp.fth`, `numeric.fth`, `memdbl.fth`, `arith.fth`, `xheap.fth`, `shiftloop.fth`, `defining.fth`, `search.fth`):  
+**Shipped** (`samples/wave.fth` … `files.fth`, `extras.fth`):  
 `2DROP` `2SWAP` `2OVER` `TUCK` `?DUP` `PICK` `ROLL` `DEPTH`  
 `0<` `0>` `0<>` `<=` `>=` `U<` `U>` `WITHIN`  
 `XOR` `ABS` `MIN` `MAX` `C@` `C!` `+!` `LEAVE` `EXECUTE` `[']`  
@@ -134,7 +137,15 @@ Restricted TSRC, not ANS CORE. Names not in this table (and not already mapped) 
 `D+` `D-` `S>D` `D>S`  signed `/` `MOD` `/MOD` `*/` `*/MOD`  
 `CATCH` `THROW` `ALLOCATE` `FREE` `RESIZE`  `LSHIFT` `RSHIFT` `UNLOOP` `?DO`  
 `CONSTANT` `DOES>` `:NONAME` `RECURSE` `IMMEDIATE` `[` `]` `LITERAL` `POSTPONE`  
-`VOCABULARY` `ALSO` `ONLY` `DEFINITIONS` `FORTH` `'` `FIND`.
+`VOCABULARY` `ALSO` `ONLY` `DEFINITIONS` `FORTH` `'` `FIND`  
+`R/O` `W/O` `R/W` `BIN` `OPEN-FILE` `CREATE-FILE` `CLOSE-FILE`  
+`READ-FILE` `WRITE-FILE` `READ-LINE` `WRITE-LINE`  
+`FILE-SIZE` `FILE-POSITION` `REPOSITION-FILE` `RESIZE-FILE`  
+`FLUSH-FILE` `FILE-STATUS` `DELETE-FILE` `RENAME-FILE`  
+`D<` `D=` `DNEGATE` `DABS` `D2*` `M+`  
+`-TRAILING` `/STRING` `COMPARE` `SEARCH` `BLANK` `SLITERAL`  
+`PREVIOUS` `ORDER` `WORDLIST` `GET-ORDER` `SET-ORDER`  
+`ABORT` `ABORT"` `>IN` `PARSE` `WORD` `SOURCE` `SOURCE!`.
 
 | Class | Still missing |
 |-------|----------------|
@@ -150,10 +161,20 @@ Restricted TSRC, not ANS CORE. Names not in this table (and not already mapped) 
 | Exceptions | *(done — `CATCH` `THROW`; uncaught `THROW` exits; `samples/xheap.fth`)* |
 | Heap | *(done — `ALLOCATE` `FREE` `RESIZE` via malloc; `samples/xheap.fth`)* |
 | Search order | *(done — `samples/search.fth`; compile-time wordlists; runtime `FIND` uses a baked name table)* |
+| File access | *(done — ANS; `samples/files.fth`. `INCLUDED` at top level is `FLOAD`.)* |
+| Double extras | *(done — `D<` `D=` `DNEGATE` `DABS` `D2*` `M+`; `samples/extras.fth`)* |
+| String | *(done — `-TRAILING` `/STRING` `COMPARE` `SEARCH` `BLANK` `SLITERAL`; `samples/extras.fth`)* |
+| Search extras | *(done — `PREVIOUS` `ORDER` `WORDLIST` `GET-ORDER` `SET-ORDER` compile-time TSRC; FIND table still baked)* |
+| Abort | *(done — `ABORT` = `-1 THROW`; `ABORT"` types to stderr then `THROW`)* |
+| Input parse | *(done — `>IN` `PARSE` `WORD` `SOURCE` `SOURCE!`; `ACCEPT` also `SOURCE!`)* |
+| Skip | tools (`.S` `SEE` `DUMP` `WORDS`); `QUIT`; runtime `INCLUDE-FILE` / `EVALUATE` / resident compiler |
+| Later | **Phase 4.0** listing/xref/debugger; env/sockets; **pixel graphics** |
 
 `/` `MOD` `/MOD` `*/` `*/MOD` are **signed toward zero** (`SM/REM`). `DIV#` remains unsigned `UDIV`. `LIT#` is still a no-op stub.
 
 Search order is **compile-time TSRC** (`VOCABULARY` / `ALSO` / `ONLY` / `DEFINITIONS` / `FORTH`). New definitions go in `CURRENT`. `'` is interpret (host xt) or compile (literal xt). Runtime `FIND` (counted string) walks a name table of colon/library words emitted at the end of `TSRC-INCLUDE` (not a live target search order).
+
+ANS File-Access `ior` is 0 or a Darwin `errno`. `ud` sizes/positions are `lo hi` with `hi` 0 for 64-bit offsets that fit in one cell. `BIN` is a no-op. `INCLUDED` / `FLOAD` at top level still compile source; there is no runtime `INCLUDE-FILE` (no resident target interpreter).
 
 Defining words are **compile-time TSRC** (no resident target compiler). `CREATE … DOES>` at top level, or `: name CREATE … DOES> … ;` then `… name foo`, attaches a does-body (push pfa + call). `[ n … ] LITERAL` evaluates on the host. `IMMEDIATE` replays the colon’s source into the current definition. `POSTPONE` compiles compilation semantics now (no runtime COMPILE). `:NONAME` leaves an xt on the host stack for `VALUE`.
 
@@ -514,6 +535,7 @@ Output locals are returned automatically — do not push them before `;` :
 - [x] **0.4** TETRA `.app` + text grid; `\ANS`/`\TCOM`; growable TSRC; `.fth` again
 - [x] **0.5** tetra dual-load + real TONE; DIRECTIVE line-skip fix
 - [x] **0.6** TSRC dialect waves + samples; STACK-HUD / host consume; signed `/`; CATCH/THROW; heap
+- [x] **0.7** defining/search-order; ANS files; double/string extras; PARSE/WORD/SOURCE; ABORT"
 - [x] **1.1** `64HOST.fth` — HOST/COMPILER/TARGET, target mem, DEFER hooks, `U>=`
 - [x] **1.1b** Quiet `TCOM-ANEW`; GEN load chain; GEN tags; cookies
 - [x] **1.2** Symbol table + `64DIR` director (name → type/addr/uses)

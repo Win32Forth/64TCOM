@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
+#include <errno.h>
 
 typedef int64_t (*tcom_host_fn)(int64_t, int64_t);
 
@@ -153,6 +155,7 @@ static int64_t tcom_host_sharphi(int64_t a, int64_t b) {
 }
 
 static uint64_t tcom_aux;
+static uint64_t tcom_aux2;
 
 static int64_t tcom_host_aux(int64_t a, int64_t b) {
   (void)a; (void)b;
@@ -274,6 +277,266 @@ static int64_t tcom_host_find(int64_t caddr, int64_t b) {
   return caddr;
 }
 
+static int64_t tcom_host_aux2(int64_t a, int64_t b) {
+  (void)a; (void)b;
+  return (int64_t)tcom_aux2;
+}
+
+static void tcom_path_copy(int64_t ca, int64_t u, char *buf, size_t cap) {
+  size_t n = u < 0 ? 0 : (size_t)u;
+  if (n >= cap) n = cap - 1;
+  if (ca && n) memcpy(buf, (const void *)(uintptr_t)ca, n);
+  buf[n] = 0;
+}
+
+static int tcom_fam_flags(int64_t fam, int create) {
+  int acc = (int)(fam & 3);
+  int fl = O_RDONLY;
+  if (acc == 1) fl = O_WRONLY;
+  else if (acc == 2) fl = O_RDWR;
+  if (create) fl |= O_CREAT | O_TRUNC;
+  return fl;
+}
+
+/* X0=caddr X1=u X2=fam X3=create. Return fid; aux=ior */
+static int64_t tcom_host_openfile(int64_t ca, int64_t u, int64_t fam, int64_t create) {
+  char path[512];
+  int fd;
+  tcom_path_copy(ca, u, path, sizeof path);
+  fd = open(path, tcom_fam_flags(fam, create ? 1 : 0), 0644);
+  if (fd < 0) { tcom_aux = (uint64_t)errno; return -1; }
+  tcom_aux = 0;
+  return fd;
+}
+
+/* X0=caddr X1=u X2=fid. Return u2; aux=ior */
+static int64_t tcom_host_readfile(int64_t ca, int64_t u, int64_t fid) {
+  ssize_t n;
+  if (u < 0) u = 0;
+  n = read((int)fid, (void *)(uintptr_t)ca, (size_t)u);
+  if (n < 0) { tcom_aux = (uint64_t)errno; return 0; }
+  tcom_aux = 0;
+  return (int64_t)n;
+}
+
+static int64_t tcom_host_writefile(int64_t ca, int64_t u, int64_t fid) {
+  ssize_t n;
+  if (u < 0) u = 0;
+  n = write((int)fid, (const void *)(uintptr_t)ca, (size_t)u);
+  if (n < 0 || n != u) { tcom_aux = (uint64_t)(n < 0 ? errno : EIO); return (int64_t)tcom_aux; }
+  tcom_aux = 0;
+  return 0;
+}
+
+/* Return u2; aux=ior; aux2=flag (0 or -1) */
+static int64_t tcom_host_readline(int64_t ca, int64_t u, int64_t fid) {
+  uint8_t *buf = (uint8_t *)(uintptr_t)ca;
+  int64_t n = 0;
+  int got = 0;
+  if (u < 0) u = 0;
+  tcom_aux = 0;
+  tcom_aux2 = 0;
+  while (n < u) {
+    unsigned char c;
+    ssize_t r = read((int)fid, &c, 1);
+    if (r < 0) { tcom_aux = (uint64_t)errno; tcom_aux2 = 0; return n; }
+    if (r == 0) break;
+    got = 1;
+    if (c == '\n') break;
+    if (c == '\r') {
+      unsigned char c2;
+      r = read((int)fid, &c2, 1);
+      if (r == 1 && c2 != '\n') lseek((int)fid, -1, SEEK_CUR);
+      break;
+    }
+    buf[n++] = c;
+  }
+  tcom_aux2 = got ? (uint64_t)-1 : 0;
+  return n;
+}
+
+static int64_t tcom_host_writeline(int64_t ca, int64_t u, int64_t fid) {
+  int64_t ior = tcom_host_writefile(ca, u, fid);
+  if (ior) return ior;
+  {
+    ssize_t n = write((int)fid, "\n", 1);
+    if (n != 1) { tcom_aux = (uint64_t)(n < 0 ? errno : EIO); return (int64_t)tcom_aux; }
+  }
+  tcom_aux = 0;
+  return 0;
+}
+
+static int64_t tcom_host_deletefile(int64_t ca, int64_t u) {
+  char path[512];
+  tcom_path_copy(ca, u, path, sizeof path);
+  if (unlink(path) < 0) { tcom_aux = (uint64_t)errno; return (int64_t)tcom_aux; }
+  tcom_aux = 0;
+  return 0;
+}
+
+/* X0=ca1 X1=u1 X2=ca2 X3=u2 */
+static int64_t tcom_host_renamefile(int64_t ca1, int64_t u1, int64_t ca2, int64_t u2) {
+  char a[512], b[512];
+  tcom_path_copy(ca1, u1, a, sizeof a);
+  tcom_path_copy(ca2, u2, b, sizeof b);
+  if (rename(a, b) < 0) { tcom_aux = (uint64_t)errno; return (int64_t)tcom_aux; }
+  tcom_aux = 0;
+  return 0;
+}
+
+/* X0=fid  X1=op  0=size 1=pos 2=flush. size/pos → X0=lo aux2=hi; flush → 0. aux=ior */
+static int64_t tcom_host_fidop(int64_t fid, int64_t op) {
+  off_t v;
+  tcom_aux2 = 0;
+  if (op == 2) {
+    if (fsync((int)fid) < 0) { tcom_aux = (uint64_t)errno; return (int64_t)tcom_aux; }
+    tcom_aux = 0;
+    return 0;
+  }
+  if (op == 1) {
+    v = lseek((int)fid, 0, SEEK_CUR);
+  } else {
+    off_t here = lseek((int)fid, 0, SEEK_CUR);
+    if (here < 0) { tcom_aux = (uint64_t)errno; return 0; }
+    v = lseek((int)fid, 0, SEEK_END);
+    if (v >= 0) lseek((int)fid, here, SEEK_SET);
+  }
+  if (v < 0) { tcom_aux = (uint64_t)errno; return 0; }
+  tcom_aux = 0;
+  return (int64_t)v;
+}
+
+/* X0=off X1=fid X2=op  0=repos 1=trunc */
+static int64_t tcom_host_offfid(int64_t off, int64_t fid, int64_t op) {
+  if (op == 1) {
+    if (ftruncate((int)fid, (off_t)off) < 0) { tcom_aux = (uint64_t)errno; return (int64_t)tcom_aux; }
+  } else {
+    if (lseek((int)fid, (off_t)off, SEEK_SET) < 0) { tcom_aux = (uint64_t)errno; return (int64_t)tcom_aux; }
+  }
+  tcom_aux = 0;
+  return 0;
+}
+
+static int64_t tcom_host_filestat(int64_t ca, int64_t u) {
+  char path[512];
+  tcom_path_copy(ca, u, path, sizeof path);
+  tcom_aux2 = 0; /* x */
+  if (access(path, F_OK) < 0) { tcom_aux = (uint64_t)errno; return 0; }
+  tcom_aux = 0;
+  return 0;
+}
+
+/* COMPARE (ca1 u1 ca2 u2) X0=ca1 X1=u1 X2=ca2 X3=u2 → -1/0/1 */
+static int64_t tcom_host_compare(int64_t ca1, int64_t u1, int64_t ca2, int64_t u2) {
+  size_t n1 = u1 < 0 ? 0 : (size_t)u1, n2 = u2 < 0 ? 0 : (size_t)u2;
+  size_t n = n1 < n2 ? n1 : n2;
+  int r = 0;
+  if (n && ca1 && ca2) r = memcmp((const void *)(uintptr_t)ca1, (const void *)(uintptr_t)ca2, n);
+  if (r < 0) return -1;
+  if (r > 0) return 1;
+  if (n1 < n2) return -1;
+  if (n1 > n2) return 1;
+  return 0;
+}
+
+/* SEARCH: X0=ca1 X1=u1 X2=ca2 X3=u2. Return flag; aux=caddr3 aux2=u3 */
+static int64_t tcom_host_search(int64_t ca1, int64_t u1, int64_t ca2, int64_t u2) {
+  const uint8_t *h = (const uint8_t *)(uintptr_t)ca1;
+  const uint8_t *n = (const uint8_t *)(uintptr_t)ca2;
+  int64_t i;
+  if (u2 <= 0) { tcom_aux = (uint64_t)ca1; tcom_aux2 = (uint64_t)u1; return -1; }
+  if (u1 < u2) { tcom_aux = (uint64_t)ca1; tcom_aux2 = (uint64_t)u1; return 0; }
+  for (i = 0; i <= u1 - u2; i++) {
+    if (memcmp(h + i, n, (size_t)u2) == 0) {
+      tcom_aux = (uint64_t)(ca1 + i);
+      tcom_aux2 = (uint64_t)(u1 - i);
+      return -1;
+    }
+  }
+  tcom_aux = (uint64_t)ca1;
+  tcom_aux2 = (uint64_t)u1;
+  return 0;
+}
+
+#define TCOM_IN_OFF 5048
+#define TCOM_SRC_OFF 5056
+#define TCOM_SRCLEN_OFF 5064
+#define TCOM_WORD_OFF 5072
+#define TCOM_LINE_OFF 4104
+
+static void tcom_src_get(uint8_t **ca, int64_t *u, int64_t *vin) {
+  int64_t addr = 0, len = 0, inn = 0;
+  if (!tcom_data0) { *ca = 0; *u = 0; *vin = 0; return; }
+  memcpy(&addr, tcom_data0 + TCOM_SRC_OFF, 8);
+  memcpy(&len, tcom_data0 + TCOM_SRCLEN_OFF, 8);
+  memcpy(&inn, tcom_data0 + TCOM_IN_OFF, 8);
+  if (!addr) addr = (int64_t)(uintptr_t)(tcom_data0 + TCOM_LINE_OFF);
+  *ca = (uint8_t *)(uintptr_t)addr;
+  *u = len;
+  *vin = inn;
+}
+
+/* PARSE delim in X0. Return u; aux=caddr */
+static int64_t tcom_host_parse(int64_t delim, int64_t b) {
+  uint8_t *src;
+  int64_t len, inn, j;
+  (void)b;
+  tcom_src_get(&src, &len, &inn);
+  if (inn < 0) inn = 0;
+  if (inn > len) inn = len;
+  j = inn;
+  while (j < len && src[j] != (uint8_t)delim) j++;
+  tcom_aux = (uint64_t)(uintptr_t)(src + inn);
+  {
+    int64_t u = j - inn;
+    if (j < len) j++;
+    memcpy(tcom_data0 + TCOM_IN_OFF, &j, 8);
+    return u;
+  }
+}
+
+/* WORD delim in X0. Return counted c-addr */
+static int64_t tcom_host_word(int64_t delim, int64_t b) {
+  uint8_t *src, *pad;
+  int64_t len, inn, j, n;
+  (void)b;
+  if (!tcom_data0) return 0;
+  tcom_src_get(&src, &len, &inn);
+  if (inn < 0) inn = 0;
+  if (inn > len) inn = len;
+  while (inn < len && src[inn] == (uint8_t)delim) inn++;
+  j = inn;
+  while (j < len && src[j] != (uint8_t)delim) j++;
+  n = j - inn;
+  if (n > 255) n = 255;
+  pad = tcom_data0 + TCOM_WORD_OFF;
+  pad[0] = (uint8_t)n;
+  if (n) memcpy(pad + 1, src + inn, (size_t)n);
+  if (j < len) j++;
+  memcpy(tcom_data0 + TCOM_IN_OFF, &j, 8);
+  return (int64_t)(uintptr_t)pad;
+}
+
+/* SOURCE! X0=u X1=caddr */
+static int64_t tcom_host_srcset(int64_t u, int64_t ca) {
+  int64_t z = 0;
+  if (!tcom_data0) return 0;
+  memcpy(tcom_data0 + TCOM_SRC_OFF, &ca, 8);
+  memcpy(tcom_data0 + TCOM_SRCLEN_OFF, &u, 8);
+  memcpy(tcom_data0 + TCOM_IN_OFF, &z, 8);
+  return 0;
+}
+
+/* SOURCE: return u; aux=caddr */
+static int64_t tcom_host_source(int64_t a, int64_t b) {
+  uint8_t *src;
+  int64_t len, inn;
+  (void)a; (void)b;
+  tcom_src_get(&src, &len, &inn);
+  tcom_aux = (uint64_t)(uintptr_t)src;
+  return len;
+}
+
 static tcom_host_fn host_fn[] = {
   tcom_host_window,
   tcom_host_app_name,
@@ -304,4 +567,21 @@ static tcom_host_fn host_fn[] = {
   tcom_host_free,
   tcom_host_resize,
   tcom_host_find,
+  (tcom_host_fn)tcom_host_openfile,   /* 29 */
+  (tcom_host_fn)tcom_host_readfile,   /* 30 */
+  (tcom_host_fn)tcom_host_writefile,  /* 31 */
+  (tcom_host_fn)tcom_host_readline,   /* 32 */
+  tcom_host_aux2,                     /* 33 */
+  (tcom_host_fn)tcom_host_writeline,  /* 34 */
+  tcom_host_deletefile,               /* 35 */
+  (tcom_host_fn)tcom_host_renamefile, /* 36 */
+  tcom_host_fidop,                    /* 37 */
+  (tcom_host_fn)tcom_host_offfid,     /* 38 */
+  tcom_host_filestat,                 /* 39 */
+  (tcom_host_fn)tcom_host_compare,    /* 40 */
+  (tcom_host_fn)tcom_host_search,     /* 41 */
+  tcom_host_parse,                    /* 42 */
+  tcom_host_word,                     /* 43 */
+  tcom_host_srcset,                   /* 44 */
+  tcom_host_source,                   /* 45 */
 };
