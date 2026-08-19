@@ -22,6 +22,10 @@ S" [64DIR] tables..." TYPE CR
 4 CONSTANT SYM-FORWARD
 5 CONSTANT SYM-DATA          \ daddr of a target VARIABLE (pushes address)
 6 CONSTANT SYM-VALUE         \ daddr of a VALUE (pushes contents; TO stores)
+7 CONSTANT SYM-CONST         \ compile-time value; reference compiles G,
+8 CONSTANT SYM-DOES          \ CREATE + DOES>: push daddr then call does-xt
+9 CONSTANT SYM-DEFINER       \ host defining word (: name CREATE … DOES> … ;)
+10 CONSTANT SYM-VOCAB         \ wid in SYMA; interpret sets search-order top
 
 -1 CONSTANT SYM-NO-CHAIN
 
@@ -31,14 +35,36 @@ S" [64DIR] tables..." TYPE CR
 CREATE SYMT  SYM-MAX CELLS ALLOT
 CREATE SYMA  SYM-MAX CELLS ALLOT
 CREATE SYMU  SYM-MAX CELLS ALLOT
+CREATE SYMX  SYM-MAX CELLS ALLOT      \ extra: does-xt or immediate-body addr
+CREATE SYML  SYM-MAX CELLS ALLOT      \ extra length (ct/imm source copy)
+CREATE SYMF  SYM-MAX CELLS ALLOT      \ flags: 1 = IMMEDIATE
+CREATE SYMW  SYM-MAX CELLS ALLOT      \ wordlist id (TSRC search order)
 CREATE SYMN  SYM-MAX /SNAME * ALLOT
 VARIABLE SYM-N
 0 SYM-N !
+
+8 CONSTANT #TWL-ORDER
+0 CONSTANT TWL-FORTH
+CREATE TWL-ORDER  #TWL-ORDER CELLS ALLOT
+VARIABLE TWL-#
+VARIABLE TWL-CURRENT
+VARIABLE TWL-NEXT
+
+: TWL-RESET  ( -- )
+  1 TWL-# !
+  TWL-ORDER #TWL-ORDER CELLS ERASE
+  TWL-FORTH TWL-ORDER !
+  TWL-FORTH TWL-CURRENT !
+  1 TWL-NEXT !
+  ;
+TWL-RESET
 
 \ --- scratch: SYM-FIND (must not overlap SYM-STR= / SYM-PUT-NAME) ---
 VARIABLE F-CA
 VARIABLE F-U
 VARIABLE F-I
+VARIABLE F-WID
+VARIABLE F-J
 
 \ --- scratch: SYM-STR= ---
 VARIABLE S-A1
@@ -78,7 +104,12 @@ VARIABLE M-TMP
   SYMT SYM-MAX CELLS ERASE
   SYMA SYM-MAX CELLS ERASE
   SYMU SYM-MAX CELLS ERASE
+  SYMX SYM-MAX CELLS ERASE
+  SYML SYM-MAX CELLS ERASE
+  SYMF SYM-MAX CELLS ERASE
+  SYMW SYM-MAX CELLS ERASE
   SYMN SYM-MAX /SNAME * ERASE
+  TWL-RESET
   FALSE TO ?UNRES
   ;
 
@@ -87,10 +118,20 @@ VARIABLE M-TMP
 : SYM-TYPE@  ( i -- n )  CELLS SYMT + @ ;
 : SYM-ADDR@  ( i -- n )  CELLS SYMA + @ ;
 : SYM-USES@  ( i -- n )  CELLS SYMU + @ ;
+: SYM-X@     ( i -- n )  CELLS SYMX + @ ;
+: SYM-L@     ( i -- n )  CELLS SYML + @ ;
+: SYM-F@     ( i -- n )  CELLS SYMF + @ ;
+: SYM-W@     ( i -- n )  CELLS SYMW + @ ;
 
 : SYM-TYPE!  ( n i -- )  CELLS SYMT + ! ;
 : SYM-ADDR!  ( n i -- )  CELLS SYMA + ! ;
 : SYM-USES!  ( n i -- )  CELLS SYMU + ! ;
+: SYM-X!     ( n i -- )  CELLS SYMX + ! ;
+: SYM-L!     ( n i -- )  CELLS SYML + ! ;
+: SYM-F!     ( n i -- )  CELLS SYMF + ! ;
+: SYM-W!     ( n i -- )  CELLS SYMW + ! ;
+
+: SYM-IMM?   ( i -- f )  SYM-F@ 1 AND 0= 0= ;
 
 : SYM-USE+  ( i -- )
   DUP SYM-USES@ 1+ SWAP SYM-USES!
@@ -140,16 +181,34 @@ VARIABLE M-TMP
   SYM-GET-NAME SYM-STR=
   ;
 
-: SYM-FIND  ( c-addr u -- ix true | false )
+: SYM-FIND-IN  ( c-addr u wid -- ix true | false )
+  F-WID !
   F-U !
   F-CA !
   SYM-N @ 0= IF FALSE EXIT THEN
-  0 F-I !
-  BEGIN F-I @ SYM-N @ < WHILE
-    F-CA @ F-U @ F-I @ SYM-NAME= IF
-      F-I @ TRUE EXIT
+  SYM-N @ 1- F-I !
+  BEGIN F-I @ 0< 0= WHILE
+    F-I @ SYM-W@ F-WID @ = IF
+      F-CA @ F-U @ F-I @ SYM-NAME= IF
+        F-I @ TRUE EXIT
+      THEN
     THEN
-    1 F-I +!
+    -1 F-I +!
+  REPEAT
+  FALSE
+  ;
+
+\ Search-order lookup (top of TWL-ORDER first; newest in each list first)
+: SYM-FIND  ( c-addr u -- ix true | false )
+  F-U !
+  F-CA !
+  TWL-# @ 0= IF FALSE EXIT THEN
+  0 F-J !
+  BEGIN F-J @ TWL-# @ < WHILE
+    F-CA @ F-U @  TWL-ORDER F-J @ CELLS + @  SYM-FIND-IN IF
+      TRUE EXIT
+    THEN
+    1 F-J +!
   REPEAT
   FALSE
   ;
@@ -164,7 +223,7 @@ VARIABLE M-TMP
   D-TYP !
   D-U !
   D-CA !
-  D-CA @ D-U @ SYM-FIND IF         \ ix
+  D-CA @ D-U @ TWL-CURRENT @ SYM-FIND-IN IF
     DUP D-TYP @ SWAP SYM-TYPE!
     DUP D-ADR @ SWAP SYM-ADDR!
     EXIT
@@ -177,6 +236,10 @@ VARIABLE M-TMP
   DUP D-TYP @ SWAP SYM-TYPE!
   DUP D-ADR @ SWAP SYM-ADDR!
   DUP 0 SWAP SYM-USES!
+  DUP 0 SWAP SYM-X!
+  DUP 0 SWAP SYM-L!
+  DUP 0 SWAP SYM-F!
+  DUP TWL-CURRENT @ SWAP SYM-W!
   1 SYM-N +!
   ;
 
@@ -199,7 +262,7 @@ VARIABLE M-TMP
 : SYM-DEFINE  ( c-addr u type addr -- ix )
   D-ADR !
   D-TYP !
-  2DUP SYM-FIND IF                 \ ca u ix
+  2DUP TWL-CURRENT @ SYM-FIND-IN IF
     D-IX !
     2DROP
     D-IX @ SYM-TYPE@ SYM-FORWARD = IF
@@ -209,7 +272,7 @@ VARIABLE M-TMP
       D-ADR @ D-IX @ SYM-ADDR!
     THEN
     D-IX @
-  ELSE                             \ ca u
+  ELSE
     D-TYP @ D-ADR @ SYM-ADD
   THEN
   ;
@@ -252,7 +315,16 @@ VARIABLE M-TMP
         SYM-ADDR@ COMP-DATA-ADDR
         COMP-FETCH
       ELSE
-        SYM-ADDR@ COMP-CALL
+        DUP SYM-TYPE@ SYM-CONST = IF
+          SYM-ADDR@ COMP-SINGLE
+        ELSE
+          DUP SYM-TYPE@ SYM-DOES = IF
+            DUP SYM-ADDR@ COMP-DATA-ADDR
+            SYM-X@ COMP-CALL
+          ELSE
+            SYM-ADDR@ COMP-CALL
+          THEN
+        THEN
       THEN
     THEN
   THEN
@@ -306,6 +378,10 @@ DEFER LIB-AUTO-INCLUDE
   DUP SYM-FORWARD = IF DROP S" FWD" TYPE EXIT THEN
   DUP SYM-DATA    = IF DROP S" DATA" TYPE EXIT THEN
   DUP SYM-VALUE   = IF DROP S" VALUE" TYPE EXIT THEN
+  DUP SYM-CONST   = IF DROP S" CONST" TYPE EXIT THEN
+  DUP SYM-DOES    = IF DROP S" DOES" TYPE EXIT THEN
+  DUP SYM-DEFINER = IF DROP S" DEFINER" TYPE EXIT THEN
+  DUP SYM-VOCAB   = IF DROP S" VOCAB" TYPE EXIT THEN
   DROP S" ?" TYPE
   ;
 

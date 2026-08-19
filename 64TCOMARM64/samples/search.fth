@@ -1,0 +1,83 @@
+\ search.fth — VOCABULARY ALSO ONLY DEFINITIONS ' FIND
+\
+\   FLOAD TARGETARM64.fth
+\   TCOM-CLI samples/search.fth
+\   ./samples/search ; echo $?
+\
+\ Search order is compile-time TSRC. FIND walks the baked name table.
+
+0 VALUE FAILS
+CREATE CNAME  32 ALLOT
+
+: FAIL  ( -- )  FAILS 1+ TO FAILS ;
+
+: EXPECT  ( got want -- )
+  = IF
+    S" ok
+" TYPE
+  ELSE
+    S" FAIL
+" TYPE
+    FAIL
+  THEN
+  ;
+
+: >COUNTED  ( addr u dest -- dest )
+  >R
+  DUP R@ C!
+  R@ 1+ SWAP MOVE
+  R>
+  ;
+
+VOCABULARY APP
+VOCABULARY OTHER
+
+: FORTH-ONE  1 ;
+
+ALSO APP DEFINITIONS
+: SECRET  42 ;
+: SHARED  100 ;
+
+OTHER DEFINITIONS
+: SHARED  200 ;
+
+ONLY FORTH ALSO APP DEFINITIONS
+
+: MAIN
+  S" SECRET " TYPE
+  SECRET
+  42 EXPECT
+
+  S" SHARED " TYPE
+  SHARED
+  100 EXPECT
+
+  S" ' " TYPE
+  ' SECRET EXECUTE
+  42 EXPECT
+
+  S" FIND " TYPE
+  S" SECRET" CNAME >COUNTED FIND
+  -1 EXPECT
+  EXECUTE
+  42 EXPECT
+
+  S" miss " TYPE
+  S" NOSUCH" CNAME >COUNTED FIND
+  0 EXPECT
+  DROP
+
+  S" FORTH " TYPE
+  FORTH-ONE
+  1 EXPECT
+
+  FAILS 0=
+  IF
+    S" ALL PASS
+" TYPE
+    0
+  ELSE
+    S" FAILS " TYPE FAILS . CR
+    1
+  THEN
+;

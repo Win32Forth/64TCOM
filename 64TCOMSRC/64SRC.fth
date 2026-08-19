@@ -14,7 +14,10 @@
 \   ( comment )        (paren, may span lines)
 \   \\ … {             (multi-line block; opener is two backslashes)
 \   } … {              (alias for the same multi-line block)
-\   VARIABLE name
+\   VARIABLE name   CREATE name   n CONSTANT name   n VALUE name
+\   : name … ;   :NONAME … ;   RECURSE   IMMEDIATE
+\   CREATE … DOES> … ;   : name CREATE … DOES> … ;
+\   [ host-expr ] LITERAL   POSTPONE name
 \   : name … ;
 \   FLOAD path.fth   |  INCLUDE path.fth   (top-level; nested .fth)
 \   decimal | $hex
@@ -56,6 +59,24 @@ VARIABLE TSRC-I
 VARIABLE TSRC-LINE
 CREATE TSRC-WORD  128 ALLOT
 VARIABLE TSRC-IN-COLON
+VARIABLE TSRC-TOK-AT                 \ TSRC-I at start of current token
+VARIABLE TSRC-LAST                   \ last defined symbol ix (-1 none)
+VARIABLE TSRC-BODY0                  \ source offset of current colon body
+VARIABLE TSRC-BODY1                  \ source offset of terminating ;
+VARIABLE TSRC-NONAME                 \ :NONAME in progress
+VARIABLE TSRC-BRACKET                \ inside [ … ]
+VARIABLE TSRC-DEFINER                \ current : is CREATE … DOES>
+VARIABLE TSRC-SKIP-CT                \ skip compile-time part of definer
+VARIABLE TSRC-IN-DOES                \ top-level DOES> … ;
+VARIABLE TSRC-CT0                    \ compile-time source start (offset)
+VARIABLE TSRC-CT1                    \ compile-time source end (offset)
+VARIABLE TSRC-DOES-XT                \ taddr of DOES> body
+-1 TSRC-LAST !
+DEFER TSRC-DISPATCH
+8192 CONSTANT /TSRC-CTPOOL
+CREATE TSRC-CTPOOL  /TSRC-CTPOOL ALLOT
+VARIABLE TSRC-CTP
+0 TSRC-CTP !
 VARIABLE TSRC-ACC
 VARIABLE TSRC-BASE
 VARIABLE TSRC-OK
@@ -232,6 +253,7 @@ TSRC-BUF-BOOT
 
 : TSRC-TOKEN  ( -- ca u )
   TSRC-SKIP-WS
+  TSRC-I @ TSRC-TOK-AT !
   TSRC-EOF? IF  TSRC-WORD 0 EXIT  THEN
   \ \\ … {  multi-line (two backslashes); checked before single-\ line comment
   TSRC-PEEK [CHAR] \ = IF
@@ -319,26 +341,271 @@ TSRC-BUF-BOOT
   TRUE
   ;
 
-: TSRC-COLON  ( ca u -- )
-  \ Name already on stack — do NOT use (T-COOKIE)/CREATE (would BL WORD from TIB).
-  TSRC-IN-COLON @ IF  2DROP S" nested :" TSRC-ERR  THEN
+: TSRC-WIPE  ( -- )  BEGIN DEPTH WHILE DROP REPEAT ;
+
+: TSRC-SLICE-SAVE  ( off0 off1 -- addr u )
+  OVER - DUP 0> 0= IF
+    NIP DROP  TSRC-CTPOOL TSRC-CTP @ +  0  EXIT
+  THEN
+  \ off0 u
+  DUP TSRC-CTP @ + /TSRC-CTPOOL U> IF
+    2DROP S" TSRC: defining-word source too large" TSRC-ERR
+  THEN
+  TSRC-CTP @ TSRC-CTPOOL + >R     \ off0 u  R: dest
+  DUP TSRC-CTP +!                 \ off0 u
+  SWAP TSRC-BUF +                 \ u src
+  R@ ROT                          \ src dest u
+  MOVE
+  R> TSRC-CTP @ TSRC-CTPOOL + OVER -   \ dest u   (ctp already advanced)
+  ;
+
+: TSRC-REPLAY  ( addr u in-colon -- )
+  TSRC-BUF-ADDR @ >R  TSRC-BUF-CAP @ >R
+  TSRC-LEN @ >R  TSRC-I @ >R  TSRC-LINE @ >R
+  TSRC-IN-COLON @ >R
+  TSRC-IN-COLON !
+  DUP TSRC-LEN !  DUP TSRC-BUF-CAP !
+  SWAP TSRC-BUF-ADDR !  DROP
+  0 TSRC-I !  1 TSRC-LINE !
+  BEGIN
+    TSRC-TOKEN DUP 0= IF  2DROP TRUE  ELSE TSRC-DISPATCH FALSE THEN
+  UNTIL
+  R> TSRC-IN-COLON !
+  R> TSRC-LINE !  R> TSRC-I !  R> TSRC-LEN !
+  R> TSRC-BUF-CAP !  R> TSRC-BUF-ADDR !
+  ;
+
+: TSRC-START-COLON-CODE  ( -- )
   START-T:
   HERE-T M-TMP !
   ENTRY-LANDING
+  ;
+
+: TSRC-COLON  ( ca u -- )
+  \ Name already on stack — do NOT use (T-COOKIE)/CREATE (would BL WORD from TIB).
+  TSRC-IN-COLON @ IF  2DROP S" nested :" TSRC-ERR  THEN
+  TSRC-START-COLON-CODE
   2DUP PAD 2 CELLS + PLACE
   PAD 2 CELLS + COMP-HEADER
-  SYM-TARGET M-TMP @ SYM-DEFINE DROP   \ ( ca u type addr -- ix )
+  SYM-TARGET M-TMP @ SYM-DEFINE TSRC-LAST !
+  TSRC-I @ TSRC-BODY0 !
+  FALSE TSRC-NONAME !
+  FALSE TSRC-DEFINER !
+  FALSE TSRC-SKIP-CT !
+  FALSE TSRC-IN-DOES !
   TRUE TO ?INTERPRETIVE
   TRUE TSRC-IN-COLON !
   ;
 
+: TSRC-NONAME-START  ( -- )
+  TSRC-IN-COLON @ IF  S" nested :NONAME" TSRC-ERR  THEN
+  TSRC-START-COLON-CODE
+  TSRC-I @ TSRC-BODY0 !
+  TRUE TSRC-NONAME !
+  FALSE TSRC-DEFINER !
+  FALSE TSRC-SKIP-CT !
+  FALSE TSRC-IN-DOES !
+  -1 TSRC-LAST !
+  TRUE TO ?INTERPRETIVE
+  TRUE TSRC-IN-COLON !
+  ;
+
+: TSRC-FINISH-DEFINER  ( -- )
+  TSRC-LAST @ DUP 0< IF  DROP S" ; definer has no name" TSRC-ERR  THEN
+  TSRC-DOES-XT @ 0= IF  TSRC-TOK-AT @ TSRC-CT1 !  THEN
+  TSRC-CT0 @ TSRC-CT1 @ TSRC-SLICE-SAVE  ( addr u )
+  TSRC-LAST @ SYM-L!
+  TSRC-LAST @ SYM-ADDR!
+  TSRC-DOES-XT @ TSRC-LAST @ SYM-X!
+  SYM-DEFINER TSRC-LAST @ SYM-TYPE!
+  ;
+
+: TSRC-ATTACH-DOES  ( xt -- )
+  TSRC-LAST @ DUP 0< IF  DROP DROP S" DOES> with no CREATE" TSRC-ERR  THEN
+  DUP SYM-TYPE@ DUP SYM-DATA = SWAP SYM-DOES = OR 0= IF
+    DROP DROP S" DOES> needs CREATE" TSRC-ERR
+  THEN
+  DUP SYM-DOES SWAP SYM-TYPE!
+  SYM-X!
+  ;
+
 : TSRC-SEMI  ( -- )
   TSRC-IN-COLON @ 0= IF  S" ; outside :" TSRC-ERR  THEN
+  TSRC-TOK-AT @ TSRC-BODY1 !
   END-T:
   FALSE TO ?INTERPRETIVE
   FALSE TSRC-IN-COLON !
-  \ Drop host-stack junk so top-level , / ALLOT / VALUE see a clean stack
-  BEGIN DEPTH WHILE DROP REPEAT
+  FALSE TSRC-SKIP-CT !
+  TSRC-DEFINER @ IF
+    TSRC-FINISH-DEFINER
+    FALSE TSRC-DEFINER !
+    TSRC-WIPE
+    EXIT
+  THEN
+  TSRC-IN-DOES @ IF
+    M-TMP @ TSRC-ATTACH-DOES
+    FALSE TSRC-IN-DOES !
+    TSRC-WIPE
+    EXIT
+  THEN
+  TSRC-NONAME @ IF
+    M-TMP @ >R
+    FALSE TSRC-NONAME !
+    TSRC-WIPE
+    R> EXIT
+  THEN
+  TSRC-WIPE
+  ;
+
+: TSRC-CONSTANT  ( ca u -- )
+  TSRC-IN-COLON @ IF  2DROP S" CONSTANT inside :" TSRC-ERR  THEN
+  DEPTH 0= IF  2DROP S" CONSTANT needs n" TSRC-ERR  THEN
+  ROT SYM-CONST SWAP SYM-ADD TSRC-LAST !
+  ;
+
+: TSRC-VOCABULARY  ( ca u -- )
+  TSRC-IN-COLON @ IF  2DROP S" VOCABULARY inside :" TSRC-ERR  THEN
+  SYM-VOCAB TWL-NEXT @ SYM-ADD TSRC-LAST !
+  1 TWL-NEXT +!
+  ;
+
+: TSRC-SET-WID  ( ix -- )
+  SYM-ADDR@ TWL-ORDER !
+  TWL-# @ 0= IF  1 TWL-# !  THEN
+  ;
+
+: TSRC-FORTH  ( -- )
+  TSRC-IN-COLON @ IF  S" FORTH inside :" TSRC-ERR  THEN
+  TWL-FORTH TWL-ORDER !
+  TWL-# @ 0= IF  1 TWL-# !  THEN
+  ;
+
+: TSRC-ALSO  ( -- )
+  TSRC-IN-COLON @ IF  S" ALSO inside :" TSRC-ERR  THEN
+  TWL-# @ #TWL-ORDER U>= IF  S" search order full" TSRC-ERR  THEN
+  TWL-ORDER TWL-ORDER CELL+  TWL-# @ CELLS CMOVE>
+  1 TWL-# +!
+  ;
+
+: TSRC-ONLY  ( -- )
+  TSRC-IN-COLON @ IF  S" ONLY inside :" TSRC-ERR  THEN
+  1 TWL-# !
+  TWL-ORDER #TWL-ORDER CELLS ERASE
+  TWL-FORTH TWL-ORDER !
+  ;
+
+: TSRC-DEFINITIONS  ( -- )
+  TSRC-IN-COLON @ IF  S" DEFINITIONS inside :" TSRC-ERR  THEN
+  TWL-ORDER @ TWL-CURRENT !
+  ;
+
+: TSRC-XT-OF  ( ix -- xt )
+  DUP SYM-TYPE@ DUP SYM-TARGET = OVER SYM-LIBRARY = OR SWAP SYM-CODE = OR IF
+    SYM-ADDR@ EXIT
+  THEN
+  DROP S" ' needs a colon or library word" TSRC-ERR
+  ;
+
+: TSRC-TICK  ( -- )
+  TSRC-TOKEN DUP 0= IF  2DROP S" ' needs a name" TSRC-ERR  THEN
+  2DUP SYM-FIND IF
+    NIP NIP TSRC-XT-OF
+    TSRC-IN-COLON @ IF  G,  THEN
+  ELSE
+    TYPE S"  ?" TSRC-ERR
+  THEN
+  ;
+
+: TSRC-XT-SYM?  ( ix -- f )
+  SYM-TYPE@ DUP SYM-TARGET = OVER SYM-LIBRARY = OR SWAP SYM-CODE = OR
+  ;
+
+: TSRC-BUILD-FIND-TABLE  ( -- )
+  [DEFINED] TCOM-FIND-DADDR [IF]
+    CELL-ALIGN-D
+    HERE-D >R
+    0 ,-D
+    0 TSRC-ACC !
+    SYM-N @ DUP 0= IF  DROP R> DROP EXIT  THEN
+    1- TSRC-BASE !
+    BEGIN TSRC-BASE @ 0< 0= WHILE
+      TSRC-BASE @ TSRC-XT-SYM? IF
+        TSRC-BASE @ SYM-ADDR@ ,-D
+        TSRC-BASE @ SYM-IMM? IF  1  ELSE  -1  THEN  ,-D
+        TSRC-BASE @ SYM-NBUF  /SNAME S,-D
+        1 TSRC-ACC +!
+      THEN
+      -1 TSRC-BASE +!
+    REPEAT
+    TSRC-ACC @ R@ !-D
+    R> TCOM-FIND-DADDR !-D
+  [THEN]
+  ;
+
+: TSRC-IMMEDIATE  ( -- )
+  TSRC-IN-COLON @ IF  S" IMMEDIATE inside :" TSRC-ERR  THEN
+  TSRC-LAST @ DUP 0< IF  DROP S" IMMEDIATE with no definition" TSRC-ERR  THEN
+  DUP SYM-TYPE@ SYM-TARGET <> IF
+    DROP S" IMMEDIATE needs a colon definition" TSRC-ERR
+  THEN
+  TSRC-BODY0 @ TSRC-BODY1 @ TSRC-SLICE-SAVE  ( addr u )
+  TSRC-LAST @ SYM-L!
+  TSRC-LAST @ SYM-X!
+  1 TSRC-LAST @ SYM-F!
+  ;
+
+: TSRC-MARK-DEFINER  ( -- )
+  HERE-T M-TMP @ <> IF  S" CREATE must be first in a defining word" TSRC-ERR  THEN
+  TRUE TSRC-DEFINER !
+  TRUE TSRC-SKIP-CT !
+  TSRC-I @ TSRC-CT0 !
+  0 TSRC-DOES-XT !
+  ;
+
+: TSRC-DOES>  ( -- )
+  TSRC-IN-COLON @ IF
+    TSRC-DEFINER @ 0= IF  S" DOES> without CREATE" TSRC-ERR  THEN
+    TSRC-SKIP-CT @ 0= IF  S" extra DOES>" TSRC-ERR  THEN
+    TSRC-TOK-AT @ TSRC-CT1 !
+    FALSE TSRC-SKIP-CT !
+    TSRC-START-COLON-CODE
+    M-TMP @ TSRC-DOES-XT !
+    EXIT
+  THEN
+  \ Top-level: attach a does-body to the last CREATE
+  TSRC-LAST @ 0< IF  S" DOES> with no CREATE" TSRC-ERR  THEN
+  TSRC-START-COLON-CODE
+  TRUE TSRC-IN-DOES !
+  TRUE TSRC-IN-COLON !
+  TRUE TO ?INTERPRETIVE
+  ;
+
+: TSRC-LBRACK  ( -- )
+  TSRC-IN-COLON @ 0= IF  S" [ outside :" TSRC-ERR  THEN
+  FALSE TSRC-IN-COLON !
+  TRUE TSRC-BRACKET !
+  ;
+
+: TSRC-RBRACK  ( -- )
+  TSRC-BRACKET @ 0= IF  S" ] without [" TSRC-ERR  THEN
+  FALSE TSRC-BRACKET !
+  TRUE TSRC-IN-COLON !
+  ;
+
+: TSRC-LITERAL  ( -- )
+  TSRC-IN-COLON @ 0= IF  S" LITERAL outside :" TSRC-ERR  THEN
+  DEPTH 0= IF  S" LITERAL underflow" TSRC-ERR  THEN
+  G,
+  ;
+
+: TSRC-RECURSE  ( -- )
+  TSRC-IN-COLON @ 0= IF  S" RECURSE outside :" TSRC-ERR  THEN
+  M-TMP @ COMP-CALL
+  ;
+
+: TSRC-RUN-IMM  ( ix -- )
+  DUP SYM-L@ 0= IF  DROP S" IMMEDIATE word has no body" TSRC-ERR  THEN
+  DUP SYM-X@ SWAP SYM-L@ TRUE TSRC-REPLAY
   ;
 
 : TSRC-VARIABLE  ( ca u -- )
@@ -348,15 +615,27 @@ TSRC-BUF-BOOT
   HERE-D                       ( ca u daddr )
   0 OVER !-D
   T-CELL ALLOT-D
-  SYM-DATA SWAP SYM-ADD DROP   \ ( ca u type daddr )
+  SYM-DATA SWAP SYM-ADD TSRC-LAST !
   ;
 
 \ CREATE name — data symbol at HERE-D; no automatic allot (use ALLOT / ,)
-: TSRC-CREATE  ( ca u -- )
+: TSRC-CREATE  ( ca u -- ix )
   TSRC-IN-COLON @ IF  2DROP S" CREATE inside :" TSRC-ERR  THEN
   CELL-ALIGN-D
   HERE-D                       ( ca u daddr )
-  SYM-DATA SWAP SYM-ADD DROP
+  SYM-DATA SWAP SYM-ADD
+  DUP TSRC-LAST !
+  ;
+
+: TSRC-RUN-DEFINER  ( ix -- )
+  TSRC-IN-COLON @ IF  DROP S" defining word inside :" TSRC-ERR  THEN
+  >R
+  TSRC-TOKEN DUP 0= IF  2DROP R> DROP S" defining word needs a name" TSRC-ERR  THEN
+  TSRC-CREATE DROP
+  R@ SYM-L@ IF
+    R@ SYM-ADDR@  R@ SYM-L@  FALSE TSRC-REPLAY
+  THEN
+  R> SYM-X@ DUP IF  TSRC-ATTACH-DOES  ELSE DROP THEN
   ;
 
 \ VALUE — n already under (ca u) on host stack; SYM-VALUE auto-fetches
@@ -368,7 +647,7 @@ TSRC-BUF-BOOT
   ROT                            \ ca u n
   R@ !-D                         \ ca u
   T-CELL ALLOT-D
-  SYM-VALUE R> SYM-ADD DROP
+  SYM-VALUE R> SYM-ADD TSRC-LAST !
   ;
 
 \ TO / =: name — compile store into a VALUE (or VARIABLE cell)
@@ -623,6 +902,7 @@ TSRC-BUF-BOOT
   2DUP S" U>" TSRC-EQ IF  2DROP S" UGT#" TSRC-LIB-CALL TRUE EXIT  THEN
   2DUP S" WITHIN" TSRC-EQ IF  2DROP S" WITHIN#" TSRC-LIB-CALL TRUE EXIT  THEN
   2DUP S" EXECUTE" TSRC-EQ IF  2DROP S" EXEC#" TSRC-LIB-CALL TRUE EXIT  THEN
+  2DUP S" FIND" TSRC-EQ IF  2DROP S" FIND#" TSRC-LIB-CALL TRUE EXIT  THEN
   2DUP S" CATCH" TSRC-EQ IF  2DROP S" CATCH#" TSRC-LIB-CALL TRUE EXIT  THEN
   2DUP S" THROW" TSRC-EQ IF  2DROP S" THROW#" TSRC-LIB-CALL TRUE EXIT  THEN
   2DUP S" ALLOCATE" TSRC-EQ IF  2DROP S" ALLOC#" TSRC-LIB-CALL TRUE EXIT  THEN
@@ -790,17 +1070,78 @@ VARIABLE #CASE-OF
   2DROP FALSE
   ;
 
-: TSRC-DISPATCH  ( ca u -- )
+: TSRC-BRACKET-OP  ( ca u -- )
+  2DUP S" CHAR" TSRC-EQ IF
+    2DROP TSRC-TOKEN DUP 0= IF  2DROP S" CHAR needs a character" TSRC-ERR  THEN
+    DROP C@ EXIT
+  THEN
+  TSRC-HOST-EXEC
+  ;
+
+: TSRC-POSTPONE  ( -- )
+  TSRC-IN-COLON @ 0= IF  S" POSTPONE outside :" TSRC-ERR  THEN
+  TSRC-TOKEN DUP 0= IF  2DROP S" POSTPONE needs a name" TSRC-ERR  THEN
+  2DUP PAD PLACE
+  TSRC-CTRL? IF  EXIT  THEN
+  PAD COUNT TSRC-PRIM? IF  EXIT  THEN
+  PAD COUNT SYM-FIND IF
+    DUP SYM-TYPE@ SYM-DEFINER = IF  DROP S" POSTPONE defining word" TSRC-ERR  THEN
+    DUP SYM-IMM? IF  TSRC-RUN-IMM  ELSE  SYM-COMPILE-REF  THEN
+  ELSE
+    PAD COUNT TYPE S"  ?" TSRC-ERR
+  THEN
+  ;
+
+: (TSRC-DISPATCH)  ( ca u -- )
   DUP 0= IF  2DROP EXIT  THEN
+
+  TSRC-BRACKET @ IF
+    2DUP S" ]" TSRC-EQ IF  2DROP TSRC-RBRACK EXIT  THEN
+    2DUP TSRC->NUMBER IF  NIP NIP EXIT  THEN
+    TSRC-BRACKET-OP EXIT
+  THEN
+
+  TSRC-SKIP-CT @ IF
+    2DUP S" DOES>" TSRC-EQ IF  2DROP TSRC-DOES> EXIT  THEN
+    2DUP S" ;" TSRC-EQ IF  2DROP TSRC-SEMI EXIT  THEN
+    2DROP EXIT
+  THEN
 
   2DUP S" VARIABLE" TSRC-EQ IF
     2DROP TSRC-TOKEN DUP 0= IF  2DROP S" VARIABLE needs a name" TSRC-ERR  THEN
     TSRC-VARIABLE EXIT
   THEN
   2DUP S" CREATE" TSRC-EQ IF
-    2DROP TSRC-TOKEN DUP 0= IF  2DROP S" CREATE needs a name" TSRC-ERR  THEN
-    TSRC-CREATE EXIT
+    2DROP
+    TSRC-IN-COLON @ IF
+      TSRC-MARK-DEFINER
+    ELSE
+      TSRC-TOKEN DUP 0= IF  2DROP S" CREATE needs a name" TSRC-ERR  THEN
+      TSRC-CREATE DROP
+    THEN
+    EXIT
   THEN
+  2DUP S" CONSTANT" TSRC-EQ IF
+    2DROP TSRC-TOKEN DUP 0= IF  2DROP S" CONSTANT needs a name" TSRC-ERR  THEN
+    TSRC-CONSTANT EXIT
+  THEN
+  2DUP S" :NONAME" TSRC-EQ IF  2DROP TSRC-NONAME-START EXIT  THEN
+  2DUP S" IMMEDIATE" TSRC-EQ IF  2DROP TSRC-IMMEDIATE EXIT  THEN
+  2DUP S" DOES>" TSRC-EQ IF  2DROP TSRC-DOES> EXIT  THEN
+  2DUP S" [" TSRC-EQ IF  2DROP TSRC-LBRACK EXIT  THEN
+  2DUP S" ]" TSRC-EQ IF  2DROP TSRC-RBRACK EXIT  THEN
+  2DUP S" LITERAL" TSRC-EQ IF  2DROP TSRC-LITERAL EXIT  THEN
+  2DUP S" POSTPONE" TSRC-EQ IF  2DROP TSRC-POSTPONE EXIT  THEN
+  2DUP S" RECURSE" TSRC-EQ IF  2DROP TSRC-RECURSE EXIT  THEN
+  2DUP S" VOCABULARY" TSRC-EQ IF
+    2DROP TSRC-TOKEN DUP 0= IF  2DROP S" VOCABULARY needs a name" TSRC-ERR  THEN
+    TSRC-VOCABULARY EXIT
+  THEN
+  2DUP S" ALSO" TSRC-EQ IF  2DROP TSRC-ALSO EXIT  THEN
+  2DUP S" ONLY" TSRC-EQ IF  2DROP TSRC-ONLY EXIT  THEN
+  2DUP S" DEFINITIONS" TSRC-EQ IF  2DROP TSRC-DEFINITIONS EXIT  THEN
+  2DUP S" FORTH" TSRC-EQ IF  2DROP TSRC-FORTH EXIT  THEN
+  2DUP S" '" TSRC-EQ IF  2DROP TSRC-TICK EXIT  THEN
   2DUP S" VALUE" TSRC-EQ IF
     2DROP TSRC-TOKEN DUP 0= IF  2DROP S" VALUE needs a name" TSRC-ERR  THEN
     TSRC-VALUE EXIT
@@ -842,7 +1183,13 @@ VARIABLE #CASE-OF
     2DUP TSRC->NUMBER IF
       NIP NIP EXIT                     \ ( ca u n true ) → n
     THEN
-    TYPE S"  at top level (VARIABLE CREATE VALUE : FLOAD ALLOT , CELLS)" TSRC-ERR
+    2DUP SYM-FIND IF
+      NIP NIP
+      DUP SYM-TYPE@ SYM-DEFINER = IF  TSRC-RUN-DEFINER EXIT  THEN
+      DUP SYM-TYPE@ SYM-VOCAB = IF  TSRC-SET-WID EXIT  THEN
+      TYPE S"  at top level (use inside :)" TSRC-ERR
+    THEN
+    TYPE S"  at top level (VARIABLE CREATE VALUE CONSTANT : FLOAD ALLOT , CELLS)" TSRC-ERR
   THEN
 
   2DUP TSRC-PRIM? IF  EXIT  THEN
@@ -853,11 +1200,14 @@ VARIABLE #CASE-OF
   THEN
 
   2DUP SYM-FIND IF
-    NIP NIP SYM-COMPILE-REF
+    NIP NIP
+    DUP SYM-TYPE@ SYM-DEFINER = IF  DROP S" defining word inside :" TSRC-ERR  THEN
+    DUP SYM-IMM? IF  TSRC-RUN-IMM  ELSE  SYM-COMPILE-REF  THEN
   ELSE
     TYPE S"  ?" TSRC-ERR
   THEN
   ;
+' (TSRC-DISPATCH) IS TSRC-DISPATCH
 
 : TSRC-LAST-SLASH  ( c-addr u -- n )
   -1 TSRC-ACC !
@@ -979,6 +1329,12 @@ VARIABLE #CASE-OF
   0 TSRC-I !
   1 TSRC-LINE !
   FALSE TSRC-IN-COLON !
+  FALSE TSRC-BRACKET !
+  FALSE TSRC-SKIP-CT !
+  FALSE TSRC-DEFINER !
+  FALSE TSRC-IN-DOES !
+  FALSE TSRC-NONAME !
+  TSRC-DEPTH @ 1 = IF  0 TSRC-CTP !  THEN
   BEGIN
     TSRC-TOKEN                     \ ( ca u )
     DUP 0= IF
@@ -1009,6 +1365,8 @@ VARIABLE #CASE-OF
   -1 TSRC-DEPTH +!
   TSRC-DEPTH @ IF
     TSRC-DEPTH @ 1- TSRC-STATE-RESTORE
+  ELSE
+    TSRC-BUILD-FIND-TABLE
   THEN
   ;
 

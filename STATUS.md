@@ -126,13 +126,15 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
 ### Target dialect — still missing (Layer 3, on demand)
 
 Restricted TSRC, not ANS CORE. Names not in this table (and not already mapped) compile as `?`.  
-**Shipped** (`samples/wave.fth`, `stackcmp.fth`, `numeric.fth`, `memdbl.fth`, `arith.fth`, `xheap.fth`, `shiftloop.fth`):  
+**Shipped** (`samples/wave.fth`, `stackcmp.fth`, `numeric.fth`, `memdbl.fth`, `arith.fth`, `xheap.fth`, `shiftloop.fth`, `defining.fth`, `search.fth`):  
 `2DROP` `2SWAP` `2OVER` `TUCK` `?DUP` `PICK` `ROLL` `DEPTH`  
 `0<` `0>` `0<>` `<=` `>=` `U<` `U>` `WITHIN`  
 `XOR` `ABS` `MIN` `MAX` `C@` `C!` `+!` `LEAVE` `EXECUTE` `[']`  
 `<#` `HOLD` `SIGN` `#` `#>` `.`  `2!` `CELL-` `FILL` `ERASE` `COUNT` `CMOVE>` `MOVE`  
 `D+` `D-` `S>D` `D>S`  signed `/` `MOD` `/MOD` `*/` `*/MOD`  
-`CATCH` `THROW` `ALLOCATE` `FREE` `RESIZE`  `LSHIFT` `RSHIFT` `UNLOOP` `?DO`.
+`CATCH` `THROW` `ALLOCATE` `FREE` `RESIZE`  `LSHIFT` `RSHIFT` `UNLOOP` `?DO`  
+`CONSTANT` `DOES>` `:NONAME` `RECURSE` `IMMEDIATE` `[` `]` `LITERAL` `POSTPONE`  
+`VOCABULARY` `ALSO` `ONLY` `DEFINITIONS` `FORTH` `'` `FIND`.
 
 | Class | Still missing |
 |-------|----------------|
@@ -142,14 +144,18 @@ Restricted TSRC, not ANS CORE. Names not in this table (and not already mapped) 
 | Arithmetic | *(done — signed `/` `MOD` `/MOD` `*/` `*/MOD` via `SM/REM`; `samples/arith.fth`)* |
 | Memory | *(done — `samples/memdbl.fth`)* |
 | Loop extras | *(done — `UNLOOP` `?DO`; `samples/shiftloop.fth`)* |
-| Defining | `CONSTANT` `DOES>` `:NONAME` `RECURSE` `IMMEDIATE` `[` `]` `LITERAL` `POSTPONE` |
+| Defining | *(done — `samples/defining.fth`; `CONSTANT`, `CREATE … DOES>`, `: name CREATE … DOES> … ;`, `:NONAME`, `RECURSE`, `IMMEDIATE`, `[` `]` `LITERAL`, `POSTPONE`)* |
 | Numeric text | *(done — `.` is pictured + `SPACE`; `samples/numeric.fth`, `samples/memdbl.fth`)* |
 | Double | *(done — `D+` `D-` `S>D` `D>S`; `2*`/`2/` remain single-cell)* |
 | Exceptions | *(done — `CATCH` `THROW`; uncaught `THROW` exits; `samples/xheap.fth`)* |
 | Heap | *(done — `ALLOCATE` `FREE` `RESIZE` via malloc; `samples/xheap.fth`)* |
-| Search order | `VOCABULARY` `ALSO` `ONLY` `DEFINITIONS` `'` `FIND` |
+| Search order | *(done — `samples/search.fth`; compile-time wordlists; runtime `FIND` uses a baked name table)* |
 
 `/` `MOD` `/MOD` `*/` `*/MOD` are **signed toward zero** (`SM/REM`). `DIV#` remains unsigned `UDIV`. `LIT#` is still a no-op stub.
+
+Search order is **compile-time TSRC** (`VOCABULARY` / `ALSO` / `ONLY` / `DEFINITIONS` / `FORTH`). New definitions go in `CURRENT`. `'` is interpret (host xt) or compile (literal xt). Runtime `FIND` (counted string) walks a name table of colon/library words emitted at the end of `TSRC-INCLUDE` (not a live target search order).
+
+Defining words are **compile-time TSRC** (no resident target compiler). `CREATE … DOES>` at top level, or `: name CREATE … DOES> … ;` then `… name foo`, attaches a does-body (push pfa + call). `[ n … ] LITERAL` evaluates on the host. `IMMEDIATE` replays the colon’s source into the current definition. `POSTPONE` compiles compilation semantics now (no runtime COMPILE). `:NONAME` leaves an xt on the host stack for `VALUE`.
 
 ---
 

@@ -119,6 +119,14 @@ What each sample does
     LSHIFT RSHIFT UNLOOP ?DO
     TCOM-CLI samples/shiftloop.fth  →  exit 0
 
+  defining.fth
+    CONSTANT DOES> :NONAME RECURSE IMMEDIATE [ ] LITERAL POSTPONE
+    TCOM-CLI samples/defining.fth  →  exit 0
+
+  search.fth
+    VOCABULARY ALSO ONLY DEFINITIONS ' FIND
+    TCOM-CLI samples/search.fth  →  exit 0
+
   CLI / dialect words (after pack load):
     ARGCOUNT ARG1 ARG2 ARG#
     0=  =  <  >   + - *   ROT NIP 2DUP

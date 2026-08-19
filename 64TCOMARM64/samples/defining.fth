@@ -1,0 +1,92 @@
+\ defining.fth — CONSTANT DOES> :NONAME RECURSE IMMEDIATE [ ] LITERAL POSTPONE
+\
+\   FLOAD TARGETARM64.fth
+\   TCOM-CLI samples/defining.fth
+\   ./samples/defining ; echo $?
+\
+\ Exit 0 if all pass.
+
+0 VALUE FAILS
+
+: FAIL  ( -- )  FAILS 1+ TO FAILS ;
+
+: EXPECT  ( got want -- )
+  = IF
+    S" ok
+" TYPE
+  ELSE
+    S" FAIL
+" TYPE
+    FAIL
+  THEN
+  ;
+
+10 CONSTANT TEN
+
+:NONAME 3 + ; VALUE ADD3
+
+\ 4 COUNTDOWN → 4+3+2+1+0 = 10
+: COUNTDOWN
+  DUP 0= IF DROP 0 EXIT THEN
+  DUP 1- RECURSE +
+  ;
+
+: TIMES4  [ 2 2 * ] LITERAL ;
+
+CREATE PAIR  11 , 22 ,
+DOES> DUP @ SWAP CELL+ @ ;
+
+: KONST CREATE , DOES> @ ;
+99 KONST N99
+
+: [LIT5]  [ 5 ] LITERAL ; IMMEDIATE
+: USELIT  [LIT5] ;
+
+: [DUP]  POSTPONE DUP ; IMMEDIATE
+: USEDUP  [DUP] ;
+
+: MAIN
+  S" CONSTANT " TYPE
+  TEN
+  10 EXPECT
+
+  S" :NONAME " TYPE
+  4 ADD3 EXECUTE
+  7 EXPECT
+
+  S" RECURSE " TYPE
+  4 COUNTDOWN
+  10 EXPECT
+
+  S" LITERAL " TYPE
+  TIMES4
+  4 EXPECT
+
+  S" DOES> " TYPE
+  PAIR
+  22 EXPECT
+  11 EXPECT
+
+  S" definer " TYPE
+  N99
+  99 EXPECT
+
+  S" IMMEDIATE " TYPE
+  USELIT
+  5 EXPECT
+
+  S" POSTPONE " TYPE
+  6 USEDUP
+  6 EXPECT
+  6 EXPECT
+
+  FAILS 0=
+  IF
+    S" ALL PASS
+" TYPE
+    0
+  ELSE
+    S" FAILS " TYPE FAILS . CR
+    1
+  THEN
+;

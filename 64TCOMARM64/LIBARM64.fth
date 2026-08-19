@@ -41,6 +41,7 @@ VARIABLE LIB-BODY-XT
   SYM-LIBRARY LIB-I @ SYM-TYPE!
   LIB-CK @ LIB-I @ SYM-ADDR!
   0 LIB-I @ SYM-USES!
+  TWL-FORTH LIB-I @ SYM-W!
   1 SYM-N +!
   LIB-VERBOSE IF
     S" LIB " TYPE LIB-CA @ LIB-U @ TYPE S"  @ " TYPE LIB-CK @ SYM-HEX. CR
@@ -1101,6 +1102,15 @@ VARIABLE SN-P3
   24 HOST-CALL,
   ;
 
+: BODY-FIND  ( -- )                   \ FIND ( c-addr -- c-addr 0 | xt n )
+  BTI,
+  28 HOST-CALL,                       \ X0 = xt or c-addr
+  X0 X19 -8 STR-PRE,
+  0 X0 MOV-X-IMM64,
+  0 X1 MOV-X-IMM64,
+  24 HOST-CALL,                       \ TOS = 0 | 1 | -1
+  ;
+
 \ CMOVE ( src dest u -- )  forward byte copy
 : BODY-CMOVE  ( -- )
   BTI,
@@ -1317,6 +1327,7 @@ VARIABLE SN-P3
 ' BODY-ALLOC     LIB-PRIM-XT ALLOC#
 ' BODY-FREE      LIB-PRIM-XT FREE#
 ' BODY-RESIZE    LIB-PRIM-XT RESIZE#
+' BODY-FIND      LIB-PRIM-XT FIND#
 ' BODY-LTSHARP   LIB-PRIM-XT LTSHARP#
 ' BODY-HOLD      LIB-PRIM-XT HOLD#
 ' BODY-SIGN      LIB-PRIM-XT SIGN#

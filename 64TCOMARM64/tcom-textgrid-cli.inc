@@ -233,6 +233,47 @@ static int64_t tcom_host_fmmod(int64_t den, int64_t hi, int64_t lo) {
   return (int64_t)r;
 }
 
+/* FIND (counted string at runtime addr). Table daddr in data[5040].
+ * Returns xt (or caddr if missing); tcom_aux = 0 | 1 (imm) | -1. */
+static int tcom_upc_ch(int c) {
+  if (c >= 'a' && c <= 'z') return c - 32;
+  return c;
+}
+
+static int64_t tcom_host_find(int64_t caddr, int64_t b) {
+  uint64_t tab_d;
+  uint8_t *tab, *want;
+  uint64_t n, i;
+  int wlen, nlen, k;
+  (void)b;
+  tcom_aux = 0;
+  if (!tcom_data0 || !caddr) return caddr;
+  memcpy(&tab_d, tcom_data0 + 5040, 8);
+  if (!tab_d) return caddr;
+  tab = tcom_data0 + (size_t)tab_d;
+  memcpy(&n, tab, 8);
+  want = (uint8_t *)(uintptr_t)caddr;
+  wlen = want[0];
+  if (wlen < 0) wlen = 0;
+  tab += 8;
+  for (i = 0; i < n; i++, tab += 48) {
+    int64_t xt;
+    int64_t flg;
+    memcpy(&xt, tab, 8);
+    memcpy(&flg, tab + 8, 8);
+    nlen = tab[16];
+    if (nlen != wlen) continue;
+    for (k = 0; k < wlen; k++) {
+      if (tcom_upc_ch(want[1 + k]) != tcom_upc_ch(tab[17 + k])) break;
+    }
+    if (k == wlen) {
+      tcom_aux = (uint64_t)flg;
+      return xt;
+    }
+  }
+  return caddr;
+}
+
 static tcom_host_fn host_fn[] = {
   tcom_host_window,
   tcom_host_app_name,
@@ -262,4 +303,5 @@ static tcom_host_fn host_fn[] = {
   tcom_host_alloc,
   tcom_host_free,
   tcom_host_resize,
+  tcom_host_find,
 };
