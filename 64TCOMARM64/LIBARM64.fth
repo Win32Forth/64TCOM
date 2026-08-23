@@ -9,6 +9,9 @@ TCOM-ANEW LIBARM64
 FORTH DEFINITIONS
 DECIMAL
 
+\ Emitters live in VOCABULARY ASMARM64 (INCLUDE may reset search order).
+ALSO ASMARM64
+
 T-CODE-BASE 0= IF  TCOM-INIT-MEM-DEFAULT  THEN
 
 VARIABLE LIB-PRIM-COUNT
@@ -30,6 +33,7 @@ VARIABLE LIB-BODY-XT
 : LIB-PRIM-XT  ( body-xt -- )  \ name follows in input
   LIB-BODY-XT !
   HOST-DEFS
+  ALSO ASMARM64                 \ emitters after HOST-DEFS (ONLY FORTH)
   ALIGN4-T
   HERE-T LIB-CK !
   LIB-BODY-XT @ EXECUTE
@@ -159,7 +163,7 @@ VARIABLE IO-P4
   $80 SVC,
   ALIGN4-T HERE-T IO-P1 !
   0 CS B.COND,
-  AHEAD IO-P2 !
+  AHEAD, IO-P2 !
   HERE-T IO-P1 @ PATCH-BCOND
   0 X0 MOV-X-IMM64,
   IO-P2 @ THEN,
@@ -201,7 +205,7 @@ VARIABLE IO-P4
   0 NE B.COND,
   X3 X0 MOV-X-X,
   HERE-T IO-P3 @ PATCH-BCOND
-  AHEAD IO-P2 !
+  AHEAD, IO-P2 !
   HERE-T IO-P1 @ PATCH-BCOND
   HERE-T IO-P4 @ PATCH-BCOND
   0 X0 MOV-X-IMM64,
@@ -242,7 +246,7 @@ VARIABLE IO-P4
   $80 SVC,
   ALIGN4-T HERE-T IO-P4 !
   0 CS B.COND,
-  AHEAD IO-P1 !
+  AHEAD, IO-P1 !
   HERE-T IO-P4 @ PATCH-BCOND
   -1 X0 MOV-X-IMM64,
   IO-P1 @ THEN,
@@ -282,7 +286,7 @@ VARIABLE IO-P4
   $80 SVC,
   ALIGN4-T HERE-T IO-P4 !
   0 CS B.COND,
-  AHEAD IO-P1 !
+  AHEAD, IO-P1 !
   HERE-T IO-P4 @ PATCH-BCOND
   -1 X0 MOV-X-IMM64,
   IO-P1 @ THEN,
@@ -296,7 +300,7 @@ VARIABLE IO-P4
   ALIGN4-T HERE-T IO-P1 !
   0 CS B.COND,
   0 X0 MOV-X-IMM64,
-  AHEAD IO-P2 !
+  AHEAD, IO-P2 !
   HERE-T IO-P1 @ PATCH-BCOND
   \ X0 already errno
   IO-P2 @ THEN,
@@ -327,7 +331,7 @@ VARIABLE IO-P4
   X0 X3 LDRB-X,                  \ X0 = len
   1 X3 X3 ADD-IMM,               \ X3 = body
   X3 X19 -8 STR-PRE,             \ push c-addr; TOS = len
-  AHEAD ARG-P4 !
+  AHEAD, ARG-P4 !
   \ empty:
   HERE-T ARG-P1 @ PATCH-CBZ
   HERE-T ARG-P2 @ PATCH-BCOND
@@ -583,6 +587,9 @@ VARIABLE SN-P3
 ' BODY-DOT     LIB-PRIM-XT DOT#
 ' BODY-STACKHUD LIB-PRIM-XT STACKHUD#
 ' BODY-SNUMBER LIB-PRIM-XT SNUMBER#
+
+\ Keep emitters visible for later BODY- definitions.
+ONLY FORTH ALSO ASMARM64  FORTH-WORDLIST SET-CURRENT
 
 \ WINDOW# ( -- )  host slot 0 → tcom_host_window(); preserves TOS
 \ GUI shell opens a blank NSWindow; CLI stub returns -1 (no window).

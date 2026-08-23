@@ -28,7 +28,7 @@ RET,
 \ ----- B: AHEAD skips mov #99 => 3 -----
 ALIGN4-T
 HERE-T TB !
-AHEAD
+AHEAD,
 99 X0 MOV-X-IMM64,
 THEN,
 3 X0 MOV-X-IMM64,

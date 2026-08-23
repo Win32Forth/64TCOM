@@ -33,18 +33,24 @@ S" [TARGETARM64] loading..." TYPE CR
 INCLUDE ../64TCOMSRC/64HOST.fth
 INCLUDE ../64TCOMSRC/64DIR.fth
 INCLUDE ASMARM64.fth
+ALSO ASMARM64          \ pack files need emitters on the search order
 INCLUDE OPTARM64.fth
 INCLUDE LIBARM64.fth
 INCLUDE SIMARM64.fth
 INCLUDE NATARM64.fth
 INCLUDE MACHOARM64.fth
-\ Generic .fth loader (compiler) — after pack hooks/prims exist
+\ Generic .fth loader (compiler) — after pack hooks/prims exist.
+\ Emitters (TIF, RET,, …) live in ASMARM64; keep them visible for 64SRC.
+ONLY FORTH ALSO ASMARM64  FORTH-WORDLIST SET-CURRENT
 INCLUDE ../64TCOMSRC/64SRC.fth
 
 \ Dual-load directives: under TCOM, \TCOM lines load and \ANS lines are skipped.
 \ (64HOST defaults the opposite for interactive 64Forth.)
 FALSE ' \ANS  >BODY !
 TRUE  ' \TCOM >BODY !
+
+\ Re-assert assembler search order (64SRC / FORTH DEFINITIONS may drop it).
+ONLY FORTH ALSO ASMARM64  FORTH-WORDLIST SET-CURRENT
 
 \ Pack wrapper: .fth → image → Mach-O entry MAIN (after 64SRC is loaded)
 : TSRC-BUILD  ( ca u -- )

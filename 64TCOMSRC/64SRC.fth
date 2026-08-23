@@ -41,6 +41,12 @@ TCOM-ANEW 64SRC
 FORTH DEFINITIONS
 DECIMAL
 
+\ ARM64 pack: emitters (TIF …) live in VOCABULARY ASMARM64. Keep them visible.
+\ (Bare FORTH after ALSO ASMARM64 collapses the search order on 64Forth.)
+[DEFINED] ASMARM64 [IF]
+  ALSO ASMARM64  FORTH-WORDLIST SET-CURRENT
+[THEN]
+
 \ Source buffer: ALLOCATE/RESIZE heap, not a fixed dictionary allot.
 \ Default floor 64 KiB; TSRC-LOAD-FILE grows to FILE-SIZE (and more while reading).
 65536 CONSTANT /TSRC-BUF-MIN
@@ -686,10 +692,16 @@ TSRC-BUF-BOOT
   DUP PAD C!
   PAD 1+ SWAP MOVE
   PAD FIND IF
-    EXECUTE
-  ELSE
-    COUNT TYPE S"  (host) not found — load target pack first" TSRC-ERR
-  THEN
+    EXECUTE EXIT
+  THEN DROP
+  \ Pack emitters (TIF TDO …) may live only in ASMARM64
+  [DEFINED] ASMARM64 [IF]
+    ALSO ASMARM64
+    PAD FIND IF
+      EXECUTE PREVIOUS EXIT
+    THEN DROP PREVIOUS
+  [THEN]
+  PAD COUNT TYPE S"  (host) not found — load target pack first" TSRC-ERR
   ;
 
 : TSRC-LIB-CALL  ( ca u -- )

@@ -8,7 +8,48 @@ TCOM-ANEW OPTARM64
 FORTH DEFINITIONS
 DECIMAL
 
-: (TVER-ARM64)  ( -- )  ." 64TCOM ARM64 Version 0.7" ;
+\ Emitters live in VOCABULARY ASMARM64 (INCLUDE may reset search order).
+ALSO ASMARM64
+
+\ 64HOST HOST-DEFS is ONLY FORTH ALSO HOST — that drops ASMARM64. LIB-PRIM
+\ bodies must see emitters while they EXECUTE into target CODE.
+\ Do not run FORTH after ALSO ASMARM64 — on 64Forth that collapses the order
+\ to FORTH-only. Set CURRENT with SET-CURRENT / DEFINITIONS instead.
+: HOST-DEFS  ( -- )
+  ONLY FORTH ALSO ASMARM64 ALSO HOST DEFINITIONS
+  ;
+: FORTH-DEFS  ( -- )
+  ONLY FORTH ALSO ASMARM64
+  FORTH-WORDLIST SET-CURRENT
+  ;
+
+\ 64HOST TCOM-ORDER uses ASSEMBLER (empty kernel vocab). Pack emitters are
+\ in ASMARM64 — put that on the order so TSRC-HOST-EXEC finds TDO/TIF/…
+: TCOM-ORDER  ( -- )
+  ONLY FORTH
+  ALSO ASMARM64
+  ALSO COMPILER
+  ALSO HOST
+  ALSO TARGET
+  DEFINITIONS
+  ;
+
+: >LIBRARY  ( -- )
+  TCOM-MODE-LIBRARY TO TCOM-MODE
+  ONLY FORTH
+  ALSO ASMARM64
+  ALSO COMPILER
+  ALSO TARGET
+  ALSO HOST
+  DEFINITIONS
+  ;
+
+: >TARGET  ( -- )
+  TCOM-MODE-TARGET TO TCOM-MODE
+  TCOM-ORDER
+  ;
+
+: (TVER-ARM64)  ( -- )  ." 64TCOM ARM64 Version 0.8" ;
 ' (TVER-ARM64) IS TVERSION
 
 /LOW-HIGH

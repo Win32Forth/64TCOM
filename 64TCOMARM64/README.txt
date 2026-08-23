@@ -30,7 +30,7 @@ ABI (3.0c)
   X19 = DSP (push STR X0,[X19,#-8]!)
   Cell = 8 bytes. Cold sets X19 to top of data image, X0 = 0.
 
-What the pack emits (v0.7; 3.0c foundations)
+What the pack emits (v0.8; 3.0c foundations + ASM 3.2 toolkit)
 ----------------------
   COMP-SINGLE n   → push TOS; MOV X0,#n
   COMP-CALL taddr → LDR X16; BLR; B+3; .quad taddr (offset; native adds base)
@@ -40,16 +40,33 @@ What the pack emits (v0.7; 3.0c foundations)
 
   Forward G': RESOLVE-1 stores final taddr in .quad at site.
 
-Assembler 3.1+ (grows with the compiler — not a full ISA)
----------------------------------------------------------
-  Registers X0–X30, AND/ORR/EOR, ADDS/SUBS/CMP, ADD/SUB #imm
-  LDR/STR scaled, B/BL/B.cond, CBZ/CBNZ
+Assembler 3.2 toolkit (dual-load — not a full ISA)
+--------------------------------------------------
+  Same ASMARM64.fth for TCOM pack and interactive 64Forth.
+  Docs: ASMARM64.md    Progress: ../STATUSASM64.md
+
+  Registers X0–X30 + W0–W30 suite; shifts/bitfield; ADR/ADRP
+  LDR/STR (+ pre/post/reg); LDP/STP; CSEL/CSINC; real BTI
   Labels: LL:  BR>LL  (0..15; not L: — that is 64DIR library)
   Control: AHEAD THEN, AIF, AELSE, ATHEN,
   Forth-ABI: TIF TELSE TTHEN  TBEGIN TUNTIL  (TOS flag in X0)
   CALL-ABS: STP LR; LDR; BLR; LDP LR; B+3; .quad  (Phase 3.5)
+
+  Homes (keep identical; header stamp Synced Aug 23, 2026 3:16 PM):
+    64TCOMARM64/ASMARM64.fth     — pack (INCLUDE from TARGETARM64)
+    64Forth Library/Assembler/asmarm64.fth — host FROMLIB only (not TCOM)
+    Tests: ASMARMTESTS.fth (both trees) → ASM-TESTS
+
+  64Forth alone (no TARGETARM64):
+    FROMLIB FLOAD Assembler/asmarm64.fth
+    FROMLIB FLOAD Assembler/ASMARMTESTS.fth
+    ASM-TESTS                 \ encode goldens + CALL-NATIVE leaves
+    ASMARM64-DISCARD          \ MARKER restore + free buffers
+
+  Pack twin of tests: ASMARMTESTS.fth (not loaded by TARGETARM64).
+
   Demo: ASM-DEMO  IF-DEMO  (sim)
-  Policy: add emitters when LIB/OPT/demos need them, not full A64 first.
+  Deferred: NEON/FP/SVE; most system/atomics.
 
 Image save
 ----------

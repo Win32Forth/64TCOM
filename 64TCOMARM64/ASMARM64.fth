@@ -1,23 +1,227 @@
-\ ASMARM64.fth — Forth-style AArch64 assembler for 64TCOMARM64
+\ ASMARM64.fth — Forth-style AArch64 assembler for 64TCOM + 64Forth
+\ Synced Aug 23, 2026 3:16 PM — keep 64TCOMARM64/ASMARM64.fth and Library/Assembler/asmarm64.fth identical.
 \
-\ Public domain. Requires 64HOST.fth.
-\ Emits little-endian 32-bit A64 into target CODE (W, / C,-T).
+\ Public domain. Dual-load toolkit (Phase 3.2).
+\
+\ Two homes (keep identical — see Synced stamp above):
+\   64TCOMARM64/ASMARM64.fth
+\       Loaded by FLOAD TARGETARM64.fth (pack emitters for OPT/LIB).
+\   64Forth Resources/Library/Assembler/asmarm64.fth
+\       Loaded only via FROMLIB on interactive 64Forth — NOT by TCOM.
+\
+\ Backend selection (not \ANS/\TCOM — pack flips those after INCLUDE):
+\   Pack:  T-CODE-BASE defined → C,-T / HERE-T target image
+\   Host:  no T-CODE-BASE → host ASM buffer + MARKER overlay / DISCARD
+\ Docs: STATUSASM64.md  ASMARM64.md  ASMARMTESTS.fth → ASM-TESTS
 \
 \ ABI (subroutine-threaded Forth):
 \   X0 = TOS   X19 = DSP   X1 = scratch   X16 = call   X30 = LR
 \
-\ Phase 3.1 adds: X0–X30, AND/ORR/EOR, ADDS/SUBS/CMP, ADD/SUB imm,
-\ LDR/STR scaled, B/BL/B.cond, CBZ/CBNZ, labels L0..L15, AHEAD/THEN,,
-\ AIF,/AELSE,/ATHEN,.
-
-TCOM-ANEW ASMARM64
+\ Emit model: HERE-T is a *code offset* (taddr) on both backends.
+\ Host: ASM-BASE@ + taddr = absolute address; ASM-ENTRY maps for CALL-NATIVE.
 
 FORTH DEFINITIONS
 DECIMAL
 
+\ ----- Dual-load line directives (if not already present) -----
+[UNDEFINED] DIRECTIVE [IF]
+: SKIP-REST  ( -- )
+  BEGIN
+    >IN @ SOURCE NIP >= IF EXIT THEN
+    SOURCE DROP >IN @ + C@
+    DUP 10 = OVER 13 = OR IF  DROP 1 >IN +! EXIT  THEN
+    DROP 1 >IN +!
+  AGAIN
+  ;
+: DIRECTIVE  ( flag "<spaces>name" -- )
+  CREATE , IMMEDIATE
+  DOES> @ 0= IF  SKIP-REST  THEN
+  ;
+[THEN]
+[UNDEFINED] \ANS [IF]
+TRUE  DIRECTIVE \ANS
+FALSE DIRECTIVE \TCOM
+[THEN]
+
+[UNDEFINED] TCOM-ANEW [IF]
+: TCOM-ANEW  ( "<spaces>name" -- )
+  >IN @
+  BL WORD FIND IF
+    DROP OVER >IN ! FORGET
+  ELSE
+    DROP
+  THEN
+  >IN !  CREATE
+  ;
+[THEN]
+
+[UNDEFINED] TCOM-ABORT [IF]
+: TCOM-ABORT  ( c-addr u -- )  TYPE CR ABORT ;
+[THEN]
+
+[UNDEFINED] U>= [IF]
+: U>=  ( u1 u2 -- flag )  U< 0= ;
+[THEN]
+[UNDEFINED] U<= [IF]
+: U<=  ( u1 u2 -- flag )  U> 0= ;
+[THEN]
+
+\ Detect pack (64HOST) vs standalone 64Forth host load.
+\ NOTE: TARGETARM64 flips \ANS/\TCOM *after* including this file, so do not
+\ use \ANS/\TCOM here to choose the emit backend.
+[DEFINED] T-CODE-BASE [IF]
+[ELSE]
+\ Discard lives *before* the overlay marker so restoring the dictionary
+\ does not cut this word. EVALUATE: free buffers, then run MARKER.
+: ASMARM64-DISCARD  ( -- )
+  S" ASM-FREE-EXEC ASM-FREE-BUF ASMARM64-OVERLAY" EVALUATE
+  S" ASMARM64-DISCARD: overlay removed." TYPE CR
+  ;
+
+\ ----- ANS / host overlay: buffer + emit API + discardable marker -----
+MARKER ASMARM64-OVERLAY
+
+TRUE VALUE ASMARM64-HOST?
+
+[UNDEFINED] SETASSEM [IF]
+DEFER SETASSEM
+DEFER A;
+DEFER END-CODE
+: (ASM-STUB-NOOP)  ( -- )  ;
+' (ASM-STUB-NOOP) IS SETASSEM
+' (ASM-STUB-NOOP) IS A;
+' (ASM-STUB-NOOP) IS END-CODE
+[THEN]
+
+65536 CONSTANT ASM-DEFAULT-SIZE
+5 CONSTANT ASM-PROT-RX
+
+VARIABLE ASM-BASE          \ host addr of RW assemble buffer (0 = none)
+VARIABLE ASM-DP            \ emit offset (HERE-T)
+VARIABLE ASM-LIMIT         \ buffer size in bytes
+VARIABLE ASM-EXEC          \ ALLOCATE-EXEC base (0 = none)
+VARIABLE ASM-EXEC-LEN
+
+0 ASM-BASE !
+0 ASM-DP !
+0 ASM-LIMIT !
+0 ASM-EXEC !
+0 ASM-EXEC-LEN !
+
+: ASM-FREE-EXEC  ( -- )
+  ASM-EXEC @ IF
+    ASM-EXEC @ ASM-EXEC-LEN @ FREE-EXEC DROP
+    0 ASM-EXEC !  0 ASM-EXEC-LEN !
+  THEN
+  ;
+
+: ASM-FREE-BUF  ( -- )
+  ASM-BASE @ IF
+    ASM-BASE @ FREE DROP
+    0 ASM-BASE !  0 ASM-DP !  0 ASM-LIMIT !
+  THEN
+  ;
+
+: ASM-ALLOC  ( u -- )
+  ASM-FREE-EXEC  ASM-FREE-BUF
+  DUP ALLOCATE IF
+    DROP S" ASM-ALLOC failed" TCOM-ABORT
+  THEN
+  ASM-BASE !
+  ASM-LIMIT !
+  0 ASM-DP !
+  ;
+
+: ASM-ENSURE  ( -- )
+  ASM-BASE @ 0= IF  ASM-DEFAULT-SIZE ASM-ALLOC  THEN
+  ;
+
+: ASM-CLEAR  ( -- )  ASM-ENSURE  0 ASM-DP ! ;
+: ASM-ORG    ( off -- )
+  ASM-ENSURE
+  DUP ASM-LIMIT @ U> IF S" ASM-ORG past limit" TCOM-ABORT THEN
+  ASM-DP !
+  ;
+
+: ASM-USED   ( -- u )  ASM-DP @ ;
+: ASM-ENTRY  ( taddr -- addr )  ASM-BASE @ + ;
+
+: HERE-T  ( -- taddr )  ASM-ENSURE  ASM-DP @ ;
+
+: C!-T  ( char taddr -- )
+  ASM-ENSURE
+  DUP ASM-LIMIT @ U>= IF S" C!-T out of range" TCOM-ABORT THEN
+  ASM-BASE @ + C!
+  ;
+
+: C@-T  ( taddr -- char )
+  ASM-ENSURE
+  DUP ASM-LIMIT @ U>= IF S" C@-T out of range" TCOM-ABORT THEN
+  ASM-BASE @ + C@
+  ;
+
+: C,-T  ( char -- )
+  ASM-ENSURE
+  ASM-DP @ ASM-LIMIT @ U>= IF S" ASM buffer full" TCOM-ABORT THEN
+  ASM-DP @ C!-T          \ ( char taddr -- )
+  1 ASM-DP +!
+  ;
+
+[UNDEFINED] T-CELL [IF]  8 CONSTANT T-CELL  [THEN]
+
+\ Little-endian cell append (CALL-ABS / JMP-ABS .quad)
+: ,-T  ( x -- )
+  T-CELL 0 DO
+    DUP $FF AND C,-T
+    8 RSHIFT
+  LOOP DROP
+  ;
+
+\ Copy assembled image to RX pages for CALL-NATIVE.
+\ ( -- exec-addr )  exec-addr = start of copy (offset 0)
+: ASM-MAKE-EXEC  ( -- exec-addr )
+  ASM-ENSURE
+  ASM-FREE-EXEC
+  ASM-DP @ 0= IF S" ASM-MAKE-EXEC: empty" TCOM-ABORT THEN
+  ASM-DP @ ALLOCATE-EXEC IF
+    DROP S" ASM-MAKE-EXEC: ALLOCATE-EXEC failed" TCOM-ABORT
+  THEN
+  ASM-EXEC !
+  ASM-DP @ ASM-EXEC-LEN !
+  ASM-BASE @ ASM-EXEC @ ASM-DP @ MOVE
+  ASM-EXEC @ ASM-DP @ ASM-PROT-RX MPROTECT IF
+    ASM-FREE-EXEC
+    S" ASM-MAKE-EXEC: MPROTECT RX failed" TCOM-ABORT
+  THEN
+  ASM-EXEC @ ASM-DP @ ICACHE-INVAL
+  ASM-EXEC @
+  ;
+
+\ Run leaf at taddr (offset). Uses CALL-NATIVE-LEAF (built-in DSP; X0=0 in).
+: ASM-RUN-LEAF  ( taddr -- x0' )
+  >R ASM-MAKE-EXEC DROP R>
+  ASM-EXEC @ + CALL-NATIVE-LEAF
+  ;
+: ASM-RUN  ( taddr -- x0' )  ASM-RUN-LEAF ;
+[THEN]
+
+\ Marker must not be named ASMARM64 — that name is the VOCABULARY below.
+\ (TCOM-ANEW ASMARM64 then VOCABULARY ASMARM64 left a broken wid; ALSO failed.)
+TCOM-ANEW ASMARM64-MOD
+
+FORTH DEFINITIONS
+DECIMAL
+
+\ Pack path: host flag lives after marker (reload-safe).
+[DEFINED] ASMARM64-HOST? [IF]
+[ELSE]
+FALSE VALUE ASMARM64-HOST?
+[THEN]
+
 VOCABULARY ASMARM64
 : [ASMARM64]  ( -- )  ASMARM64 ; IMMEDIATE
 
+\ Lifecycle / temps stay in FORTH so SETASSEM/END-CODE always find them.
 FALSE VALUE ?ASM-ACTIVE
 
 VARIABLE A64-I
@@ -27,6 +231,11 @@ VARIABLE A64-N
 VARIABLE A64-M
 VARIABLE A64-T
 VARIABLE A64-A
+VARIABLE A64-R2
+
+\ Emitters, registers, and structured asm go in ASMARM64 (not FORTH).
+\ ALSO keeps ASMARM64 on the search order so later words can find earlier ones.
+ALSO ASMARM64 DEFINITIONS
 
 : (REG)  ( n -- n )  $1F AND ;
 
@@ -72,7 +281,11 @@ VARIABLE A64-A
 \ BTI landing pad (HINT). Required on some Apple exec pages for BL/BR targets;
 \ executes as NOP if BTI is not enforced.
 \ Optional landing pad; default NOP so native BLR/BL is not required for demos.
-: BTI,   ( -- )  NOP, ;
+\ BTI C landing pad (HINT #32). Acts as NOP if BTI not enforced.
+: BTI,   ( -- )  $D503245F W, ;
+: BTI-C, ( -- )  $D503245F W, ;
+: BTI-J, ( -- )  $D503249F W, ;
+: BTI-JC, ( -- ) $D50324DF W, ;
 : RET,   ( -- )  $D65F03C0 W, ;
 : RET-X, ( xn -- )  (REG) 5 LSHIFT $D65F0000 OR W, ;
 : BLR-X, ( xn -- )  (REG) 5 LSHIFT $D63F0000 OR W, ;
@@ -238,6 +451,43 @@ $9A9F17E0 CONSTANT (A64-CSET-X0-EQ)   \ CSET X0, EQ
   A64-D @ (REG) OR W,
   ;
 
+\ ASR Xd,Xn,#uimm (SBFM alias)
+: ASR-IMM,  ( uimm xn xd -- )
+  A64-D ! A64-N ! A64-I !
+  A64-I @ 63 U> IF S" ASR-IMM 0..63" TCOM-ABORT THEN
+  $93400000
+  A64-I @ $3F AND 16 LSHIFT OR
+  63 10 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR
+  A64-D @ (REG) OR W,
+  ;
+
+: ASR-X,  ( xm xn xd -- )
+  A64-D ! A64-N ! A64-M !
+  $9AC02800 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
+\ UBFM Xd,Xn,immr,imms  (64-bit)
+: UBFM-X,  ( immr imms xn xd -- )
+  A64-D ! A64-N ! A64-I ! A64-H !
+  $D3400000
+  A64-H @ $3F AND 16 LSHIFT OR
+  A64-I @ $3F AND 10 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR
+  A64-D @ (REG) OR W,
+  ;
+
+\ SBFM Xd,Xn,immr,imms  (64-bit)
+: SBFM-X,  ( immr imms xn xd -- )
+  A64-D ! A64-N ! A64-I ! A64-H !
+  $93400000
+  A64-H @ $3F AND 16 LSHIFT OR
+  A64-I @ $3F AND 10 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR
+  A64-D @ (REG) OR W,
+  ;
+
 \ LDRB Xt,[Xn]  (zero-extend byte)
 : LDRB-X,  ( xt xn -- )
   A64-N ! A64-D !
@@ -341,6 +591,201 @@ $9A9F17E0 CONSTANT (A64-CSET-X0-EQ)   \ CSET X0, EQ
   $58000000 A64-I @ $7FFFF AND 5 LSHIFT OR A64-D @ (REG) OR W,
   ;
 
+\ General LDR/STR pre/post (64-bit); simm byte offset -256..255
+: LDR-PRE,  ( xt xn simm -- )
+  (IMM9) A64-I ! A64-N ! A64-D !
+  $F8400C00 A64-I @ 12 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: STR-POST,  ( xt xn simm -- )
+  (IMM9) A64-I ! A64-N ! A64-D !
+  $F8000400 A64-I @ 12 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
+\ LDR/STR Xt,[Xn,Xm]  (64-bit, UXTX #0 / no extend shift)
+: LDR-REG,  ( xt xn xm -- )
+  A64-M ! A64-N ! A64-D !
+  $F8606800 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: STR-REG,  ( xt xn xm -- )
+  A64-M ! A64-N ! A64-D !
+  $F8206800 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
+\ ----- LDP / STP (64-bit pairs; imm in bytes, multiple of 8, -512..504) -----
+: (IMM7-PAIR)  ( n -- u )
+  DUP 7 AND IF S" LDP/STP offset must be 8-aligned" TCOM-ABORT THEN
+  8 /                            \ signed scale (avoid logical RSHIFT on negatives)
+  DUP -64 < OVER 63 > OR IF S" LDP/STP imm7 range" TCOM-ABORT THEN
+  DUP 0< IF $80 + THEN $7F AND
+  ;
+
+: STP-OFF,  ( xt1 xt2 xn imm-bytes -- )
+  (IMM7-PAIR) A64-I ! A64-N ! A64-R2 ! A64-D !
+  $A9000000 A64-I @ 15 LSHIFT OR
+  A64-R2 @ (REG) 10 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: LDP-OFF,  ( xt1 xt2 xn imm-bytes -- )
+  (IMM7-PAIR) A64-I ! A64-N ! A64-R2 ! A64-D !
+  $A9400000 A64-I @ 15 LSHIFT OR
+  A64-R2 @ (REG) 10 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: STP-PRE,  ( xt1 xt2 xn imm-bytes -- )
+  (IMM7-PAIR) A64-I ! A64-N ! A64-R2 ! A64-D !
+  $A9800000 A64-I @ 15 LSHIFT OR
+  A64-R2 @ (REG) 10 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: LDP-POST,  ( xt1 xt2 xn imm-bytes -- )
+  (IMM7-PAIR) A64-I ! A64-N ! A64-R2 ! A64-D !
+  $A8C00000 A64-I @ 15 LSHIFT OR
+  A64-R2 @ (REG) 10 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
+\ ----- ADR / ADRP (imm = byte displacement from this insn) -----
+: (ADR-IMM)  ( imm -- immlo immhi )
+  $1FFFFF AND                    \ 21-bit signed field
+  DUP $3 AND SWAP 2 RSHIFT $7FFFF AND
+  ;
+
+: ADR,  ( imm xd -- )
+  A64-D ! (ADR-IMM) A64-I ! A64-H !
+  $10000000
+  A64-H @ 29 LSHIFT OR
+  A64-I @ 5 LSHIFT OR
+  A64-D @ (REG) OR W,
+  ;
+
+: ADRP,  ( imm-pages xd -- )   \ imm = page count (target_page - pc_page)
+  A64-D ! (ADR-IMM) A64-I ! A64-H !
+  $90000000
+  A64-H @ 29 LSHIFT OR
+  A64-I @ 5 LSHIFT OR
+  A64-D @ (REG) OR W,
+  ;
+
+\ ----- CSEL / CSINC -----
+: CSEL-X,  ( xm xn cond xd -- )   \ Xd = cond ? Xn : Xm
+  A64-D ! A64-I ! A64-N ! A64-M !
+  $9A800000 A64-M @ (REG) 16 LSHIFT OR
+  A64-I @ $F AND 12 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
+: CSINC-X,  ( xm xn cond xd -- )  \ Xd = cond ? Xn : Xm+1
+  A64-D ! A64-I ! A64-N ! A64-M !
+  $9A800400 A64-M @ (REG) 16 LSHIFT OR
+  A64-I @ $F AND 12 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
+\ ----- W-register suite (32-bit sf=0) -----
+0 CONSTANT W0   1 CONSTANT W1   2 CONSTANT W2   3 CONSTANT W3
+4 CONSTANT W4   5 CONSTANT W5   6 CONSTANT W6   7 CONSTANT W7
+8 CONSTANT W8   9 CONSTANT W9  10 CONSTANT W10 11 CONSTANT W11
+12 CONSTANT W12 13 CONSTANT W13 14 CONSTANT W14 15 CONSTANT W15
+16 CONSTANT W16 17 CONSTANT W17 18 CONSTANT W18 19 CONSTANT W19
+20 CONSTANT W20 21 CONSTANT W21 22 CONSTANT W22 23 CONSTANT W23
+24 CONSTANT W24 25 CONSTANT W25 26 CONSTANT W26 27 CONSTANT W27
+28 CONSTANT W28 29 CONSTANT W29 30 CONSTANT W30
+31 CONSTANT WZR
+
+: MOVZ-W,  ( imm16 wd hw -- )
+  A64-H ! A64-D ! A64-I !
+  A64-H @ 1 U> IF S" MOVZ-W hw 0..1" TCOM-ABORT THEN
+  $52800000 A64-H @ 21 LSHIFT OR
+  A64-I @ $FFFF AND 5 LSHIFT OR
+  A64-D @ (REG) OR W,
+  ;
+: MOVK-W,  ( imm16 wd hw -- )
+  A64-H ! A64-D ! A64-I !
+  A64-H @ 1 U> IF S" MOVK-W hw 0..1" TCOM-ABORT THEN
+  $72800000 A64-H @ 21 LSHIFT OR
+  A64-I @ $FFFF AND 5 LSHIFT OR
+  A64-D @ (REG) OR W,
+  ;
+: MOV-W-IMM32,  ( imm32 wd -- )
+  A64-D !
+  DUP $FFFF AND            A64-D @ 0 MOVZ-W,
+       16 RSHIFT $FFFF AND A64-D @ 1 MOVK-W,
+  ;
+: MOV-W-W,  ( wm wd -- )
+  A64-D ! A64-M !
+  $2A0003E0 A64-M @ (REG) 16 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: ORR-W,  ( wm wn wd -- )
+  A64-D ! A64-N ! A64-M !
+  $2A000000 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: AND-W,  ( wm wn wd -- )
+  A64-D ! A64-N ! A64-M !
+  $0A000000 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: EOR-W,  ( wm wn wd -- )
+  A64-D ! A64-N ! A64-M !
+  $4A000000 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: ADD-W-W,  ( wm wn wd -- )
+  A64-D ! A64-N ! A64-M !
+  $0B000000 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: SUB-W-W,  ( wm wn wd -- )
+  A64-D ! A64-N ! A64-M !
+  $4B000000 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: ADDS-W,  ( wm wn wd -- )
+  A64-D ! A64-N ! A64-M !
+  $2B000000 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: SUBS-W,  ( wm wn wd -- )
+  A64-D ! A64-N ! A64-M !
+  $6B000000 A64-M @ (REG) 16 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: CMP-W,  ( wm wn -- )  WZR SUBS-W, ;
+: ADD-W-IMM,  ( imm12 wn wd -- )
+  A64-D ! A64-N ! A64-I !
+  $11000000 A64-I @ $FFF AND 10 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: SUB-W-IMM,  ( imm12 wn wd -- )
+  A64-D ! A64-N ! A64-I !
+  $51000000 A64-I @ $FFF AND 10 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: LDR-W-OFF,  ( wt xn imm-bytes -- )
+  DUP 3 AND IF S" LDR-W-OFF needs 4-aligned offset" TCOM-ABORT THEN
+  2 RSHIFT A64-I ! A64-N ! A64-D !
+  $B9400000 A64-I @ $FFF AND 10 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: STR-W-OFF,  ( wt xn imm-bytes -- )
+  DUP 3 AND IF S" STR-W-OFF needs 4-aligned offset" TCOM-ABORT THEN
+  2 RSHIFT A64-I ! A64-N ! A64-D !
+  $B9000000 A64-I @ $FFF AND 10 LSHIFT OR
+  A64-N @ (REG) 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: CBZ-W,  ( wt imm19 -- )
+  A64-I ! A64-D !
+  $34000000 A64-I @ $7FFFF AND 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+: CBNZ-W,  ( wt imm19 -- )
+  A64-I ! A64-D !
+  $35000000 A64-I @ $7FFFF AND 5 LSHIFT OR A64-D @ (REG) OR W,
+  ;
+
 \ ----- branches -----
 : B-IMM,   ( imm26 -- )  $3FFFFFF AND $14000000 OR W, ;
 : BL-IMM,  ( imm26 -- )  $3FFFFFF AND $94000000 OR W, ;
@@ -437,7 +882,8 @@ $A8C17FFE CONSTANT (A64-LDP-X30-XZR-SP)   \ LDP X30, XZR, [SP], #16
   ;
 
 \ ----- structured control (asm) -----
-: AHEAD  ( -- orig )
+\ Named AHEAD, (with comma) so it does not clash with Forth tools AHEAD (immediate).
+: AHEAD,  ( -- orig )
   ALIGN4-T  HERE-T  0 B-IMM,
   ;
 
@@ -461,7 +907,7 @@ $A8C17FFE CONSTANT (A64-LDP-X30-XZR-SP)   \ LDP X30, XZR, [SP], #16
   ;
 
 : AELSE,  ( orig1 -- orig2 )
-  AHEAD  SWAP ATHEN,
+  AHEAD, SWAP ATHEN,
   ;
 
 \ ----- Forth-ABI control (TOS = flag in X0) — for T: … ;T graphs -----
@@ -778,11 +1224,19 @@ VARIABLE TQDO-NE
   X2 X1 X0 ADD-X-X,
   ;
 
-: .ASMARM64  ( -- )
-  S" ASMARM64 3.1+: X0-X30 AND/ORR/EOR ADD/SUB CMP B/BL/B.cond CBZ" TYPE CR
-  S"   LL: BR>LL  AHEAD THEN, AIF, AELSE, ATHEN,  CALL-ABS" TYPE CR
-  S"   Forth-ABI: TIF…  TBEGIN…  TDO TLOOP T+LOOP TI, TJ,  T0=," TYPE CR
-  ;
+\ Zero local-label tables now (LL-INIT lives in ASMARM64; search order has it).
+LL-INIT
+
+\ Host-facing words and SETASSEM hooks live in FORTH.
+ONLY FORTH DEFINITIONS
+ALSO ASMARM64
+
+\ Kernel ships an empty ASSEMBLER vocabulary. Make ASSEMBLER select ASMARM64
+\ so ASSEMBLER WORDS / ASSEMBLER DEFINITIONS see the toolkit.
+: ASSEMBLER  ( -- )  ASMARM64 ;
+
+\ Host smoke / regression suite lives in Assembler/ASMARMTESTS.fth
+\   FROMLIB FLOAD Assembler/ASMARMTESTS.fth  →  ASM-TESTS
 
 : (SETASSEM)  ( -- )
   TRUE TO ?ASM-ACTIVE
@@ -801,6 +1255,27 @@ VARIABLE TQDO-NE
 
 : C;  ( -- )  END-CODE ; IMMEDIATE
 
-FORTH DEFINITIONS
-LL-INIT
-S" ASMARM64 loaded (3.1 richer assembler)." TYPE CR
+: .ASMARM64  ( -- )
+  S" ASMARM64 3.2 toolkit: dual-load TCOM + 64Forth host buffer" TYPE CR
+  S"   X/W regs  shifts/bitfield  ADR/ADRP  LDP/STP  CSEL  BTI" TYPE CR
+  S"   LL: BR>LL  AHEAD,/AIF,  CALL-ABS  Forth-ABI TIF… TDO…" TYPE CR
+  S"   Vocab: ASMARM64 (ASSEMBLER selects it).  SETASSEM … END-CODE" TYPE CR
+  ASMARM64-HOST? IF
+    S"   host: ASM-CLEAR ASM-RUN-LEAF ASMARM64-DISCARD; tests: ASMARMTESTS.fth" TYPE CR
+  THEN
+  ;
+
+\ Pack stub (host path already defined ASMARM64-DISCARD before the overlay).
+[DEFINED] ASMARM64-DISCARD [IF]
+[ELSE]
+: ASMARM64-DISCARD  ( -- )
+  S" ASMARM64-DISCARD: pack load — reload TARGETARM64 or restart" TYPE CR
+  ;
+[THEN]
+
+[DEFINED] ASM-ENSURE [IF]
+ASM-ENSURE
+S" ASMARM64 loaded (3.2 host toolkit).  ASMARM64 WORDS  or  ASSEMBLER WORDS" TYPE CR
+[ELSE]
+S" ASMARM64 loaded (3.2 pack assembler)." TYPE CR
+[THEN]

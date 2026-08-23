@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-19 — **Version 0.7**; debugger plan (shared Forth UI, ITC vs TCOM backends) recorded below
+**Last updated:** 2026-08-23 3:16 PM — **Version 0.8** (ASMARM64 3.2 toolkit + tetra `TCOM` green); debugger plan below
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
 
@@ -60,7 +60,7 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
 ## YOU ARE HERE
 
 ```text
-  Pack version     0.7    — 64TCOM ARM64 (TVERSION in OPTARM64)
+  Pack version     0.8    — 64TCOM ARM64 (TVERSION in OPTARM64); ASM toolkit 3.2
   Phase 0–2        DONE
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
@@ -120,8 +120,9 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
 | **0.5** | tetra `\ANS` dual-load; real `TONE` (Hz/tenths); DIRECTIVE skips current line only; host 64Forth 1.1.4 |
 | **0.6** | Dialect waves: stack/compare, pictured `.`, memory/double, signed `/`, CATCH/THROW, ALLOCATE, LSHIFT/RSHIFT, UNLOOP/?DO; samples `wave`…`shiftloop`; host consume + STACK-HUD; tetra rows on both hosts |
 | **0.7** | Defining words + search order; ANS File-Access; `D<`/`COMPARE`/`PARSE`/`ABORT"` extras; samples `defining` `search` `files` `extras` |
+| **0.8** | ASMARM64 3.2 dual-load toolkit (Library + pack); host overlay discard; W/ADR/LDP/CSEL/BTI; `ASMARMTESTS` (64 checks); pack search-order fixes (`TCOM-ORDER`→`ASMARM64`, `AHEAD,`, `HOST-DEFS`); tetra `TCOM` green; see `STATUSASM64.md` |
 
-**Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.4** (GRAPHICS + tetra `\ANS` + real TONE).  
+**Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.7** (ASMARM64 Library + GRAPHICS + tetra `\ANS` + real TONE).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  
 
 ### Target dialect — remaining (Layer 3 extras + product)
@@ -565,6 +566,7 @@ Output locals are returned automatically — do not push them before `;` :
 - [x] **0.5** tetra dual-load + real TONE; DIRECTIVE line-skip fix
 - [x] **0.6** TSRC dialect waves + samples; STACK-HUD / host consume; signed `/`; CATCH/THROW; heap
 - [x] **0.7** defining/search-order; ANS files; double/string extras; PARSE/WORD/SOURCE; ABORT"
+- [x] **0.8** ASMARM64 3.2 toolkit (dual-home; host buffer/discard; practical ISA fill)
 - [x] **1.1** `64HOST.fth` — HOST/COMPILER/TARGET, target mem, DEFER hooks, `U>=`
 - [x] **1.1b** Quiet `TCOM-ANEW`; GEN load chain; GEN tags; cookies
 - [x] **1.2** Symbol table + `64DIR` director (name → type/addr/uses)
@@ -787,6 +789,9 @@ requires them.
 ---
 
 ## ARM64 assembler status (`ASMARM64.fth`)
+
+**Monitor / checklist:** [`STATUSASM64.md`](STATUSASM64.md) (Phase 3.2 dual-load toolkit).  
+**API doc:** [`64TCOMARM64/ASMARM64.md`](64TCOMARM64/ASMARM64.md).
 
 **Phase 3.1 is done** — a working **Forth-style subset** of AArch64 aimed at the 64TCOM stack ABI, **not** a full CPU assembler.
 
