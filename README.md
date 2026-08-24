@@ -6,16 +6,22 @@ It is **not** an F-PC 16-bit translation layer. The compiler director is being r
 
 **Public domain.** 64TCOM, like classic **TCOM** and **F-PC** (Tom Zimmer and contributors), is dedicated to the public domain.
 
-**Current pack:** ARM64 **Version 0.8** (see [`STATUS.md`](STATUS.md)).  
+**Current pack:** ARM64 **Version 0.9** (see [`STATUS.md`](STATUS.md)).  
 **Host:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.7+** recommended (ASMARM64 Library toolkit + GRAPHICS).
 
-### Version 0.8 (ARM64) — highlight
+### Version 0.9 (ARM64) — highlight
+
+- **Phase 4.0 debugger slice 1:** `TDBG` / `TDEBUG` / `SEE-T` on **SIMARM64**; `BREAK`/`STEP`/`GO`/`WHERE`; Forth-step at BL/BLR/RET
+- Monitor: [`STATUSDBG64.md`](STATUSDBG64.md); UI: `64TCOMUTILS/TCOMDBG.fth`; backend: `64TCOMARM64/DBGARM64.fth`
+- Editor polish stub: `TCOMDBG-ED.fth` (highlight / quiet console — next)
+- Builds on **0.8:** ASMARM64 3.2 dual-load toolkit + tetra `TCOM`
+
+### Version 0.8 (ARM64)
 
 - **ASMARM64 3.2 toolkit:** dual-home assembler (pack + 64Forth Library); host buffer + overlay discard; W-regs, ADR/ADRP, LDP/STP, CSEL, real BTI
 - **`ASMARMTESTS`:** `ASM-TESTS` — 64 encode + `CALL-NATIVE` checks (host path)
 - Pack search-order fixes so `TIF`/`TDO`/… resolve during `TCOM`; tetra builds Finder `.app`
 - Progress: [`STATUSASM64.md`](STATUSASM64.md); API: [`64TCOMARM64/ASMARM64.md`](64TCOMARM64/ASMARM64.md)
-- Builds on **0.7:** defining words, search order, ANS files, extras
 - Assembler twins last synced: **Aug 23, 2026 3:16 PM**
 
 ### Version 0.7 (ARM64)

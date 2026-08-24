@@ -18,6 +18,23 @@ VARIABLE SIM-N          \ result negative (signed)
 VARIABLE SIM-V          \ signed overflow (ADDS/SUBS)
 100000 SIM-MAX !
 
+\ Stop reasons: 0=none 1=halt/ret-empty 2=step-limit 3=bad-PC 4=break 5=unknown
+VARIABLE SIM-STOP
+0 CONSTANT SIM-STOP-NONE
+1 CONSTANT SIM-STOP-HALT
+2 CONSTANT SIM-STOP-LIMIT
+3 CONSTANT SIM-STOP-BADPC
+4 CONSTANT SIM-STOP-BREAK
+5 CONSTANT SIM-STOP-UNK
+
+\ Breakpoints (taddrs). SIM-BRK-EN enables checks; SIM-BRK-SKIP avoids re-hit on GO.
+16 CONSTANT #SIM-BRK
+CREATE SIM-BRK  #SIM-BRK CELLS ALLOT
+VARIABLE SIM-BRK-N
+VARIABLE SIM-BRK-EN
+VARIABLE SIM-BRK-SKIP          \ taddr to ignore once (resume)
+VARIABLE SIM-DSP0              \ X19 at SIM-INIT (empty DSP watermark)
+
 CREATE SIM-X  32 CELLS ALLOT     \ X0..X31 (31 = XZR reads 0 / ignores write)
 
 CREATE SIM-R  64 CELLS ALLOT
@@ -71,15 +88,69 @@ VARIABLE SM
   ;
 
 4096 CONSTANT #SIM-RSTACK               \ Forth RP region below DSP
+
+: SIM-BRK-CLEAR  ( -- )
+  0 SIM-BRK-N !
+  SIM-BRK #SIM-BRK CELLS 0 FILL
+  -1 SIM-BRK-SKIP !
+  ;
+
+: SIM-BRK-FIND  ( taddr -- ix true | false )
+  SD !
+  SIM-BRK-N @ 0= IF FALSE EXIT THEN
+  SIM-BRK-N @ 0 DO
+    SIM-BRK I CELLS + @ SD @ = IF I TRUE UNLOOP EXIT THEN
+  LOOP
+  FALSE
+  ;
+
+: SIM-BRK-ADD  ( taddr -- )
+  DUP SIM-BRK-FIND IF  2DROP EXIT  THEN  DROP
+  SIM-BRK-N @ #SIM-BRK U>= IF
+    DROP S" SIM: break table full" TYPE CR EXIT
+  THEN
+  SIM-BRK SIM-BRK-N @ CELLS + !  1 SIM-BRK-N +!
+  ;
+
+: SIM-BRK-DEL  ( taddr -- )
+  SIM-BRK-FIND 0= IF DROP EXIT THEN          \ ix
+  SIM-BRK-N @ 1-                             \ ix last
+  DUP 0< IF  2DROP 0 SIM-BRK-N ! EXIT  THEN
+  2DUP = IF  2DROP -1 SIM-BRK-N +! EXIT  THEN
+  SIM-BRK OVER CELLS + @                     \ ix last val
+  NIP                                        \ ix val
+  SIM-BRK ROT CELLS + !                      \ [ix]=val
+  -1 SIM-BRK-N +!
+  ;
+
+: SIM-BRK-HIT?  ( taddr -- f )
+  SIM-BRK-EN @ 0= IF DROP FALSE EXIT THEN
+  DUP SIM-BRK-SKIP @ = IF DROP FALSE EXIT THEN
+  SIM-BRK-FIND IF  DROP TRUE  ELSE  FALSE  THEN
+  ;
+
 : SIM-INIT  ( -- )
   SIM-X 32 CELLS 0 FILL
   T-DATA-BASE T-DATA-MAX + 64 -  19 SIM-X!   \ X19 = DSP
+  19 SIM-X@ SIM-DSP0 !
   19 SIM-X@ #SIM-RSTACK -  20 SIM-X!         \ X20 = RP top
   FALSE SIM-Z !
   FALSE SIM-C !
   FALSE SIM-N !
   FALSE SIM-V !
   SIM-R-CLEAR  0 SIM-STEPS !  FALSE SIM-HALT !
+  SIM-STOP-NONE SIM-STOP !
+  -1 SIM-BRK-SKIP !
+  ;
+
+: SIM-PEEK-W  ( -- u32 )  SIM-PC @ SIM-W@ ;
+
+: SIM-IS-RET?  ( insn -- f )  $FFFFFC1F AND $D65F0000 = ;
+: SIM-IS-BLR?  ( insn -- f )  $FFFFFC1F AND $D63F0000 = ;
+: SIM-IS-BL?   ( insn -- f )  $FC000000 AND $94000000 = ;
+: SIM-IS-CALL? ( insn -- f )
+  DUP SIM-IS-BL? IF DROP TRUE EXIT THEN
+  SIM-IS-BLR?
   ;
 
 : SIM-RD    ( insn -- r )  $1F AND ;
@@ -106,11 +177,23 @@ VARIABLE SM
   SIM-HALT @ IF EXIT THEN
   1 SIM-STEPS +!
   SIM-STEPS @ SIM-MAX @ > IF
-    TRUE SIM-HALT !  S" SIM: step limit" TYPE CR EXIT
+    TRUE SIM-HALT !
+    SIM-STOP-LIMIT SIM-STOP !
+    S" SIM: step limit" TYPE CR EXIT
   THEN
   SIM-PC @ DUP 0< OVER T-CODE-MAX U>= OR IF
-    DROP TRUE SIM-HALT !  S" SIM: bad PC " TYPE SIM-PC @ . CR EXIT
+    DROP TRUE SIM-HALT !
+    SIM-STOP-BADPC SIM-STOP !
+    S" SIM: bad PC " TYPE SIM-PC @ . CR EXIT
   THEN
+  \ Break before execute (unless one-shot skip for resume)
+  DUP SIM-BRK-HIT? IF
+    DROP TRUE SIM-HALT !
+    SIM-STOP-BREAK SIM-STOP !
+    EXIT
+  THEN
+  \ Consumed skip only when we actually execute this PC
+  DUP SIM-BRK-SKIP @ = IF  -1 SIM-BRK-SKIP !  THEN
   DUP SIM-W@
   SWAP 4 + SIM-PC !
   \ insn on stack; SIM-PC = next sequential
@@ -159,7 +242,11 @@ VARIABLE SM
   \ RET Xn
   DUP $FFFFFC1F AND $D65F0000 = IF
     DROP
-    SIM-R-EMPTY? IF TRUE SIM-HALT ! EXIT THEN
+    SIM-R-EMPTY? IF
+      TRUE SIM-HALT !
+      SIM-STOP-HALT SIM-STOP !
+      EXIT
+    THEN
     SIM-R-POP SIM-PC !
     EXIT
   THEN
@@ -449,7 +536,16 @@ VARIABLE SM
 
   S" SIM: unknown " TYPE DUP SYM-HEX. S" PC=" TYPE SIM-PC @ 4 - . CR
   TRUE SIM-HALT !
+  SIM-STOP-UNK SIM-STOP !
   DROP
+  ;
+
+\ Resume from current SIM-PC without full SIM-INIT (keeps X/R/DSP).
+: SIM-CONTINUE  ( -- )
+  FALSE SIM-HALT !
+  SIM-STOP-NONE SIM-STOP !
+  SIM-PC @ SIM-BRK-SKIP !          \ do not re-break on this insn once
+  BEGIN SIM-HALT @ 0= WHILE SIM-STEP REPEAT
   ;
 
 : SIM-RUN  ( taddr -- x0 )

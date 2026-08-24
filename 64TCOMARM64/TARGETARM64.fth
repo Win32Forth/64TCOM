@@ -37,6 +37,8 @@ ALSO ASMARM64          \ pack files need emitters on the search order
 INCLUDE OPTARM64.fth
 INCLUDE LIBARM64.fth
 INCLUDE SIMARM64.fth
+INCLUDE ../64TCOMUTILS/TCOMDBG.fth
+INCLUDE DBGARM64.fth
 INCLUDE NATARM64.fth
 INCLUDE MACHOARM64.fth
 \ Generic .fth loader (compiler) — after pack hooks/prims exist.

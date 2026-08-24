@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-23 3:16 PM — **Version 0.8** (ASMARM64 3.2 toolkit + tetra `TCOM` green); debugger plan below
+**Last updated:** 2026-08-23 — **Version 0.9** (Phase 4.0 debugger slice 1: `TDBG`/`SEE-T` on SIMARM64); see `STATUSDBG64.md`
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
 
@@ -60,7 +60,7 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
 ## YOU ARE HERE
 
 ```text
-  Pack version     0.8    — 64TCOM ARM64 (TVERSION in OPTARM64); ASM toolkit 3.2
+  Pack version     0.9    — 64TCOM ARM64 (TVERSION in OPTARM64); ASM toolkit 3.2; TDBG slice 1
   Phase 0–2        DONE
   Phase 3.0b–d     DONE   — ARM64 pack, prims, SIM, BRANCH
   Phase 3.1        DONE   — richer ASMARM64 + ASM-DEMO
@@ -70,7 +70,7 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
                            (+ auto-cc via 64Forth SYSTEM when available)
   Phase 3.5        DONE   — true BLR default: fixup .quad → base+taddr
                            (/INLINE-CALLS restores paste-leaf path)
-  Phase 4.0        OPEN   — utilities (listing, xref, debugger) — after source compile
+  Phase 4.0        OPEN   — utilities; debugger slice 1 done (STATUSDBG64.md); editor/listing next
   Roadmap B        DONE   — TIF/TELSE/TTHEN, TBEGIN/TUNTIL/TAGAIN/TWHILE/TREPEAT,
                            IF-DEMO sim+native+Mach-O LOOP3, BRANCH#/ZBRANCH#
   Roadmap E        DONE   — NEST-DEMO nested colon + IF, sim + native true BLR
@@ -121,6 +121,7 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
 | **0.6** | Dialect waves: stack/compare, pictured `.`, memory/double, signed `/`, CATCH/THROW, ALLOCATE, LSHIFT/RSHIFT, UNLOOP/?DO; samples `wave`…`shiftloop`; host consume + STACK-HUD; tetra rows on both hosts |
 | **0.7** | Defining words + search order; ANS File-Access; `D<`/`COMPARE`/`PARSE`/`ABORT"` extras; samples `defining` `search` `files` `extras` |
 | **0.8** | ASMARM64 3.2 dual-load toolkit (Library + pack); host overlay discard; W/ADR/LDP/CSEL/BTI; `ASMARMTESTS` (64 checks); pack search-order fixes (`TCOM-ORDER`→`ASMARM64`, `AHEAD,`, `HOST-DEFS`); tetra `TCOM` green; see `STATUSASM64.md` |
+| **0.9** | Phase 4.0 debugger slice 1: `TCOMDBG`/`TDBG`/`SEE-T` on **SIMARM64**; breaks; Forth-step BL/BLR/RET; `STATUSDBG64.md`; editor polish files staged (`TCOMDBG-ED`) |
 
 **Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.7** (ASMARM64 Library + GRAPHICS + tetra `\ANS` + real TONE).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  
@@ -187,7 +188,9 @@ Tracked here so it is not lost; not blocking current TETRA/grid polish.
 
 ### Debugger (64Forth + 64TCOM)
 
-**Not started.** One Forth-facing tool with **pluggable backends**, not two programs. Console stays the debug surface (log, `.S`, `SEE`, agent). SZ-EDITOR gutter can wait until `STEP` exists.
+**Slice 1 shipped in 0.9** — track in [`STATUSDBG64.md`](STATUSDBG64.md). One Forth-facing tool with **pluggable backends**, not two programs. Console done; SZ-EDITOR highlight / quiet next. Gutter marks after editor path is solid.
+
+**Now:** `TCOMDBG` + `DBGARM64` on **SIMARM64** — `BREAK` / `WHERE` / `STEP` / `GO` / `TDEBUG` / **`TDBG`** / **`SEE-T`**. ITC `DEBUG`/`DBG` unchanged.
 
 **Same words** from the 64Forth console (later `--agent`):
 
@@ -567,6 +570,7 @@ Output locals are returned automatically — do not push them before `;` :
 - [x] **0.6** TSRC dialect waves + samples; STACK-HUD / host consume; signed `/`; CATCH/THROW; heap
 - [x] **0.7** defining/search-order; ANS files; double/string extras; PARSE/WORD/SOURCE; ABORT"
 - [x] **0.8** ASMARM64 3.2 toolkit (dual-home; host buffer/discard; practical ISA fill)
+- [x] **0.9** Phase 4.0 debugger slice 1 — `TDBG`/`SEE-T`/SIMARM64 breaks (`STATUSDBG64.md`)
 - [x] **1.1** `64HOST.fth` — HOST/COMPILER/TARGET, target mem, DEFER hooks, `U>=`
 - [x] **1.1b** Quiet `TCOM-ANEW`; GEN load chain; GEN tags; cookies
 - [x] **1.2** Symbol table + `64DIR` director (name → type/addr/uses)
@@ -588,7 +592,7 @@ Output locals are returned automatically — do not push them before `;` :
       Mach-O: C main fixup loop (same pattern) before `mprotect`  
       Fallback: `/INLINE-CALLS` (old Phase 3.3 paste leaves)  
       Detail: [`64DESIGN/Phase 3.5 ARM64 notes.txt`](64DESIGN/Phase%203.5%20ARM64%20notes.txt)
-- [ ] **4.0** Utilities (listing, xref, debugger) in `64TCOMUTILS` — see **Debugger (64Forth + 64TCOM)** below
+- [ ] **4.0** Utilities (listing, xref, debugger) in `64TCOMUTILS` — slice 1 **done** (`TDBG`/`SEE-T`); editor highlight + listing/xref still open (see **STATUSDBG64.md**)
 
 ---
 

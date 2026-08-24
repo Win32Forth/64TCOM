@@ -49,7 +49,7 @@ ALSO ASMARM64
   TCOM-ORDER
   ;
 
-: (TVER-ARM64)  ( -- )  ." 64TCOM ARM64 Version 0.8" ;
+: (TVER-ARM64)  ( -- )  ." 64TCOM ARM64 Version 0.9" ;
 ' (TVER-ARM64) IS TVERSION
 
 /LOW-HIGH
