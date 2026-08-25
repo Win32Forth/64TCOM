@@ -1,7 +1,7 @@
 # 64TCOM — Project status (living document)
 
 **Update this file when phase boundaries move.**  
-**Last updated:** 2026-08-23 — **Version 0.9** (Phase 4.0 debugger slice 1: `TDBG`/`SEE-T` on SIMARM64); see `STATUSDBG64.md`
+**Last updated:** 2026-08-24 — **Version 0.9** shipped (GitHub `v0.9`); Phase 4.0 debugger + TCOMNDX; see `STATUSDBG64.md`
 > Canonical “where are we?” for the repo.  
 > Older plain-text twin: [`64DESIGN/STATUS.txt`](64DESIGN/STATUS.txt) (kept in sync at high level).
 
@@ -121,9 +121,9 @@ Target samples use **`.fth`** again (classic TCOM/F-PC style). Dual-load will us
 | **0.6** | Dialect waves: stack/compare, pictured `.`, memory/double, signed `/`, CATCH/THROW, ALLOCATE, LSHIFT/RSHIFT, UNLOOP/?DO; samples `wave`…`shiftloop`; host consume + STACK-HUD; tetra rows on both hosts |
 | **0.7** | Defining words + search order; ANS File-Access; `D<`/`COMPARE`/`PARSE`/`ABORT"` extras; samples `defining` `search` `files` `extras` |
 | **0.8** | ASMARM64 3.2 dual-load toolkit (Library + pack); host overlay discard; W/ADR/LDP/CSEL/BTI; `ASMARMTESTS` (64 checks); pack search-order fixes (`TCOM-ORDER`→`ASMARM64`, `AHEAD,`, `HOST-DEFS`); tetra `TCOM` green; see `STATUSASM64.md` |
-| **0.9** | Phase 4.0 debugger slice 1: `TCOMDBG`/`TDBG`/`SEE-T` on **SIMARM64**; breaks; Forth-step BL/BLR/RET; `STATUSDBG64.md`; editor polish files staged (`TCOMDBG-ED`) |
+| **0.9** | Phase 4.0 debugger: `TCOMDBG`/`TDBG`/`SEE-T` on **SIMARM64**; TCOMNDX `.NDX` map; `TCOMDBG-ED` auto when SZ-EDITOR present; source-token Space/OVER; GitHub release `v0.9` |
 
-**Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.7** (ASMARM64 Library + GRAPHICS + tetra `\ANS` + real TONE).  
+**Host baseline:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.8** (TDBG host keys + editor/`DEBUG` highlight; ASMARM64 Library + GRAPHICS).  
 (Native path needs **1.0.4+**; `SYSTEM` auto-build needs **1.0.5+**.)  
 
 ### Target dialect — remaining (Layer 3 extras + product)
@@ -188,7 +188,7 @@ Tracked here so it is not lost; not blocking current TETRA/grid polish.
 
 ### Debugger (64Forth + 64TCOM)
 
-**Slice 1 shipped in 0.9** — track in [`STATUSDBG64.md`](STATUSDBG64.md). One Forth-facing tool with **pluggable backends**, not two programs. Console done; SZ-EDITOR highlight / quiet next. Gutter marks after editor path is solid.
+**Shipped in 0.9** — track in [`STATUSDBG64.md`](STATUSDBG64.md). One Forth-facing tool with **pluggable backends**, not two programs. Console + NDX map + editor highlight path; gutter marks / native BRK still later.
 
 **Now:** `TCOMDBG` + `DBGARM64` on **SIMARM64** — `BREAK` / `WHERE` / `STEP` / `GO` / `TDEBUG` / **`TDBG`** / **`SEE-T`**. ITC `DEBUG`/`DBG` unchanged.
 
@@ -570,7 +570,7 @@ Output locals are returned automatically — do not push them before `;` :
 - [x] **0.6** TSRC dialect waves + samples; STACK-HUD / host consume; signed `/`; CATCH/THROW; heap
 - [x] **0.7** defining/search-order; ANS files; double/string extras; PARSE/WORD/SOURCE; ABORT"
 - [x] **0.8** ASMARM64 3.2 toolkit (dual-home; host buffer/discard; practical ISA fill)
-- [x] **0.9** Phase 4.0 debugger slice 1 — `TDBG`/`SEE-T`/SIMARM64 breaks (`STATUSDBG64.md`)
+- [x] **0.9** Phase 4.0 debugger — `TDBG`/`SEE-T`/TCOMNDX/source-token OVER; GitHub `v0.9` (`STATUSDBG64.md`)
 - [x] **1.1** `64HOST.fth` — HOST/COMPILER/TARGET, target mem, DEFER hooks, `U>=`
 - [x] **1.1b** Quiet `TCOM-ANEW`; GEN load chain; GEN tags; cookies
 - [x] **1.2** Symbol table + `64DIR` director (name → type/addr/uses)

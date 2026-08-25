@@ -6,14 +6,15 @@ It is **not** an F-PC 16-bit translation layer. The compiler director is being r
 
 **Public domain.** 64TCOM, like classic **TCOM** and **F-PC** (Tom Zimmer and contributors), is dedicated to the public domain.
 
-**Current pack:** ARM64 **Version 0.9** (see [`STATUS.md`](STATUS.md)).  
-**Host:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.7+** recommended (ASMARM64 Library toolkit + GRAPHICS).
+**Current pack:** ARM64 **Version 0.9** (see [`STATUS.md`](STATUS.md); GitHub release [`v0.9`](https://github.com/Win32Forth/64TCOM/releases/tag/v0.9)).  
+**Host:** [64Forth](https://github.com/Win32Forth/64Forth) **1.1.8+** recommended (TDBG keys + editor highlight; ASMARM64 Library + GRAPHICS).
 
 ### Version 0.9 (ARM64) — highlight
 
-- **Phase 4.0 debugger slice 1:** `TDBG` / `TDEBUG` / `SEE-T` on **SIMARM64**; `BREAK`/`STEP`/`GO`/`WHERE`; Forth-step at BL/BLR/RET
+- **Phase 4.0 debugger:** `TDBG` / `TDEBUG` / `SEE-T` on **SIMARM64**; `BREAK`/`STEP`/`GO`/`WHERE`; Forth-step at BL/BLR/RET
+- **TCOMNDX** `.NDX` map (classic `/INDEX`); Space/OVER = one source token (e.g. `/` macro)
+- **`TCOMDBG-ED`** auto-loaded from `TARGETARM64` when SZ-EDITOR is present (highlight / quiet / side pane)
 - Monitor: [`STATUSDBG64.md`](STATUSDBG64.md); UI: `64TCOMUTILS/TCOMDBG.fth`; backend: `64TCOMARM64/DBGARM64.fth`
-- Editor polish stub: `TCOMDBG-ED.fth` (highlight / quiet console — next)
 - Builds on **0.8:** ASMARM64 3.2 dual-load toolkit + tetra `TCOM`
 
 ### Version 0.8 (ARM64)
