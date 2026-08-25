@@ -259,11 +259,16 @@ VARIABLE SM
     DROP EXIT
   THEN
 
-  \ STP X30, XZR, [SP, #-16]!  — CALL-ABS LR save (no SP model; skip)
-  DUP $A9BF7FFE = IF  DROP EXIT  THEN
+  \ STP Xt1,Xt2,[SP,#imm]!  pre-index 64-bit (CALL-ABS / prolog). No SP model → skip.
+  \ Was only A9BF7FFE (X30,XZR); APP-NAME# etc. also save X19/X20 (e.g. A9BF53F3).
+  DUP $FFC00000 AND $A9800000 = IF
+    DUP SIM-RN 31 = IF  DROP EXIT  THEN
+  THEN
 
-  \ LDP X30, XZR, [SP], #16  — CALL-ABS LR restore (SIM uses R-stack for BLR)
-  DUP $A8C17FFE = IF  DROP EXIT  THEN
+  \ LDP Xt1,Xt2,[SP],#imm  post-index 64-bit (epilog). Skip SP form.
+  DUP $FFC00000 AND $A8C00000 = IF
+    DUP SIM-RN 31 = IF  DROP EXIT  THEN
+  THEN
 
   \ ADR Xd, #imm (imm0 used for base recovery): Xd := host addr of this insn
   DUP $9F000000 AND $10000000 = IF
@@ -275,10 +280,22 @@ VARIABLE SM
 
   \ BLR Xn  — CALL-ABS loads taddr into Xn from .quad; B skips .quad
   \ SIM uses a separate return stack (hardware X30 is clobbered by BLR).
+  \ HOST-CALL, uses .quad = $C0DE000000000000|slot (never a code taddr).
+  \ Those must not jump — leave PC past BLR (host call is a no-op in SIM).
   DUP $FFFFFC1F AND $D63F0000 = IF
-    SIM-PC @ SIM-R-PUSH
     SIM-RN SIM-X@
+    DUP $FFFFFFFF00000000 AND $C0DE000000000000 = IF
+      DROP DROP EXIT                  \ host slot call: already past BLR
+    THEN
+    SIM-PC @ SIM-R-PUSH
     DUP T-CODE-BASE U>= IF HOST>T ELSE THEN
+    DUP 0< OVER T-CODE-MAX U>= OR IF
+      DROP SIM-R-POP DROP             \ undo push; stay past BLR
+      TRUE SIM-HALT !
+      SIM-STOP-BADPC SIM-STOP !
+      S" SIM: BLR bad target" TYPE CR
+      DROP EXIT
+    THEN
     SIM-PC !
     DROP EXIT
   THEN

@@ -45,6 +45,18 @@ INCLUDE MACHOARM64.fth
 \ Emitters (TIF, RET,, …) live in ASMARM64; keep them visible for 64SRC.
 ONLY FORTH ALSO ASMARM64  FORTH-WORDLIST SET-CURRENT
 INCLUDE ../64TCOMSRC/64SRC.fth
+\ Classic TCOM /INDEX (TCOMNDX.SEQ) — PC↔source map for debugger/listing
+INCLUDE ../64TCOMUTILS/TCOMNDX.fth
+INCLUDE NDXARM64.fth
+\ Editor TDBG: after NDX (TCOMDBG-ED uses NDX-*). SZ-TDBG-ARM is in EDITOR.
+ONLY FORTH ALSO EDITOR
+[DEFINED] SZ-TDBG-ARM [IF]
+  INCLUDE ../64TCOMUTILS/TCOMDBG-ED.fth
+[ELSE]
+  S" TCOMDBG-ED skipped (no SZ-EDITOR — FROMLIB FLOAD Editor/SZ-EDITOR.fth)." TYPE CR
+[THEN]
+ONLY FORTH ALSO ASMARM64
+FORTH-WORDLIST SET-CURRENT
 
 \ Dual-load directives: under TCOM, \TCOM lines load and \ANS lines are skipped.
 \ (64HOST defaults the opposite for interactive 64Forth.)
@@ -54,16 +66,6 @@ TRUE  ' \TCOM >BODY !
 \ Re-assert assembler search order (64SRC / FORTH DEFINITIONS may drop it).
 ONLY FORTH ALSO ASMARM64  FORTH-WORDLIST SET-CURRENT
 
-\ Pack wrapper: .fth → image → Mach-O entry MAIN (after 64SRC is loaded)
-: TSRC-BUILD  ( ca u -- )
-  TARGET-INIT
-  LL-INIT
-  TSRC-INCLUDE
-  ARM64-FINISH
-  S" MAIN" MACHO-ENTRY-SET
-  SAVE-MACHO-FILE
-  ;
-
 \ ----- TCOM / TCOM-CLI — parse filename, build next to source (MAIN entry) -----
 \   TCOM window/win.fth          → GUI (.m + .app)   [default / primary]
 \   TCOM-CLI samples/print.fth   → CLI (.c binary)
@@ -71,6 +73,19 @@ ONLY FORTH ALSO ASMARM64  FORTH-WORDLIST SET-CURRENT
 CREATE TCOM-SRC   256 ALLOT
 CREATE TCOM-OUT   256 ALLOT
 34 CONSTANT TCOM-QUOT
+
+\ Pack wrapper: .fth → image → Mach-O entry MAIN (after 64SRC is loaded)
+: TSRC-BUILD  ( ca u -- )
+  NDX-CLEAR
+  2DUP TCOM-SRC PLACE
+  TARGET-INIT
+  LL-INIT
+  TSRC-INCLUDE
+  ARM64-FINISH
+  S" MAIN" MACHO-ENTRY-SET
+  SAVE-MACHO-FILE
+  TCOM-SRC COUNT NDX-SAVE-AS
+  ;
 
 \ Skip blanks in the input stream
 : TCOM-SKIP-BL  ( -- )
@@ -138,12 +153,14 @@ CREATE TCOM-OUT   256 ALLOT
     S" TCOM: " TYPE TCOM-SRC COUNT TYPE
     S"  → " TYPE TCOM-OUT COUNT TYPE CR
   THEN
+  NDX-CLEAR
   TARGET-INIT
   LL-INIT
   TCOM-SRC COUNT TSRC-INCLUDE
   ARM64-FINISH
   S" MAIN" MACHO-ENTRY-SET
   SAVE-MACHO-FILE
+  TCOM-SRC COUNT NDX-SAVE-AS
   ;
 
 \ Primary build: AppKit GUI shell + .app bundle (Layer 4)

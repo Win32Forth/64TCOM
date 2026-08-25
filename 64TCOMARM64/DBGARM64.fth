@@ -47,14 +47,23 @@ VARIABLE DBG-TMP
   DBG-BEST @ SYM-GET-NAME
   ;
 
+\ RLABEL must not reuse DBG-A/DBG-U — A64-DBG-SYM@ overwrites DBG-A with the
+\ taddr under search, which made `DBG-A @ C!` store into a target address
+\ (agent: after STEP-OVER, C! to 41816 → XCSTORE). Own scratch only.
+VARIABLE DBG-LAB-A
+VARIABLE DBG-LAB-U
 : A64-DBG-RLABEL  ( i addr u -- )
-  DBG-U !  DBG-A !  DBG-I !
-  DBG-I @ 16 U>= IF  0 DBG-A @ C! EXIT  THEN
+  \ (i dest maxlen) — copy nearest SYM name for TDBG-RBUF[i] into dest.
+  DBG-LAB-U !  DBG-LAB-A !  DBG-I !
+  DBG-LAB-A @ 0= IF  EXIT  THEN
+  DBG-I @ 16 U>= IF  0 DBG-LAB-A @ C! EXIT  THEN
   TDBG-RBUF DBG-I @ CELLS + @
-  DBG-SYM@
-  DBG-U @ UMIN
-  DUP DBG-A @ C!
-  DBG-A @ 1+ SWAP CMOVE
+  DBG-SYM@                                 \ ca u
+  BEGIN DEPTH 2 > WHILE  ROT DROP  REPEAT
+  DEPTH 2 < IF  DROP 0 DBG-LAB-A @ C! EXIT  THEN
+  DBG-LAB-U @ UMIN  63 MIN
+  DUP DBG-LAB-A @ C!
+  DBG-LAB-A @ CHAR+ SWAP CMOVE
   ;
 
 : A64-DBG-RSTACK  ( addr u -- n )
@@ -120,18 +129,30 @@ VARIABLE DBG-TMP
   REPEAT
   ;
 
+\ OVER = one Forth word atomically: INTO once; if that nested a CALL, keep
+\ stepping until sim R depth is restored (do not stop inside the callee).
+\ If the callee hits unknown/# prim junk, snap out via return link.
 : A64-DBG-STEP-OVER  ( -- )
-  SIM-PC @ SIM-W@ SIM-IS-CALL? 0= IF  DBG-STEP-INTO EXIT  THEN
-  SIM-PC @ 4 + DBG-OVER-T !
   SIM-BRK-EN @ IF  SIM-PC @ SIM-BRK-SKIP !  THEN
   FALSE SIM-HALT !
+  SIM-RP @ DBG-OVER-T !
+  DBG-STEP-INTO
   BEGIN
-    SIM-HALT @ 0=
-  WHILE
+    SIM-RP @ DBG-OVER-T @ U> 0= IF EXIT THEN    \ not nested — done
+    SIM-HALT @ IF
+      BEGIN
+        SIM-RP @ DBG-OVER-T @ U>
+        SIM-R-EMPTY? 0= AND
+      WHILE
+        SIM-R-POP SIM-PC !
+      REPEAT
+      FALSE SIM-HALT !
+      SIM-STOP-NONE SIM-STOP !
+      EXIT
+    THEN
     SIM-STEP
-    SIM-PC @ DBG-OVER-T @ = IF EXIT THEN
     SIM-STOP @ SIM-STOP-BREAK = IF EXIT THEN
-  REPEAT
+  AGAIN
   ;
 
 : A64-DBG-GO  ( -- )

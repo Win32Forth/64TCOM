@@ -50,9 +50,13 @@ VARIABLE TDBG-QUIET
 VARIABLE TDBG-SESSION
 VARIABLE TDBG-DONE
 VARIABLE TDBG-ACT
+VARIABLE TDBG-PEND-ADDR      \ taddr for editor-deferred start (0 = none)
+VARIABLE TDBG-OPENED-EDITOR  \ true if TDBG-UI-OPEN entered SZ-EDIT-LOOP
 0 TDBG-QUIET !
 0 TDBG-SESSION !
 0 TDBG-DONE !
+0 TDBG-PEND-ADDR !
+0 TDBG-OPENED-EDITOR !
 
 CREATE TDBG-NAME  64 ALLOT
 CREATE TDBG-SBUF  16 CELLS ALLOT
@@ -146,25 +150,38 @@ $02000000 CONSTANT TDBG-FKEY-TAG
 134 CONSTANT TDBG-K-GO
 
 : TDBG-HANDLE-KEY  ( u -- action )
+  \ Host pushKey may deliver tagged EKEY-style (2<<24)|id or low byte only.
   DUP TDBG-FKEY-TAG AND TDBG-FKEY-TAG = IF
     $FFFFFF AND
     DUP TDBG-K-F6 = IF DROP 2 EXIT THEN
     DUP TDBG-K-F7 = IF DROP 1 EXIT THEN
     DROP 0 EXIT
   THEN
+  DUP 255 AND
+  DUP TDBG-K-F6 = IF  2DROP 2 EXIT  THEN
+  DUP TDBG-K-F7 = IF  2DROP 1 EXIT  THEN
+  DROP
   DUP TDBG-K-GO = IF DROP 3 EXIT THEN
   DUP [CHAR] g = OVER [CHAR] G = OR IF DROP 3 EXIT THEN
   DUP [CHAR] q = OVER [CHAR] Q = OR IF DROP 4 EXIT THEN
+  DUP [CHAR] o = OVER [CHAR] O = OR IF DROP 2 EXIT THEN   \ over (Xcode-safe)
+  DUP [CHAR] i = OVER [CHAR] I = OR IF DROP 1 EXIT THEN   \ into (Xcode-safe)
   DUP BL = IF DROP 2 EXIT THEN
   DUP 13 = IF DROP 2 EXIT THEN
   DROP 0
   ;
 
+\ Host F6/F7 land on the KEY queue while TDBG-ARM-KEYS is set. Default EKEY
+\ for console; TCOMDBG-ED replaces this with KEY when the editor is up.
+DEFER TDBG-WAIT-KEY
+: TDBG-WAIT-KEY-D  ( -- u )  EKEY ;
+' TDBG-WAIT-KEY-D IS TDBG-WAIT-KEY
+
 : TDBG-PAUSE  ( -- action )
   TDBG-UI-PAUSE
   TDBG-HOST-ARM
   BEGIN
-    EKEY TDBG-HANDLE-KEY
+    TDBG-WAIT-KEY TDBG-HANDLE-KEY
     DUP IF  TDBG-HOST-DISARM EXIT  THEN
     DROP
   AGAIN
@@ -182,6 +199,45 @@ $02000000 CONSTANT TDBG-FKEY-TAG
   S" GO done X0=" TYPE DBG-X0@ . CR  WHERE
   ;
 
+\ True if PC's symbol name ends in '#' (FETCH# STORE# PLUS# …).
+\ Those are real CALLs, but source-level step treats them as one opaque word.
+\ (Do not use SYM-LIBRARY alone — too broad / easy to mis-classify.)
+: TDBG-LIB-STOP?  ( -- f )
+  DBG-PC@ DBG-SYM@
+  DUP 0= IF  2DROP FALSE EXIT  THEN
+  2DUP + 1- C@ [CHAR] # =
+  NIP NIP
+  ;
+
+\ Leave FETCH#/STORE#/… without simulating their bodies (many use
+\ unimplemented opcodes / HOST-CALL). Snap to the sim return link.
+\ Space then ≈ one user-source word, not prim plumbing.
+: TDBG-SKIP-LIB  ( -- )
+  32 0 DO
+    DBG-HALTED? IF  UNLOOP EXIT  THEN
+    TDBG-LIB-STOP? 0= IF  UNLOOP EXIT  THEN
+    [DEFINED] SIM-R-EMPTY? [IF]
+      SIM-R-EMPTY? IF
+        DBG-STEP-INTO                   \ no link — try one real step
+      ELSE
+        SIM-R-POP SIM-PC !              \ return to caller
+      THEN
+    [ELSE]
+      DBG-STEP-INTO
+    [THEN]
+  LOOP
+  ;
+
+\ Space/OVER = one *source* token. Default: one CALL + skip #.
+\ NDXARM64 replaces this so multi-CALL macros (e.g. / → TOR#…NIP#)
+\ count as a single Space.
+DEFER TDBG-STEP-OVER-SRC
+: TDBG-STEP-OVER-SRC-D  ( -- )
+  DBG-STEP-OVER
+  TDBG-SKIP-LIB
+  ;
+' TDBG-STEP-OVER-SRC-D IS TDBG-STEP-OVER-SRC
+
 : TDBG-RUN-LOOP  ( -- )
   -1 TDBG-SESSION !
   0 TDBG-DONE !
@@ -191,8 +247,15 @@ $02000000 CONSTANT TDBG-FKEY-TAG
       -1 TDBG-DONE !
     ELSE
       TDBG-PAUSE TDBG-ACT !
-      TDBG-ACT @ 1 = IF  DBG-STEP-INTO  ELSE
-      TDBG-ACT @ 2 = IF  DBG-STEP-OVER  ELSE
+      TDBG-ACT @ 1 = IF
+        S" [TDBG] INTO " TYPE DBG-PC@ DBG-SYM@ TYPE CR
+        DBG-STEP-INTO
+        TDBG-SKIP-LIB
+      ELSE
+      TDBG-ACT @ 2 = IF
+        S" [TDBG] OVER " TYPE DBG-PC@ DBG-SYM@ TYPE CR
+        TDBG-STEP-OVER-SRC
+      ELSE
       TDBG-ACT @ 3 = IF
         DBG-GO
         S" TDBG done X0=" TYPE DBG-X0@ . CR
@@ -210,7 +273,14 @@ $02000000 CONSTANT TDBG-FKEY-TAG
   TDBG-UI-DONE
   ;
 
+: TDBG-CLEAR-STACK  ( -- )
+  \ TCOM often leaves a stray 0 (or more) on the host stack; that poisons
+  \ later CMOVE/C@ in editor highlight (XCFETCH bad access).
+  BEGIN DEPTH WHILE DROP REPEAT
+  ;
+
 : TDEBUG  ( "name" -- )
+  TDBG-CLEAR-STACK
   PARSE-NAME
   DUP 0= IF  2DROP S" TDEBUG needs a name" TYPE CR EXIT  THEN
   2DUP TDBG-NAME PLACE
@@ -218,8 +288,14 @@ $02000000 CONSTANT TDBG-FKEY-TAG
     TDBG-NAME COUNT TYPE S"  ?" TYPE CR EXIT
   THEN
   SYM-ADDR@
+  DUP TDBG-PEND-ADDR !
+  DROP                       \ do not leave taddr under UI-OPEN / SZ-LOAD
+  0 TDBG-OPENED-EDITOR !
   TDBG-UI-OPEN
-  DBG-START
+  \ If UI opened the editor loop, TDBG already ran inside it via SZ-TDBG-XT.
+  TDBG-OPENED-EDITOR @ IF  0 TDBG-PEND-ADDR !  EXIT  THEN
+  TDBG-PEND-ADDR @ DBG-START
+  0 TDBG-PEND-ADDR !
   TDBG-RUN-LOOP
   ;
 
