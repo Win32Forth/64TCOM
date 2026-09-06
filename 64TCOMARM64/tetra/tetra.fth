@@ -1,18 +1,19 @@
-\ tetra.fth — Tetris dual-load: 64TCOM .app *and* interactive 64Forth GRAPHICS
+\ tetra.fth — Tetris triple-load: 64TCOM .app, interactive 64Forth GRAPHICS,
+\ and (later) Emitter stand-alone. See 64Forth Docs/APPKIT.md.
 \
 \ TCOM (.app):
 \   FLOAD TARGETARM64.fth
 \   TCOM tetra/tetra.fth
 \   open tetra/tetra.app
 \
-\ ANS / 64Forth (GRAPHICS window — not the console):
-\   S" AppOutput/app-output.fth" FROMLIB INCLUDED
+\ ANS / 64Forth (GRAPHICS window — not the console; cold GRAPHICS already present):
 \   ONLY FORTH ALSO GRAPHICS
 \   S" …/64TCOMARM64/tetra/tetra.fth" INCLUDED
 \   MAIN
 \
-\ \ANS / \TCOM line directives select host-specific bits (DIRECTIVE from
-\ 64HOST under TCOM, or from AppOutput under interactive 64Forth).
+\ \ANS / \TCOM / \EMITTER line directives select host-specific bits (DIRECTIVE
+\ from 64HOST under TCOM, or from Kernel/app-output under interactive 64Forth).
+\ \EMITTER stays false on 64Forth until the Emitter compile path arms it.
 \
 \ Character Tetris after Marc Hawley (TCOM/F-PC). Retargeted for 8-byte cells.
 \ GET-CHAR / AT / KEY? / TONE / CASE etc. are dialect / host prims.
